@@ -46,9 +46,10 @@ export const sessionConfig = {
   rolling: true, // Refresh session with each request
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
+    httpOnly: true, // Prevent JavaScript access to the cookie
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    path: '/', // Cookie is available for all paths
   },
   name: 'sessionId',
   proxy: process.env.NODE_ENV === 'production', // Trust proxy in production

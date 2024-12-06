@@ -15,6 +15,32 @@ export default function SignIn() {
   });
   const [error, setError] = useState('');
 
+  // Check if user is already authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/check', {
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.authenticated) {
+            setLocation('/dashboard');
+          }
+        }
+      } catch (error) {
+        // If there's an error checking auth, we stay on the signin page
+        console.error('Auth check error:', error);
+      }
+    };
+
+    checkAuth();
+  }, [setLocation]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
