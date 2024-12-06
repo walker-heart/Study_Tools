@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -6,8 +6,22 @@ import MemorizationSettings from './MemorizationSettings';
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [showTools, setShowTools] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const { theme } = useSettings();
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  // Handle click outside to close settings
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+        setShowSettings(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
     <div className={`fixed left-0 top-0 h-full z-50 transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-48'}`}>
@@ -34,30 +48,40 @@ export default function Sidebar() {
           </Link>
 
           <div className="space-y-2">
-            <p className="text-sm font-semibold px-2">Tools</p>
-            <Link href="/flashcards">
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-              >
-                📝 Flashcards
-              </Button>
-            </Link>
-            <Link href="/memorization">
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-              >
-                🧠 Memorization
-              </Button>
-            </Link>
-          </div>
-
-          <div className="space-y-2">
             <Button
               variant="ghost"
               className="w-full justify-start"
-              onClick={() => setShowSettings(!showSettings)}
+              onClick={() => setShowTools(!showTools)}
+            >
+              🛠️ Tools {showTools ? '▼' : '▶'}
+            </Button>
+            {showTools && (
+              <div className="pl-4 space-y-2">
+                <Link href="/flashcards">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                  >
+                    📝 Flashcards
+                  </Button>
+                </Link>
+                <Link href="/memorization">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start"
+                  >
+                    🧠 Memorization
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2" ref={settingsRef}>
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onMouseEnter={() => setShowSettings(true)}
             >
               ⚙️ Settings
             </Button>
