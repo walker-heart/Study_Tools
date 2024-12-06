@@ -11,6 +11,20 @@ export default function Sidebar() {
   const { theme } = useSettings();
   const settingsRef = useRef<HTMLDivElement>(null);
 
+  // Handle click outside to close settings
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+        setShowSettings(false);
+      }
+    }
+
+    if (showSettings) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showSettings]);
+
   return (
     <div className={`fixed left-0 top-0 h-full z-50 transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-48'}`}>
       {/* Toggle button */}
@@ -68,19 +82,18 @@ export default function Sidebar() {
           <div 
             className="space-y-2" 
             ref={settingsRef}
-            onMouseLeave={() => setShowSettings(false)}
           >
             <Button
               variant="ghost"
               className="w-full justify-start"
-              onMouseEnter={() => setShowSettings(true)}
+              onClick={() => setShowSettings(!showSettings)}
+              onMouseEnter={() => !showSettings && setShowSettings(true)}
             >
-              ⚙️ Settings
+              ⚙️ Settings {showSettings ? '▼' : '▶'}
             </Button>
             {showSettings && (
               <div 
                 className="absolute left-48 top-0 mt-4"
-                onMouseEnter={() => setShowSettings(true)}
               >
                 <MemorizationSettings />
               </div>
