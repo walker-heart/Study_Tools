@@ -40,16 +40,24 @@ export default function Memorization() {
         let displayWord = '';
         
         // Compare each character
-        for (let i = 0; i < word.length; i++) {
+        const maxLen = Math.max(word.length, typedPart.length);
+        for (let i = 0; i < maxLen; i++) {
           if (i < typedPart.length) {
             // Already typed characters
-            const isCorrect = typedPart[i] === word[i];
-            displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedPart[i]}</span>`;
+            if (i < word.length) {
+              // Within word boundaries
+              const isCorrect = typedPart[i] === word[i];
+              displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedPart[i]}</span>`;
+            } else {
+              // Extra characters beyond word length
+              displayWord += `<span style="color: red">${typedPart[i]}</span>`;
+            }
           } else if (i === typedPart.length) {
             // Current typing position - add caret here
-            displayWord += '<span class="blink">|</span>_';
-          } else {
-            // Remaining untyped characters
+            displayWord += '<span class="blink">|</span>';
+            if (i < word.length) displayWord += '_';
+          } else if (i < word.length) {
+            // Remaining untyped characters within word length
             displayWord += '_';
           }
         }
