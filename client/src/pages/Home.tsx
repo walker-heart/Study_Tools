@@ -26,16 +26,19 @@ export default function Home() {
         header: true,
         complete: (results) => {
           const data = results.data
+            .map((row: any, index: number) => ({
+              ...row,
+              originalIndex: index + 2 // Add 2 because Papa.parse starts counting from 0
+            }))
             .filter((row: any) => {
               return row['Vocab Word'] && 
                 row['Identifying Part Of Speach'] && 
                 row['Definition'] && 
                 row['Example Sentance'];
             })
-            // Map starting from index 1 (after header) and subtract 1 for card numbers
-            .map((row: any, index: number) => ({
+            .map((row: any) => ({
               ...row,
-              lineNumber: index + 2 - 1 // Add 2 for CSV row number (header is row 1), then subtract 1 as requested
+              lineNumber: row.originalIndex - 1 // Subtract 1 from the cell number as requested
             }));
           resolve(data as VocabCard[]);
         },
