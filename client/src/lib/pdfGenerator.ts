@@ -42,6 +42,7 @@ function createPDF(data: VocabCard[]) {
   });
 
   const cardGroups = chunkArray(data, 4);
+  
   // Page dimensions (landscape)
   const pageWidth = 11;  // inches
   const pageHeight = 8.5; // inches
@@ -66,10 +67,14 @@ function createPDF(data: VocabCard[]) {
       pdf.addPage();
     }
 
-    // Front side
-    group.forEach((card, index) => {
-      const row = Math.floor(index / 2);
-      const col = index % 2;
+    // Front side - Order: 1,3,2,4
+    const frontOrder = [0, 2, 1, 3]; // Maps to 1,3,2,4
+    frontOrder.forEach((orderIndex, displayIndex) => {
+      const card = group[orderIndex];
+      if (!card) return;
+
+      const row = Math.floor(displayIndex / 2);
+      const col = displayIndex % 2;
       const x = marginLeft + (col * (cardWidth + horizontalSpacing));
       const y = marginTop + (row * (cardHeight + verticalSpacing));
       
@@ -79,14 +84,14 @@ function createPDF(data: VocabCard[]) {
       pdf.rect(x, y, cardWidth, cardHeight);
 
       // Card number
-      const cardNumber = String(groupIndex * 4 + index + 1);
+      const cardNumber = String(groupIndex * 4 + orderIndex + 1);
       pdf.setFontSize(12);
       pdf.text(`#${cardNumber}`, x + 0.2, y + 0.3);
 
       // Vocab word (centered)
       const word = card['Vocab Word'] || '';
       pdf.setFontSize(20);
-      const wordY = y + (cardHeight * 0.45); // Position word slightly above center
+      const wordY = y + (cardHeight * 0.45);
       pdf.text(word, x + (cardWidth / 2), wordY, {
         align: 'center'
       });
@@ -94,32 +99,27 @@ function createPDF(data: VocabCard[]) {
       // Part of speech (centered)
       const pos = card['Identifying Part Of Speech'] || '';
       pdf.setFontSize(12);
-      const posY = y + (cardHeight * 0.65); // Position part of speech below word
+      const posY = y + (cardHeight * 0.65);
       pdf.text(pos, x + (cardWidth / 2), posY, {
         align: 'center'
       });
     });
 
-    // Back side
+    // Back side - Order: 2,4,1,3
     pdf.addPage();
-    group.forEach((card, index) => {
-      const row = Math.floor(index / 2);
-      const col = index % 2;
+    const backOrder = [1, 3, 0, 2]; // Maps to 2,4,1,3
+    backOrder.forEach((orderIndex, displayIndex) => {
+      const card = group[orderIndex];
+      if (!card) return;
+
+      const row = Math.floor(displayIndex / 2);
+      const col = displayIndex % 2;
       
-      // Calculate rotated position for back side
-      // Calculate front side position
+      // Calculate front side position (for alignment)
       const frontX = marginLeft + (col * (cardWidth + horizontalSpacing));
       const frontY = marginTop + (row * (cardHeight + verticalSpacing));
       
-      // For back side, we need to maintain the same position but adjust the content order
-      // When page is flipped on long edge:
-      // - Top cards (1,3) should show content for bottom cards (2,4)
-      // - Bottom cards (2,4) should show content for top cards (1,3)
-      const isTopRow = row === 0;
-      const adjustedIndex = isTopRow ? index + 2 : index - 2;
-      const adjustedCard = group[adjustedIndex];
-      
-      // Keep the same physical position but swap the content
+      // Calculate back position (flipped on long edge)
       const backX = pageWidth - (frontX + cardWidth);
       const backY = pageHeight - (frontY + cardHeight);
 
@@ -129,16 +129,15 @@ function createPDF(data: VocabCard[]) {
       pdf.rect(backX, backY, cardWidth, cardHeight);
 
       // Card number
-      const cardNumber = String(groupIndex * 4 + index + 1);
+      const cardNumber = String(groupIndex * 4 + orderIndex + 1);
       pdf.setFontSize(12);
       pdf.text(`#${cardNumber}`, backX + 0.2, backY + 0.3);
 
       // Definition
       pdf.setFontSize(11);
-      // Use the adjusted card data for the back side content
-      const definition = adjustedCard['Definition'] || '';
+      const definition = card['Definition'] || '';
       const wrappedDefinition = wrapText(definition, 40);
-      let textY = backY + 0.7; // Start text position
+      let textY = backY + 0.7;
       
       wrappedDefinition.forEach(line => {
         if (line.trim()) {
@@ -147,10 +146,10 @@ function createPDF(data: VocabCard[]) {
         }
       });
 
-      // Example sentence from adjusted card
-      const sentence = adjustedCard['Example Sentence'] || '';
+      // Example sentence
+      const sentence = card['Example Sentence'] || '';
       const wrappedSentence = wrapText(sentence, 40);
-      textY += 0.2; // Add space between definition and sentence
+      textY += 0.2;
       
       wrappedSentence.forEach(line => {
         if (line.trim()) {
