@@ -21,18 +21,22 @@ export async function generatePDF(file: File): Promise<void> {
           // Log headers for debugging
           console.log('CSV Headers:', results.meta.fields);
           
-          // Map data, keeping original row numbers before filtering
+          // Map data with line numbers before filtering
           const data = results.data
             .map((row: any, index: number) => ({
               ...row,
-              lineNumber: index + 2 - 1 // Convert to 0-based index, add 2 for CSV row number, subtract 1 as requested
+              originalIndex: index + 2 // Add 2 because Papa.parse starts counting from 0
             }))
             .filter((row: any) => {
               return row['Vocab Word'] && 
                 row['Identifying Part Of Speach'] && 
                 row['Definition'] && 
                 row['Example Sentance'];
-            });
+            })
+            .map((row: any) => ({
+              ...row,
+              lineNumber: row.originalIndex - 1 // Subtract 1 from the cell number as requested
+            }));
           
           if (data.length === 0) {
             throw new Error('No valid data found in CSV file. Please ensure all required columns are present: Vocab Word, Identifying Part Of Speach, Definition, Example Sentance');
@@ -113,9 +117,9 @@ function createPDF(data: VocabCard[]) {
       pdf.text(word, x + (cardWidth / 2), y + (cardHeight * 0.6), { align: 'center' });
 
       // Part of speech (below word)
-      const pos = card['Identifying Part Of Speach'] || '';
-      pdf.setFontSize(16);
-      pdf.text(pos, x + (cardWidth / 2), y + (cardHeight * 0.8), { align: 'center' });
+      const pos = (card['Identifying Part Of Speach'] || '').toLowerCase();
+      pdf.setFontSize(14);
+      pdf.text(pos, x + (cardWidth / 2), y + (cardHeight * 0.75), { align: 'center' });
     });
 
     // Back side page
