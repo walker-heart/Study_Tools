@@ -79,30 +79,28 @@ export default function Memorization() {
           const inputText = currentText;
           let displayWord = '';
           
-          // Process each character of the current word
-          for (let i = 0; i < word.length; i++) {
-            if (i === 0) {
-              // First letter: show in green if typed correctly, red if wrong
-              if (inputText.length > 0) {
-                const isCorrect = inputText[0] === word[0];
-                displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${word[0]}</span>`;
-              } else {
-                displayWord += word[0];
-              }
-            } else if (i < inputText.length) {
-              // Show typed characters in green (correct) or red (incorrect)
-              const isCorrect = inputText[i] === word[i];
-              displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${word[i]}</span>`;
-            } else {
-              // Show underscore for untyped characters
+          if (inputText.length === 0) {
+            // Show cursor at start before typing begins
+            displayWord = '<span class="blink">|</span>';
+            for (let i = 0; i < word.length; i++) {
               displayWord += '_';
             }
+          } else {
+            // Handle typed text
+            for (let i = 0; i < word.length; i++) {
+              const isCorrect = inputText[i] === word[i];
+              if (i < inputText.length) {
+                displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${word[i]}</span>`;
+              } else {
+                displayWord += '_';
+              }
+            }
+            displayWord += '<span class="blink">|</span>';
           }
-          displayWord += '<span class="blink">|</span>';
           return displayWord;
         } else {
-          // Future words: show first letter and underscores for remaining letters
-          return word[0] + '_'.repeat(word.length - 1);
+          // Future words: show all letters as underscores
+          return '_'.repeat(word.length);
         }
       }).join(' ');
       
