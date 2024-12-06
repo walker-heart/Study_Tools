@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toaster";
 import Home from "./pages/Home";
 import Flashcards from "./pages/Flashcards";
 import Memorization from "./pages/Memorization";
+import MemorizationEasy from "./pages/MemorizationEasy";
 import MemorizationMedium from "./pages/MemorizationMedium";
 
 function Router() {
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/flashcards" component={Flashcards} />
       <Route path="/memorization" component={Memorization} />
+      <Route path="/memorization-easy" component={MemorizationEasy} />
       <Route path="/memorization-medium" component={MemorizationMedium} />
       <Route>
         <div className="container mx-auto px-4 py-8 text-center">
