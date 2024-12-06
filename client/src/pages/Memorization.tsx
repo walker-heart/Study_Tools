@@ -4,24 +4,12 @@ import { Button } from "@/components/ui/button";
 
 type GameMode = 'easy' | 'medium' | 'hard' | 'test';
 
-interface DisplayOptions {
-  showFullText: boolean;
-  showPartial: boolean;
-  showHints: boolean;
+interface GameStats {
+  startTime: number;
+  wordsTyped: number;
+  errors: number;
+  totalWords: number;
 }
-
-const getModeDisplay = (mode: GameMode): DisplayOptions => {
-  switch (mode) {
-    case 'easy':
-      return { showFullText: false, showPartial: true, showHints: true };
-    case 'medium':
-      return { showFullText: false, showPartial: true, showHints: true };
-    case 'hard':
-      return { showFullText: false, showPartial: false, showHints: true };
-    case 'test':
-      return { showFullText: false, showPartial: false, showHints: false };
-  }
-};
 
 export default function Memorization() {
   const [mode, setMode] = useState<GameMode | ''>('');
@@ -30,6 +18,13 @@ export default function Memorization() {
   const [currentText, setCurrentText] = useState('');
   const [words, setWords] = useState<string[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [gameStats, setGameStats] = useState<GameStats>({
+    startTime: 0,
+    wordsTyped: 0,
+    errors: 0,
+    totalWords: 0
+  });
+  
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const typingAreaRef = useRef<HTMLDivElement>(null);
 
@@ -38,73 +33,113 @@ export default function Memorization() {
       focusInput();
       const wordsArray = text.trim().split(/\s+/).filter(word => word.length > 0);
       setWords(wordsArray);
+      setGameStats({
+        startTime: Date.now(),
+        wordsTyped: 0,
+        errors: 0,
+        totalWords: wordsArray.length
+      });
       updateDisplay();
     }
-  }, [showGame]);
+  }, [showGame, mode]);
 
-  const handleTyping = () => {
-    if (!hiddenInputRef.current || !typingAreaRef.current || !mode) return;
-
-    const inputValue = hiddenInputRef.current.value;
-    setCurrentText(inputValue);
-
-    if (mode === 'easy') {
-      const currentWord = words[currentWordIndex];
-      if (!currentWord) return;
-
-      if (inputValue === currentWord) {
-        hiddenInputRef.current.value = '';
-        setCurrentText('');
-        setCurrentWordIndex(prev => {
-          // Just move to next word, don't end the game
-          return (prev + 1) % words.length;
-        });
+  const getWordDisplay = (word: string, index: number, mode: GameMode) => {
+    if (index < currentWordIndex) {
+      // Already typed words
+      return `<span style="color: gray">${word}</span>`;
+    } 
+    
+    if (index === currentWordIndex) {
+      // Current word
+      if (currentText.length === 0) {
+        // Show initial state with cursor
+        let display = '<span class="blink">|</span>';
+        if (mode === 'easy') {
+          // In easy mode, show the word faded
+          display += `<span style="color: #666">${word}</span>`;
+        } else {
+          // In other modes, show underscores
+          display += '_'.repeat(word.length);
+        }
+        return display;
       }
+
+      // Handling typed text
+      let displayWord = '';
+      for (let i = 0; i < Math.max(word.length, currentText.length); i++) {
+        if (i < currentText.length) {
+          const isCorrect = currentText[i] === word[i];
+          const char = word[i] || '';
+          displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${char}</span>`;
+        } else if (mode === 'easy' || mode === 'medium') {
+          displayWord += word[i]; // Show remaining letters in easy/medium mode
+        } else {
+          displayWord += '_'; // Show underscores in hard/test mode
+        }
+      }
+      return displayWord + '<span class="blink">|</span>';
     }
 
-    updateDisplay();
+    // Future words
+    switch (mode) {
+      case 'easy':
+        return `<span style="color: #666">${word}</span>`; // Show full word faded
+      case 'medium':
+        return word[0] + '_'.repeat(word.length - 1); // Show first letter
+      case 'hard':
+      case 'test':
+        return '_'.repeat(word.length); // Show only underscores
+    }
   };
 
   const updateDisplay = () => {
     if (!typingAreaRef.current || !mode) return;
 
-    if (mode === 'easy') {
-      const displayText = words.map((word, index) => {
-        if (index < currentWordIndex) {
-          // Show completed words in gray
-          return `<span style="color: gray">${word}</span>`;
-        } else if (index === currentWordIndex) {
-          // Current word being typed
-          const inputText = currentText;
-          let displayWord = '';
-          
-          if (inputText.length === 0) {
-            // Show cursor at start before typing begins
-            displayWord = '<span class="blink">|</span>';
-            for (let i = 0; i < word.length; i++) {
-              displayWord += '_';
-            }
-          } else {
-            // Handle typed text
-            for (let i = 0; i < word.length; i++) {
-              const isCorrect = inputText[i] === word[i];
-              if (i < inputText.length) {
-                displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${word[i]}</span>`;
-              } else {
-                displayWord += '_';
-              }
-            }
-            displayWord += '<span class="blink">|</span>';
-          }
-          return displayWord;
-        } else {
-          // Future words: show all letters as underscores
-          return '_'.repeat(word.length);
+    const displayText = words.map((word, index) => 
+      getWordDisplay(word, index, mode)
+    ).join(' ');
+    
+    typingAreaRef.current.innerHTML = displayText;
+  };
+
+  const handleTyping = () => {
+    if (!hiddenInputRef.current || !mode) return;
+
+    const inputValue = hiddenInputRef.current.value;
+    const currentWord = words[currentWordIndex];
+    
+    setCurrentText(inputValue);
+
+    // Check for word completion
+    if (inputValue === currentWord) {
+      hiddenInputRef.current.value = '';
+      setCurrentText('');
+      setCurrentWordIndex(prev => {
+        const next = prev + 1;
+        if (next >= words.length && mode === 'test') {
+          // End game in test mode
+          const endTime = Date.now();
+          const timeElapsed = (endTime - gameStats.startTime) / 1000;
+          alert(`Test completed!\nTime: ${timeElapsed.toFixed(2)}s\nWords: ${words.length}\nWPM: ${((words.length / timeElapsed) * 60).toFixed(2)}`);
+          setShowGame(false);
+          return prev;
         }
-      }).join(' ');
-      
-      typingAreaRef.current.innerHTML = displayText;
+        return next % words.length;
+      });
+      setGameStats(prev => ({
+        ...prev,
+        wordsTyped: prev.wordsTyped + 1
+      }));
+    } else if (inputValue.length > currentWord.length) {
+      // Count as an error if typed more than word length
+      setGameStats(prev => ({
+        ...prev,
+        errors: prev.errors + 1
+      }));
+      hiddenInputRef.current.value = inputValue.slice(0, currentWord.length);
     }
+
+    updateDisplay();
   };
 
   const handleKeyPress = (event: React.KeyboardEvent) => {
@@ -153,17 +188,37 @@ export default function Memorization() {
             />
 
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-              <Button onClick={() => startGame('easy')}>Easy</Button>
-              <Button onClick={() => startGame('medium')}>Medium</Button>
-              <Button onClick={() => startGame('hard')}>Hard</Button>
-              <Button onClick={() => startGame('test')}>Test</Button>
+              <Button 
+                onClick={() => startGame('easy')}
+                className="bg-green-500 hover:bg-green-600"
+              >
+                Easy
+              </Button>
+              <Button 
+                onClick={() => startGame('medium')}
+                className="bg-yellow-500 hover:bg-yellow-600"
+              >
+                Medium
+              </Button>
+              <Button 
+                onClick={() => startGame('hard')}
+                className="bg-orange-500 hover:bg-orange-600"
+              >
+                Hard
+              </Button>
+              <Button 
+                onClick={() => startGame('test')}
+                className="bg-red-500 hover:bg-red-600"
+              >
+                Test
+              </Button>
             </div>
           </div>
         </Card>
       ) : (
         <div className="space-y-4">
           <Card 
-            className="p-6 min-h-[400px] cursor-text" 
+            className="p-6 min-h-[400px] cursor-text relative" 
             onClick={focusInput}
           >
             <div 
@@ -179,14 +234,24 @@ export default function Memorization() {
               onKeyDown={handleKeyPress}
               autoFocus
             />
+            {mode === 'test' && (
+              <div className="absolute top-4 right-4 text-sm">
+                Words: {gameStats.wordsTyped}/{gameStats.totalWords}
+              </div>
+            )}
           </Card>
-          <div className="flex justify-center">
+          <div className="flex justify-between items-center">
             <Button 
               onClick={() => setShowGame(false)}
               className="w-32"
             >
               Back
             </Button>
+            {mode === 'test' && (
+              <div className="text-sm">
+                Errors: {gameStats.errors}
+              </div>
+            )}
           </div>
         </div>
       )}
