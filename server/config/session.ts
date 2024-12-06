@@ -48,7 +48,7 @@ export const sessionConfig = {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true, // Prevent JavaScript access to the cookie
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax' as const,
+    sameSite: (process.env.NODE_ENV === 'production' ? 'strict' : 'lax') as 'strict' | 'lax',
     path: '/', // Cookie is available for all paths
   },
   name: 'sessionId',
