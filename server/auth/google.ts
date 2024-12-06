@@ -7,7 +7,7 @@ const router = Router();
 const oauth2Client = new OAuth2Client(
   env.VITE_GOOGLE_CLIENT_ID,
   env.GOOGLE_CLIENT_SECRET,
-  `${env.APP_URL}/api/auth/google/callback`
+  `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/api/auth/google/callback`
 );
 
 router.get('/google', (req, res) => {
