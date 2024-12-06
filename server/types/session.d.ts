@@ -2,7 +2,11 @@ import 'express-session';
 
 declare module 'express-session' {
   interface SessionData {
-    userId: number;
-    email: string;
+    user?: {
+      email: string;
+      name: string;
+      picture?: string;
+      googleId?: string;
+    };
   }
 }

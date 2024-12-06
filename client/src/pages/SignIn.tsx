@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSettings } from '@/contexts/SettingsContext';
+import { GoogleAuth } from '@/components/GoogleAuth';
+import { Separator } from '@/components/ui/separator';
 
 export default function SignIn() {
   const [, setLocation] = useLocation();
@@ -98,10 +100,23 @@ export default function SignIn() {
           )}
           
           <Button type="submit" className="w-full">
-            Sign In
+            Sign In with Email
           </Button>
 
-          <div className="text-center">
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Or continue with
+              </span>
+            </div>
+          </div>
+
+          <GoogleAuth />
+
+          <div className="text-center mt-4">
             <span className="text-sm">Don't have an account? </span>
             <Button variant="link" onClick={() => setLocation('/signup')} className="text-sm">
               Sign Up
