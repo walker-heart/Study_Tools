@@ -31,7 +31,8 @@ export async function generatePDF(file: File): Promise<void> {
             const hasRequiredFields = row['Vocab Word'] && 
               row['Identifying Part Of Speach'] && 
               row['Definition'] && 
-              row['Example Sentance'];
+              row['Example Sentance'] &&
+              row.lineNumber;
               
             if (!hasRequiredFields) {
               console.log('Invalid row:', row);
