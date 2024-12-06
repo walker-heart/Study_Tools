@@ -52,7 +52,6 @@ export default function Memorization() {
       const currentWord = words[currentWordIndex];
       if (!currentWord) return;
 
-      // Check if the current input matches the current word
       if (inputValue === currentWord) {
         hiddenInputRef.current.value = '';
         setCurrentText('');
@@ -105,9 +104,6 @@ export default function Memorization() {
       }).join(' ');
       
       typingAreaRef.current.innerHTML = displayText;
-    } else {
-      // Implementation for other modes...
-      typingAreaRef.current.innerHTML = text;
     }
   };
 
