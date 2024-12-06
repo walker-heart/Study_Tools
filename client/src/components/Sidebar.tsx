@@ -28,7 +28,7 @@ export default function Sidebar() {
               variant="ghost"
               className="w-full justify-start"
             >
-              🏠 Study Tools Hub
+              🏠 Home
             </Button>
           </Link>
 

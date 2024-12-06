@@ -1,10 +1,6 @@
-import { useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { SelectValue, SelectTrigger, SelectContent, SelectItem, Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-
 import { useSettings } from "@/contexts/SettingsContext";
 
 export default function MemorizationSettings() {
@@ -15,7 +11,6 @@ export default function MemorizationSettings() {
     setFontFamily,
     theme,
   } = useSettings();
-  const [isOpen, setIsOpen] = useState(false);
 
   const fontOptions = [
     { value: 'monospace', label: 'Monospace' },
@@ -24,52 +19,41 @@ export default function MemorizationSettings() {
   ];
 
   return (
-    <div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setIsOpen(!isOpen)}
-        className="mb-2"
-      >
-        ⚙️ Settings {isOpen ? '▼' : '▶'}
-      </Button>
-      
-      {isOpen && (
-        <Card className={`p-4 w-64 shadow-lg ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Font Size</Label>
-              <Slider
-                value={[fontSize]}
-                onValueChange={([value]) => setFontSize(value)}
-                min={12}
-                max={24}
-                step={1}
-                className="w-full"
-              />
-              <div className="text-sm text-gray-500 text-right">
-                {fontSize}px
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Font Family</Label>
-              <Select value={fontFamily} onValueChange={setFontFamily}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a font" />
-                </SelectTrigger>
-                <SelectContent>
-                  {fontOptions.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+    <div className={`w-full max-w-xl mx-auto p-4 ${theme === 'dark' ? 'text-white' : ''}`}>
+      <div className="flex items-center gap-8">
+        <div className="flex-1 space-y-1">
+          <Label className="text-sm">Font Size</Label>
+          <div className="flex items-center gap-4">
+            <Slider
+              value={[fontSize]}
+              onValueChange={([value]) => setFontSize(value)}
+              min={12}
+              max={24}
+              step={1}
+              className="flex-1"
+            />
+            <span className="text-sm text-muted-foreground w-12 text-right">
+              {fontSize}px
+            </span>
           </div>
-        </Card>
-      )}
+        </div>
+
+        <div className="w-48">
+          <Label className="text-sm">Font</Label>
+          <Select value={fontFamily} onValueChange={setFontFamily}>
+            <SelectTrigger className="h-8">
+              <SelectValue placeholder="Select a font" />
+            </SelectTrigger>
+            <SelectContent>
+              {fontOptions.map(option => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
     </div>
   );
 }
