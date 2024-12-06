@@ -32,9 +32,10 @@ export default function Home() {
                 row['Definition'] && 
                 row['Example Sentance'];
             })
+            // Map starting from index 1 (after header) and subtract 1 for card numbers
             .map((row: any, index: number) => ({
               ...row,
-              lineNumber: index + 1
+              lineNumber: index + 2 - 1 // Add 2 for CSV row number (header is row 1), then subtract 1 as requested
             }));
           resolve(data as VocabCard[]);
         },
