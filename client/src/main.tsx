@@ -5,6 +5,7 @@ import "./index.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
+import { SettingsProvider } from "./contexts/SettingsContext";
 import Home from "./pages/Home";
 import Flashcards from "./pages/Flashcards";
 import Memorization from "./pages/Memorization";
@@ -35,8 +36,10 @@ function Router() {
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <Router />
-      <Toaster />
+      <SettingsProvider>
+        <Router />
+        <Toaster />
+      </SettingsProvider>
     </QueryClientProvider>
   </StrictMode>,
 );
