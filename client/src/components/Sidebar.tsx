@@ -7,12 +7,12 @@ import MemorizationSettings from './MemorizationSettings';
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [showTools, setShowTools] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettings] = useState(true);
   const { theme } = useSettings();
   const settingsRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className={`fixed left-0 top-0 h-full z-50 transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-48'}`}>
+    <div className={`fixed left-0 top-0 h-full z-50 transition-all duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-48'}`}>
       {/* Toggle button */}
       <Button
         variant="outline"
@@ -65,22 +65,18 @@ export default function Sidebar() {
             )}
           </div>
 
-          <div 
-            className="space-y-2" 
-            ref={settingsRef}
-            onMouseLeave={() => setShowSettings(false)}
-          >
+          <div className="space-y-2" ref={settingsRef}>
             <Button
               variant="ghost"
               className="w-full justify-start"
-              onMouseEnter={() => setShowSettings(true)}
+              onClick={() => setShowSettings(!showSettings)}
             >
               ⚙️ Settings {showSettings ? '▼' : '▶'}
             </Button>
             {showSettings && (
               <div 
-                className="absolute left-48 top-0 mt-4"
-                onMouseEnter={() => setShowSettings(true)}
+                className="absolute left-48 top-0 h-full pt-4 pl-2"
+                style={{ minWidth: '300px' }}
               >
                 <MemorizationSettings />
               </div>
