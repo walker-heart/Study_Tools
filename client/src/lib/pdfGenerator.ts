@@ -42,11 +42,23 @@ function createPDF(data: VocabCard[]) {
   });
 
   const cardGroups = chunkArray(data, 4);
-  const cardWidth = 5;
-  const cardHeight = 3;
-  const marginLeft = 0.5;
-  const marginTop = 0.5;
-  const spacing = 0.5;
+  // Page dimensions (landscape)
+  const pageWidth = 11;  // inches
+  const pageHeight = 8.5; // inches
+  
+  // Card dimensions
+  const cardWidth = 5;   // inches
+  const cardHeight = 3;  // inches
+  
+  // Calculate margins to center the grid
+  const totalCardWidth = cardWidth * 2;
+  const totalCardHeight = cardHeight * 2;
+  const marginLeft = (pageWidth - totalCardWidth) / 2;
+  const marginTop = (pageHeight - totalCardHeight) / 2;
+  
+  // Calculate spacing between cards
+  const horizontalSpacing = (pageWidth - (2 * cardWidth) - (2 * marginLeft)) / 1;
+  const verticalSpacing = (pageHeight - (2 * cardHeight) - (2 * marginTop)) / 1;
 
   cardGroups.forEach((group, groupIndex) => {
     // Add new page for each group (except first)
@@ -58,8 +70,8 @@ function createPDF(data: VocabCard[]) {
     group.forEach((card, index) => {
       const row = Math.floor(index / 2);
       const col = index % 2;
-      const x = marginLeft + (col * (cardWidth + spacing));
-      const y = marginTop + (row * (cardHeight + spacing));
+      const x = marginLeft + (col * (cardWidth + horizontalSpacing));
+      const y = marginTop + (row * (cardHeight + verticalSpacing));
       
       // Card outline
       pdf.setDrawColor(0);
@@ -95,10 +107,13 @@ function createPDF(data: VocabCard[]) {
       const col = index % 2;
       
       // Calculate rotated position for back side
-      const frontX = marginLeft + (col * (cardWidth + spacing));
-      const frontY = marginTop + (row * (cardHeight + spacing));
-      const backX = 11 - (frontX + cardWidth);
-      const backY = 8.5 - (frontY + cardHeight);
+      // Calculate front side position
+      const frontX = marginLeft + (col * (cardWidth + horizontalSpacing));
+      const frontY = marginTop + (row * (cardHeight + verticalSpacing));
+      
+      // Calculate back side position for perfect alignment when printed double-sided
+      const backX = pageWidth - (frontX + cardWidth);
+      const backY = pageHeight - (frontY + cardHeight);
 
       // Card outline
       pdf.setDrawColor(0);
