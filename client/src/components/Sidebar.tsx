@@ -1,15 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { useSettings } from '@/contexts/SettingsContext';
-import MemorizationSettings from './MemorizationSettings';
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [showTools, setShowTools] = useState(false);
-  const [showSettings, setShowSettings] = useState(true);
   const { theme } = useSettings();
-  const settingsRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className={`fixed left-0 top-0 h-full z-50 transition-all duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-48'}`}>
@@ -65,23 +62,14 @@ export default function Sidebar() {
             )}
           </div>
 
-          <div className="space-y-2" ref={settingsRef}>
+          <Link href="/settings">
             <Button
               variant="ghost"
               className="w-full justify-start"
-              onClick={() => setShowSettings(!showSettings)}
             >
-              ⚙️ Settings {showSettings ? '▼' : '▶'}
+              ⚙️ Settings
             </Button>
-            {showSettings && (
-              <div 
-                className="absolute left-48 top-0 h-full pt-4 pl-2"
-                style={{ minWidth: '300px' }}
-              >
-                <MemorizationSettings />
-              </div>
-            )}
-          </div>
+          </Link>
         </div>
       </div>
     </div>
