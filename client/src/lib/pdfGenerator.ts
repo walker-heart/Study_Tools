@@ -21,10 +21,10 @@ export async function generatePDF(file: File): Promise<void> {
           // Log headers for debugging
           console.log('CSV Headers:', results.meta.fields);
           
-          // Add line numbers to the data (add 2 to account for CSV header)
+          // Add line numbers to the data (add 2 because CSV header is line 1)
           const dataWithLineNumbers = results.data.map((row, index) => ({
             ...row,
-            lineNumber: index + 2 // Add 2 to account for header and start from line 2
+            lineNumber: index + 1 // Add 1 to match CSV row numbers
           }));
           
           const data = dataWithLineNumbers.filter((row: VocabCard) => {
@@ -114,15 +114,13 @@ function createPDF(data: VocabCard[]) {
 
       // Vocab word (centered)
       const word = card['Vocab Word'] || '';
-      const wordLength = word.length;
-      const wordFontSize = Math.max(20, 32 - Math.floor(wordLength / 8)); // Dynamic sizing for word
-      pdf.setFontSize(wordFontSize);
-      pdf.text(word, x + (cardWidth / 2), y + (cardHeight * 0.5), { align: 'center' });
+      pdf.setFontSize(28);
+      pdf.text(word, x + (cardWidth / 2), y + (cardHeight * 0.6), { align: 'center' });
 
       // Part of speech (below word)
       const pos = card['Identifying Part Of Speach'] || '';
       pdf.setFontSize(16);
-      pdf.text(pos, x + (cardWidth / 2), y + (cardHeight * 0.7), { align: 'center' });
+      pdf.text(pos, x + (cardWidth / 2), y + (cardHeight * 0.8), { align: 'center' });
     });
 
     // Back side page
@@ -166,21 +164,21 @@ function createPDF(data: VocabCard[]) {
       // Definition
       pdf.setFontSize(defFontSize);
       const wrappedDefinition = wrapText(definition, Math.floor(45 * (16/defFontSize)));
-      let textY = y + 0.8; // Start a bit lower from the top
+      let textY = y + 0.9; // Increased initial Y position
 
       wrappedDefinition.forEach(line => {
         pdf.text(line, x + (cardWidth / 2), textY, { align: 'center' });
-        textY += 0.25 * (defFontSize/16); // Increased line spacing
+        textY += 0.2 * (defFontSize/16); // Adjust line spacing based on font size
       });
 
       // Example sentence
       pdf.setFontSize(sentFontSize);
       const wrappedSentence = wrapText(sentence, Math.floor(45 * (16/sentFontSize)));
-      textY = Math.max(textY + 0.3, y + 1.8); // Ensure minimum spacing from top for sentence
+      textY += 0.4; // Increased space between definition and sentence
 
       wrappedSentence.forEach(line => {
         pdf.text(line, x + (cardWidth / 2), textY, { align: 'center' });
-        textY += 0.25 * (sentFontSize/16); // Increased line spacing
+        textY += 0.2 * (sentFontSize/16); // Adjust line spacing based on font size
       });
     });
   });
