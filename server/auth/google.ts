@@ -36,6 +36,14 @@ console.log('Environment Information:', {
   finalCallbackUrl: `${env.APP_URL}/api/auth/google/callback`
 });
 
+// Log OAuth configuration
+console.log('OAuth Configuration:', {
+  clientIdSet: !!env.VITE_GOOGLE_CLIENT_ID,
+  clientSecretSet: !!env.GOOGLE_CLIENT_SECRET,
+  callbackUrl: getCallbackUrl(),
+  currentEnv: env.NODE_ENV
+});
+
 // Initialize OAuth client with a default callback URL (will be updated per request)
 const oauth2Client = new OAuth2Client(
   env.VITE_GOOGLE_CLIENT_ID,
@@ -55,7 +63,14 @@ router.get('/', (_req, res) => {
   try {
     // Set the callback URL for this request
     const callback = getCallbackUrl();
-    console.log('Generated callback URL:', callback);
+    console.log('Auth Debug:', {
+      clientId: env.VITE_GOOGLE_CLIENT_ID ? 'Set' : 'Not set',
+      clientSecret: env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not set',
+      callbackUrl: callback,
+      appUrl: env.APP_URL,
+      headers: _req.headers,
+      origin: _req.headers.origin
+    });
     
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -70,7 +85,16 @@ router.get('/', (_req, res) => {
     console.log('Generated auth URL:', authUrl);
     res.redirect(authUrl);
   } catch (error) {
-    console.error('Error in auth route:', error);
+    console.error('Auth Error:', error);
+    console.error('Auth Error Details:', {
+      stack: error instanceof Error ? error.stack : undefined,
+      env: {
+        hasClientId: !!env.VITE_GOOGLE_CLIENT_ID,
+        hasClientSecret: !!env.GOOGLE_CLIENT_SECRET,
+        appUrl: env.APP_URL,
+        nodeEnv: env.NODE_ENV
+      }
+    });
     res.redirect(`${env.APP_URL}/signin?error=auth_init_failed`);
   }
 });
@@ -81,10 +105,14 @@ router.get('/callback', async (req, res) => {
     res.header('Access-Control-Allow-Origin', 'https://accounts.google.com');
     res.header('Access-Control-Allow-Credentials', 'true');
     
-    console.log('Received callback request:', {
+    console.log('Callback Debug:', {
       query: req.query,
       headers: req.headers,
-      originalUrl: req.originalUrl
+      originalUrl: req.originalUrl,
+      method: req.method,
+      origin: req.headers.origin,
+      referer: req.headers.referer,
+      host: req.headers.host
     });
     
     const { code } = req.query;
