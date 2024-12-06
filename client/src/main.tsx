@@ -7,6 +7,7 @@ import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import Layout from "./components/Layout";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Landing from "./pages/Landing";
 import Home from "./pages/Home";
 import Flashcards from "./pages/Flashcards";
@@ -22,12 +23,36 @@ function Router() {
     <Layout>
       <Switch>
         <Route path="/" component={Landing} />
-        <Route path="/dashboard" component={Home} />
-        <Route path="/flashcards" component={Flashcards} />
-        <Route path="/memorization" component={Memorization} />
-        <Route path="/memorization-easy" component={MemorizationEasy} />
-        <Route path="/memorization-medium" component={MemorizationMedium} />
-        <Route path="/settings" component={Settings} />
+        <Route path="/dashboard">
+          <ProtectedRoute>
+            <Home />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/flashcards">
+          <ProtectedRoute>
+            <Flashcards />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/memorization">
+          <ProtectedRoute>
+            <Memorization />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/memorization-easy">
+          <ProtectedRoute>
+            <MemorizationEasy />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/memorization-medium">
+          <ProtectedRoute>
+            <MemorizationMedium />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/settings">
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        </Route>
         <Route path="/signin" component={SignIn} />
         <Route path="/signup" component={SignUp} />
         <Route>

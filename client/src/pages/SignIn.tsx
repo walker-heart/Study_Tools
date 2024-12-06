@@ -33,7 +33,7 @@ export default function SignIn() {
       
       const data = await response.json();
       localStorage.setItem('token', data.token);
-      setLocation('/');
+      setLocation('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in');
     }
