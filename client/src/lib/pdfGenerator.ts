@@ -111,7 +111,15 @@ function createPDF(data: VocabCard[]) {
       const frontX = marginLeft + (col * (cardWidth + horizontalSpacing));
       const frontY = marginTop + (row * (cardHeight + verticalSpacing));
       
-      // Calculate back side position for perfect alignment when printed double-sided
+      // For back side, we need to maintain the same position but adjust the content order
+      // When page is flipped on long edge:
+      // - Top cards (1,3) should show content for bottom cards (2,4)
+      // - Bottom cards (2,4) should show content for top cards (1,3)
+      const isTopRow = row === 0;
+      const adjustedIndex = isTopRow ? index + 2 : index - 2;
+      const adjustedCard = group[adjustedIndex];
+      
+      // Keep the same physical position but swap the content
       const backX = pageWidth - (frontX + cardWidth);
       const backY = pageHeight - (frontY + cardHeight);
 
@@ -127,7 +135,8 @@ function createPDF(data: VocabCard[]) {
 
       // Definition
       pdf.setFontSize(11);
-      const definition = card['Definition'] || '';
+      // Use the adjusted card data for the back side content
+      const definition = adjustedCard['Definition'] || '';
       const wrappedDefinition = wrapText(definition, 40);
       let textY = backY + 0.7; // Start text position
       
@@ -138,8 +147,8 @@ function createPDF(data: VocabCard[]) {
         }
       });
 
-      // Example sentence
-      const sentence = card['Example Sentence'] || '';
+      // Example sentence from adjusted card
+      const sentence = adjustedCard['Example Sentence'] || '';
       const wrappedSentence = wrapText(sentence, 40);
       textY += 0.2; // Add space between definition and sentence
       
