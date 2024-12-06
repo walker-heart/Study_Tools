@@ -40,15 +40,20 @@ export default function Memorization() {
         let displayWord = '';
         
         // Compare each character
-        for (let i = 0; i < Math.max(word.length, typedPart.length); i++) {
+        for (let i = 0; i < word.length; i++) {
           if (i < typedPart.length) {
+            // Already typed characters
             const isCorrect = typedPart[i] === word[i];
             displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedPart[i]}</span>`;
+          } else if (i === typedPart.length) {
+            // Current typing position - add caret here
+            displayWord += '<span class="blink">|</span>_';
           } else {
+            // Remaining untyped characters
             displayWord += '_';
           }
         }
-        return displayWord + '<span class="blink">|</span>';
+        return displayWord;
       }
       
       // Future words - show as underscores
