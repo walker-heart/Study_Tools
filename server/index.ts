@@ -3,6 +3,10 @@ import { registerRoutes } from "./routes/index";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 import cors from "cors";
+import session from "express-session";
+import { sessionConfig } from "./config/session";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -16,9 +20,13 @@ function log(message: string) {
 }
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' ? process.env.CLIENT_URL : 'http://localhost:5000',
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use(session(sessionConfig));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -52,9 +60,24 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
+    // Verify database connection
+    try {
+      await db.execute(sql`SELECT 1`);
+      log('Database connection successful');
+    } catch (error) {
+      log('Error connecting to database: ' + error);
+      process.exit(1);
+    }
+
     // Check for required environment variables
     if (!process.env.JWT_SECRET) {
-      log('Warning: JWT_SECRET is not set. Authentication will not work properly.');
+      log('Error: JWT_SECRET is not set. Authentication will not work properly.');
+      process.exit(1);
+    }
+
+    if (!process.env.DATABASE_URL) {
+      log('Error: DATABASE_URL is not set. Database connections will fail.');
+      process.exit(1);
     }
 
     registerRoutes(app);
