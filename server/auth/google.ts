@@ -1,8 +1,24 @@
 import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import { env } from '../lib/env';
+import pkg from 'pg';
+const { Pool } = pkg;
 
 const router = Router();
+
+// Create PostgreSQL pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+// Test database connection
+pool.query('SELECT NOW()', (err) => {
+  if (err) {
+    console.error('Database connection error:', err);
+  } else {
+    console.log('Database connection successful');
+  }
+});
 
 const oauth2Client = new OAuth2Client(
   env.VITE_GOOGLE_CLIENT_ID,
@@ -39,24 +55,42 @@ router.get('/google/callback', async (req, res) => {
       throw new Error('No payload');
     }
 
-    // Store user in database or session
+    // Store user in database and session
     const user = {
       email: payload.email ?? '',
       name: payload.name ?? '',
-      picture: payload.picture,
-      googleId: payload.sub ?? ''
+      picture: payload.picture ?? '',
+      google_id: payload.sub ?? ''
     };
 
     // Validate required fields
-    if (!user.email || !user.name) {
+    if (!user.email || !user.name || !user.google_id) {
       throw new Error('Required user information missing from Google response');
     }
 
-    if (req.session) {
-      req.session.user = user;
-    }
+    try {
+      // Insert or update user in database
+      const result = await pool.query(
+        `INSERT INTO users (email, name, picture, google_id) 
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (google_id) 
+         DO UPDATE SET email = $1, name = $2, picture = $3
+         RETURNING id`,
+        [user.email, user.name, user.picture, user.google_id]
+      );
 
-    res.redirect('/dashboard');
+      const userId = result.rows[0].id;
+      
+      if (req.session) {
+        req.session.user = { ...user, id: userId };
+        req.session.authenticated = true;
+      }
+
+      res.redirect('/dashboard');
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      throw new Error('Failed to save user information');
+    }
   } catch (error) {
     console.error('OAuth callback error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
