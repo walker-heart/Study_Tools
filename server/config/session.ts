@@ -41,12 +41,13 @@ try {
 export const sessionConfig = {
   store: sessionStore,
   secret: process.env.JWT_SECRET,
-  resave: false,
+  resave: true, // Required for rolling sessions
   saveUninitialized: false,
+  rolling: true, // Refresh session with each request
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
   },
   name: 'sessionId',

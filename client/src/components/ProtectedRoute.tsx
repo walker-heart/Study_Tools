@@ -14,13 +14,15 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         // Try to get the session status from the server
         const response = await fetch('/api/auth/check', {
           credentials: 'include', // Important for cookies
+          headers: {
+            'Cache-Control': 'no-cache', // Prevent caching of auth state
+          },
         });
         
         if (!response.ok) {
           throw new Error('Not authenticated');
         }
         
-        // Session is valid, we can continue
         const data = await response.json();
         if (!data.authenticated) {
           throw new Error('Not authenticated');
@@ -31,7 +33,14 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
       }
     };
 
+    // Check immediately
     checkAuth();
+
+    // Set up periodic checks every 5 minutes
+    const interval = setInterval(checkAuth, 5 * 60 * 1000);
+
+    // Cleanup interval on unmount
+    return () => clearInterval(interval);
   }, [setLocation]);
 
   // We'll show nothing until we verify the authentication

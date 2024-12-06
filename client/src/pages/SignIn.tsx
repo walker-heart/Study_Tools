@@ -32,8 +32,7 @@ export default function SignIn() {
         throw new Error(data.message || 'Failed to sign in');
       }
       
-      const data = await response.json();
-      localStorage.setItem('token', data.token);
+      await response.json(); // We don't need to store the token anymore
       setLocation('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in');
