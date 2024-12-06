@@ -49,6 +49,7 @@ function createPDF(data: VocabCard[]) {
   const spacing = 0.5;
 
   cardGroups.forEach((group, groupIndex) => {
+    // Add new page for each group (except first)
     if (groupIndex > 0) {
       pdf.addPage();
     }
@@ -66,18 +67,23 @@ function createPDF(data: VocabCard[]) {
       pdf.rect(x, y, cardWidth, cardHeight);
 
       // Card number
+      const cardNumber = String(groupIndex * 4 + index + 1);
       pdf.setFontSize(10);
-      pdf.text(`#${groupIndex * 4 + index + 1}`, x + 0.2, y + 0.3);
+      pdf.text(cardNumber, x + 0.2, y + 0.3);
 
-      // Vocab word
+      // Vocab word (centered)
+      const word = card['Vocab Word'] || '';
       pdf.setFontSize(16);
-      pdf.text(card['Vocab Word'], x + cardWidth/2, y + cardHeight/2 - 0.2, {
+      const wordWidth = pdf.getStringUnitWidth(word) * 16 / 72;
+      pdf.text(word, x + (cardWidth / 2), y + (cardHeight / 2) - 0.2, {
         align: 'center'
       });
 
-      // Part of speech
+      // Part of speech (centered)
+      const pos = card['Identifying Part Of Speech'] || '';
       pdf.setFontSize(12);
-      pdf.text(card['Identifying Part Of Speech'], x + cardWidth/2, y + cardHeight/2 + 0.3, {
+      const posWidth = pdf.getStringUnitWidth(pos) * 12 / 72;
+      pdf.text(pos, x + (cardWidth / 2), y + (cardHeight / 2) + 0.3, {
         align: 'center'
       });
     });
@@ -88,7 +94,7 @@ function createPDF(data: VocabCard[]) {
       const row = Math.floor(index / 2);
       const col = index % 2;
       
-      // Calculate rotated position
+      // Calculate rotated position for back side
       const frontX = marginLeft + (col * (cardWidth + spacing));
       const frontY = marginTop + (row * (cardHeight + spacing));
       const backX = 11 - (frontX + cardWidth);
@@ -100,24 +106,33 @@ function createPDF(data: VocabCard[]) {
       pdf.rect(backX, backY, cardWidth, cardHeight);
 
       // Card number
+      const cardNumber = String(groupIndex * 4 + index + 1);
       pdf.setFontSize(10);
-      pdf.text(`#${groupIndex * 4 + index + 1}`, backX + 0.2, backY + 0.3);
+      pdf.text(cardNumber, backX + 0.2, backY + 0.3);
 
       // Definition
       pdf.setFontSize(12);
-      const definition = wrapText(card['Definition'], 45);
-      let textY = backY + 0.8;
-      definition.forEach(line => {
-        pdf.text(line, backX + 0.3, textY);
-        textY += 0.2;
+      const definition = card['Definition'] || '';
+      const wrappedDefinition = wrapText(definition, 40);
+      let textY = backY + 0.6;
+      
+      wrappedDefinition.forEach(line => {
+        if (line.trim()) {
+          pdf.text(line, backX + 0.3, textY);
+          textY += 0.25;
+        }
       });
 
       // Example sentence
-      textY += 0.2;
-      const sentence = wrapText(card['Example Sentence'], 45);
-      sentence.forEach(line => {
-        pdf.text(line, backX + 0.3, textY);
-        textY += 0.2;
+      const sentence = card['Example Sentence'] || '';
+      const wrappedSentence = wrapText(sentence, 40);
+      textY += 0.2; // Add space between definition and sentence
+      
+      wrappedSentence.forEach(line => {
+        if (line.trim()) {
+          pdf.text(line, backX + 0.3, textY);
+          textY += 0.25;
+        }
       });
     });
   });
@@ -133,23 +148,25 @@ function chunkArray<T>(array: T[], size: number): T[][] {
   return chunks;
 }
 
-function wrapText(text: string, maxWidth: number): string[] {
+function wrapText(text: string, maxChars: number): string[] {
+  if (!text) return [];
+  
   const words = text.split(' ');
   const lines: string[] = [];
   let currentLine = '';
 
   words.forEach(word => {
-    const testLine = currentLine + word + ' ';
-    if (testLine.length > maxWidth) {
-      lines.push(currentLine.trim());
-      currentLine = word + ' ';
-    } else {
+    const testLine = currentLine + (currentLine ? ' ' : '') + word;
+    if (testLine.length <= maxChars) {
       currentLine = testLine;
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
     }
   });
-  
-  if (currentLine.trim()) {
-    lines.push(currentLine.trim());
+
+  if (currentLine) {
+    lines.push(currentLine);
   }
 
   return lines;
