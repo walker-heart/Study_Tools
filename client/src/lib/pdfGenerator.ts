@@ -65,13 +65,13 @@ function createPDF(data: VocabCard[]) {
   const pageWidth = 11;  // inches
   const pageHeight = 8.5; // inches
   
-  // Card dimensions
+  // Fixed card dimensions for consistency
   const cardWidth = 5;   // inches
   const cardHeight = 3;  // inches
   
   // Calculate margins to center the grid
-  const totalCardWidth = cardWidth * 2;
-  const totalCardHeight = cardHeight * 2;
+  const totalCardWidth = cardWidth * 2;  // 2 cards per row
+  const totalCardHeight = cardHeight * 2; // 2 cards per column
   const marginLeft = (pageWidth - totalCardWidth) / 2;
   const marginTop = (pageHeight - totalCardHeight) / 2;
   
@@ -141,25 +141,37 @@ function createPDF(data: VocabCard[]) {
       pdf.setFontSize(14);
       pdf.text(`#${cardNumber}`, x + 0.2, y + 0.3);
 
-      // Definition
+      // Calculate optimal font sizes based on content length
       const definition = card['Definition'] || '';
-      pdf.setFontSize(16);
-      const wrappedDefinition = wrapText(definition, 40);
+      const sentence = card['Example Sentance'] || '';
+      
+      // Adjust font size based on content length
+      const baseSize = 16;
+      const defLength = definition.length;
+      const sentLength = sentence.length;
+      
+      // Dynamic font sizing
+      const defFontSize = Math.max(12, baseSize - Math.floor(defLength / 50));
+      const sentFontSize = Math.max(12, baseSize - Math.floor(sentLength / 50));
+      
+      // Definition
+      pdf.setFontSize(defFontSize);
+      const wrappedDefinition = wrapText(definition, Math.floor(45 * (16/defFontSize)));
       let textY = y + 0.7;
 
       wrappedDefinition.forEach(line => {
         pdf.text(line, x + (cardWidth / 2), textY, { align: 'center' });
-        textY += 0.25;
+        textY += 0.2 * (defFontSize/16); // Adjust line spacing based on font size
       });
 
       // Example sentence
-      const sentence = card['Example Sentance'] || '';
-      const wrappedSentence = wrapText(sentence, 40);
+      pdf.setFontSize(sentFontSize);
+      const wrappedSentence = wrapText(sentence, Math.floor(45 * (16/sentFontSize)));
       textY += 0.3; // Space between definition and sentence
 
       wrappedSentence.forEach(line => {
         pdf.text(line, x + (cardWidth / 2), textY, { align: 'center' });
-        textY += 0.25;
+        textY += 0.2 * (sentFontSize/16); // Adjust line spacing based on font size
       });
     });
   });
@@ -183,17 +195,30 @@ function wrapText(text: string, maxChars: number): string[] {
   let currentLine = '';
 
   words.forEach(word => {
+    // Handle very long words by splitting them
+    if (word.length > maxChars) {
+      if (currentLine) {
+        lines.push(currentLine);
+        currentLine = '';
+      }
+      // Split long word into chunks
+      for (let i = 0; i < word.length; i += maxChars) {
+        lines.push(word.slice(i, i + maxChars));
+      }
+      return;
+    }
+
     const testLine = currentLine + (currentLine ? ' ' : '') + word;
     if (testLine.length <= maxChars) {
       currentLine = testLine;
     } else {
-      if (currentLine) lines.push(currentLine);
+      if (currentLine) lines.push(currentLine.trim());
       currentLine = word;
     }
   });
 
   if (currentLine) {
-    lines.push(currentLine);
+    lines.push(currentLine.trim());
   }
 
   return lines;
