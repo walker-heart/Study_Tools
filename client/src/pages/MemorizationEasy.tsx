@@ -19,44 +19,60 @@ export default function MemorizationEasy() {
   const inputRef = useRef<HTMLInputElement>(null);
   const displayRef = useRef<HTMLDivElement>(null);
 
-  // Update the display with color-coded feedback and first letters hint
+  // Update the display with color-coded feedback and show first letter of each word
   const updateDisplay = () => {
     if (!displayRef.current) return;
     
-    // First, show the first letters of each word
-    let firstLetters = '';
-    const words = text.split(' ');
-    words.forEach((word, index) => {
-      if (word.length > 0) {
-        firstLetters += word[0];
-        if (index < words.length - 1) firstLetters += ' ';
-      }
-    });
-    
-    let displayText = `<div class="mb-4">First letters: ${firstLetters}</div>`;
-    
-    // Then show the regular typing display
+    let displayText = '';
     let inputIndex = 0;
     let hasError = false;
+    let isFirstLetterOfWord = true;
     
     for (let i = 0; i < text.length; i++) {
-      if (inputIndex < currentInput.length) {
-        const typedChar = currentInput[inputIndex];
-        const isCorrect = !hasError && typedChar === text[i];
-        
-        if (typedChar !== text[i]) {
-          hasError = true;
+      // Handle spaces between words
+      if (text[i] === ' ') {
+        if (inputIndex < currentInput.length) {
+          displayText += `<span style="color: ${currentInput[inputIndex] === ' ' ? 'green' : 'red'}">${currentInput[inputIndex]}</span>`;
+          inputIndex++;
+        } else if (inputIndex === currentInput.length) {
+          displayText += '<span class="blink">|</span> ';
+          inputIndex++;
+        } else {
+          displayText += ' ';
         }
-        
-        displayText += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedChar}</span>`;
-        inputIndex++;
-      } else if (inputIndex === currentInput.length) {
-        displayText += '<span class="blink">|</span>';
-        displayText += text[i] === ' ' ? ' ' : '_';
-        inputIndex++;
-      } else {
-        displayText += text[i] === ' ' ? ' ' : '_';
+        isFirstLetterOfWord = true;
+        continue;
       }
+      
+      // Show first letter of each word or underscore for remaining letters
+      if (isFirstLetterOfWord) {
+        if (inputIndex < currentInput.length) {
+          const typedChar = currentInput[inputIndex];
+          const isCorrect = !hasError && typedChar === text[i];
+          if (typedChar !== text[i]) hasError = true;
+          displayText += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedChar}</span>`;
+        } else if (inputIndex === currentInput.length) {
+          displayText += `<span class="blink">|</span>${text[i]}`;
+        } else {
+          displayText += text[i];
+        }
+      } else {
+        if (inputIndex < currentInput.length) {
+          const typedChar = currentInput[inputIndex];
+          const isCorrect = !hasError && typedChar === text[i];
+          if (typedChar !== text[i]) hasError = true;
+          displayText += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedChar}</span>`;
+        } else if (inputIndex === currentInput.length) {
+          displayText += '<span class="blink">|</span>_';
+        } else {
+          displayText += '_';
+        }
+      }
+      
+      if (inputIndex < currentInput.length || inputIndex === currentInput.length) {
+        inputIndex++;
+      }
+      isFirstLetterOfWord = false;
     }
     
     while (inputIndex < currentInput.length) {
