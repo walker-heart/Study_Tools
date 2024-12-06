@@ -3,9 +3,9 @@ import { jsPDF } from 'jspdf';
 
 interface VocabCard {
   'Vocab Word': string;
-  'Identifying Part Of Speech': string;
+  'Identifying Part Of Speach': string; // Handle misspelling in CSV
   'Definition': string;
-  'Example Sentence': string;
+  'Example Sentance': string; // Handle misspelling in CSV
 }
 
 type ParseResults = Papa.ParseResult<VocabCard>;
@@ -17,17 +17,35 @@ export async function generatePDF(file: File): Promise<void> {
       header: true,
       complete: (results: ParseResults) => {
         try {
-          const data = results.data.filter((row: VocabCard) => row['Vocab Word']);
+          // Log headers for debugging
+          console.log('CSV Headers:', results.meta.fields);
+          
+          const data = results.data.filter((row: VocabCard) => {
+            const hasRequiredFields = row['Vocab Word'] && 
+              row['Identifying Part Of Speach'] && 
+              row['Definition'] && 
+              row['Example Sentance'];
+              
+            if (!hasRequiredFields) {
+              console.log('Invalid row:', row);
+            }
+            return hasRequiredFields;
+          });
+
           if (data.length === 0) {
-            throw new Error('No valid data found in CSV file');
+            throw new Error('No valid data found in CSV file. Please ensure all required columns are present: Vocab Word, Identifying Part Of Speach, Definition, Example Sentance');
           }
+          
+          console.log('Processing data:', data);
           createPDF(data);
           resolve();
         } catch (error) {
+          console.error('PDF Generation Error:', error);
           reject(error instanceof Error ? error : new Error('Failed to generate PDF'));
         }
       },
       error: (error: Error) => {
+        console.error('CSV Parsing Error:', error);
         reject(new Error(`Failed to parse CSV: ${error.message}`));
       }
     });
@@ -93,7 +111,7 @@ function createPDF(data: VocabCard[]) {
       pdf.text(word, x + (cardWidth / 2), y + (cardHeight * 0.5), { align: 'center' });
 
       // Part of speech (below word)
-      const pos = card['Identifying Part Of Speech'] || '';
+      const pos = card['Identifying Part Of Speach'] || '';
       pdf.setFontSize(16);
       pdf.text(pos, x + (cardWidth / 2), y + (cardHeight * 0.7), { align: 'center' });
     });
@@ -135,7 +153,7 @@ function createPDF(data: VocabCard[]) {
       });
 
       // Example sentence
-      const sentence = card['Example Sentence'] || '';
+      const sentence = card['Example Sentance'] || '';
       const wrappedSentence = wrapText(sentence, 40);
       textY += 0.3; // Space between definition and sentence
 
