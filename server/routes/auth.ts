@@ -42,6 +42,15 @@ export async function signUp(req: Request, res: Response) {
   }
 }
 
+// Add session check endpoint
+export async function checkAuth(req: Request, res: Response) {
+  if (req.session.userId) {
+    res.json({ authenticated: true, user: { id: req.session.userId, email: req.session.email } });
+  } else {
+    res.status(401).json({ authenticated: false });
+  }
+}
+
 export async function signIn(req: Request, res: Response) {
   try {
     const { email, password } = req.body;
@@ -58,10 +67,14 @@ export async function signIn(req: Request, res: Response) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Generate JWT token
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '24h' });
+    // Set user session
+    req.session.userId = user.id;
+    req.session.email = user.email;
+    
+    // Also send JWT token for API authentication
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
 
-    res.json({ token });
+    res.json({ token, user: { id: user.id, email: user.email } });
   } catch (error) {
     console.error('Sign in error:', error);
     res.status(500).json({ message: "Error signing in" });

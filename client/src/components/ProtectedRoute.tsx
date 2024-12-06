@@ -9,16 +9,33 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setLocation('/signin');
-    }
+    const checkAuth = async () => {
+      try {
+        // Try to get the session status from the server
+        const response = await fetch('/api/auth/check', {
+          credentials: 'include', // Important for cookies
+        });
+        
+        if (!response.ok) {
+          throw new Error('Not authenticated');
+        }
+        
+        // Session is valid, we can continue
+        const data = await response.json();
+        if (!data.authenticated) {
+          throw new Error('Not authenticated');
+        }
+      } catch (error) {
+        // If there's any error or we're not authenticated, redirect to signin
+        setLocation('/signin');
+      }
+    };
+
+    checkAuth();
   }, [setLocation]);
 
-  const token = localStorage.getItem('token');
-  if (!token) {
-    return null;
-  }
+  // We'll show nothing until we verify the authentication
+  return <>{children}</>;
 
   return <>{children}</>;
 }
