@@ -1,0 +1,91 @@
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.typing-area {
+  font-family: 'Courier New', monospace;
+  line-height: 1.6;
+  letter-spacing: 0.05em;
+}
+
+.typing-area .blink {
+  animation: blink 1s infinite;
+  color: #1a1a1a;
+}
+
+.typing-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  position: absolute;
+  opacity: 0;
+  cursor: default;
+}
+
+.card-container {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+  margin: 1rem 0;
+  min-height: 400px;
+  transition: box-shadow 0.3s ease;
+}
+
+.card-container:hover {
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.text-input {
+  width: 100%;
+  min-height: 200px;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-family: 'Inter', sans-serif;
+  resize: vertical;
+  transition: border-color 0.3s ease;
+}
+
+.text-input:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.mode-button {
+  background-color: #1a1a1a;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.mode-button:hover {
+  background-color: #2a2a2a;
+  transform: translateY(-1px);
+}
+
+.mode-button:disabled {
+  background-color: #e2e8f0;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.heading-primary {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.heading-secondary {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #4a5568;
+  text-align: center;
+  margin-bottom: 1rem;
+}
