@@ -9,5 +9,5 @@ export function registerRoutes(app: Express) {
   app.get('/api/auth/check', checkAuth);
   
   // Mount Google OAuth routes
-  app.use('/api/auth', googleAuthRouter);
+  app.use('/api/auth/google', googleAuthRouter);
 }
