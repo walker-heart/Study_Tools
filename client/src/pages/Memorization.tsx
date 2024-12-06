@@ -21,54 +21,44 @@ export default function Memorization() {
   const updateDisplay = () => {
     if (!displayRef.current) return;
     
-    const words = text.split(' ');
-    const inputWords = currentInput.split(' ');
-    const currentWordIndex = inputWords.length - 1;
+    let displayText = '';
+    let inputIndex = 0;
     
-    const displayText = words.map((word, index) => {
-      if (index < currentWordIndex) {
-        // Previously typed words
-        const typedWord = inputWords[index];
-        return typedWord === word ? 
-          `<span style="color: green">${word}</span>` : 
-          `<span style="color: red">${typedWord}</span>`;
-      }
+    // Process each character in the target text
+    for (let i = 0; i < text.length; i++) {
+      const currentChar = text[i];
       
-      if (index === currentWordIndex) {
-        // Current word being typed
-        const typedPart = inputWords[index] || '';
-        let displayWord = '';
-        
-        // Create base word with underscores
-        const baseLength = word.length;
-        
-        for (let i = 0; i < baseLength; i++) {
-          if (i < typedPart.length) {
-            // Show typed character (correct in green, incorrect in red)
-            const isCorrect = typedPart[i] === word[i];
-            displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedPart[i]}</span>`;
-          } else if (i === typedPart.length) {
-            // Show caret at current typing position
-            displayWord += '<span class="blink">|</span>_';
-          } else {
-            // Show remaining underscores
-            displayWord += '_';
-          }
+      if (inputIndex < currentInput.length) {
+        // Handle typed characters (including spaces)
+        const typedChar = currentInput[inputIndex];
+        const isCorrect = typedChar === currentChar;
+        displayText += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedChar}</span>`;
+        inputIndex++;
+      } else if (inputIndex === currentInput.length) {
+        // Show caret at current position
+        displayText += '<span class="blink">|</span>';
+        // Add underscore for non-space characters
+        if (currentChar !== ' ') {
+          displayText += '_';
+        } else {
+          displayText += ' ';
         }
-        
-        // If typed more characters than word length, append them in red
-        if (typedPart.length > word.length) {
-          displayWord += `<span style="color: red">${typedPart.slice(word.length)}</span>`;
-        } else if (typedPart.length === word.length) {
-          // Add caret at the end if we've typed exactly to the end
-          displayWord += '<span class="blink">|</span>';
-        }
-        return displayWord;
+        inputIndex++;
+      } else {
+        // Show remaining characters as underscores or spaces
+        displayText += currentChar === ' ' ? ' ' : '_';
       }
-      
-      // Future words - show as underscores
-      return '_'.repeat(word.length);
-    }).join(' ');
+    }
+    
+    // Handle any extra typed characters beyond the text length
+    if (inputIndex === currentInput.length && currentInput.length > text.length) {
+      displayText += '<span class="blink">|</span>';
+    } else {
+      while (inputIndex < currentInput.length) {
+        displayText += `<span style="color: red">${currentInput[inputIndex]}</span>`;
+        inputIndex++;
+      }
+    }
 
     displayRef.current.innerHTML = displayText;
   };
