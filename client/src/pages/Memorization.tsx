@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 export default function Memorization() {
+  const [text, setText] = useState('');
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl font-bold text-center mb-8">
@@ -20,18 +23,25 @@ export default function Memorization() {
           <textarea
             className="w-full min-h-[200px] p-4 border rounded-lg"
             placeholder="Enter the text here..."
-            disabled
+            value={text}
+            onChange={(e) => setText(e.target.value)}
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Link href="/memorization-easy">
-              <Button className="w-full">
+            <Link href={`/memorization-easy?text=${encodeURIComponent(text)}`}>
+              <Button 
+                className="w-full"
+                disabled={!text.trim()}
+              >
                 Start Easy Mode
               </Button>
             </Link>
             
-            <Link href="/memorization-medium">
-              <Button className="w-full">
+            <Link href={`/memorization-medium?text=${encodeURIComponent(text)}`}>
+              <Button 
+                className="w-full"
+                disabled={!text.trim()}
+              >
                 Start Medium Mode
               </Button>
             </Link>
