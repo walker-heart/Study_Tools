@@ -13,6 +13,11 @@
   color: #1a1a1a;
 }
 
+.dark .typing-area {
+  background-color: #1f2937;
+  color: #f3f4f6;
+}
+
 .typing-area .blink {
   animation: blink 1s infinite;
   color: #1a1a1a;
@@ -50,8 +55,14 @@
   border-radius: 6px;
   font-family: 'Inter', sans-serif;
   resize: vertical;
-  transition: border-color 0.3s ease;
+  transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
   color: #1a1a1a;
+}
+
+.dark .text-input {
+  background-color: #1f2937;
+  border-color: #374151;
+  color: #f3f4f6;
 }
 
 .text-input::placeholder {

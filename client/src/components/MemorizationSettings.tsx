@@ -42,7 +42,7 @@ export default function MemorizationSettings({
       </Button>
 
       {isOpen && (
-        <Card className="p-4 w-64 bg-white shadow-lg">
+        <Card className={`p-4 w-64 shadow-lg ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Font Size</Label>
