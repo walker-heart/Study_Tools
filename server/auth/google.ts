@@ -77,6 +77,10 @@ router.get('/', (_req, res) => {
 
 router.get('/callback', async (req, res) => {
   try {
+    // Set CORS headers explicitly for the callback route
+    res.header('Access-Control-Allow-Origin', 'https://accounts.google.com');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
     console.log('Received callback request:', {
       query: req.query,
       headers: req.headers,
