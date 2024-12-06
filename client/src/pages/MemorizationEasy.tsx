@@ -25,14 +25,22 @@ export default function MemorizationEasy() {
     
     let displayText = '';
     let inputIndex = 0;
-    let hasError = false;
     let isFirstLetterOfWord = true;
+    let errors = new Array(currentInput.length).fill(false);
+    
+    // First pass: mark errors
+    for (let i = 0; i < currentInput.length; i++) {
+      if (i < text.length && currentInput[i] !== text[i]) {
+        errors[i] = true;
+      }
+    }
     
     for (let i = 0; i < text.length; i++) {
       // Handle spaces between words
       if (text[i] === ' ') {
         if (inputIndex < currentInput.length) {
-          displayText += `<span style="color: ${currentInput[inputIndex] === ' ' ? 'green' : 'red'}">${currentInput[inputIndex]}</span>`;
+          const isError = errors[inputIndex];
+          displayText += `<span style="color: ${isError ? 'red' : 'green'}">${currentInput[inputIndex]}</span>`;
           inputIndex++;
         } else if (inputIndex === currentInput.length) {
           displayText += '<span class="blink">|</span> ';
@@ -47,10 +55,8 @@ export default function MemorizationEasy() {
       // Show first letter of each word or underscore for remaining letters
       if (isFirstLetterOfWord) {
         if (inputIndex < currentInput.length) {
-          const typedChar = currentInput[inputIndex];
-          const isCorrect = !hasError && typedChar === text[i];
-          if (typedChar !== text[i]) hasError = true;
-          displayText += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedChar}</span>`;
+          const isError = errors[inputIndex];
+          displayText += `<span style="color: ${isError ? 'red' : 'green'}">${currentInput[inputIndex]}</span>`;
         } else if (inputIndex === currentInput.length) {
           displayText += `<span class="blink">|</span>${text[i]}`;
         } else {
@@ -58,10 +64,8 @@ export default function MemorizationEasy() {
         }
       } else {
         if (inputIndex < currentInput.length) {
-          const typedChar = currentInput[inputIndex];
-          const isCorrect = !hasError && typedChar === text[i];
-          if (typedChar !== text[i]) hasError = true;
-          displayText += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedChar}</span>`;
+          const isError = errors[inputIndex];
+          displayText += `<span style="color: ${isError ? 'red' : 'green'}">${currentInput[inputIndex]}</span>`;
         } else if (inputIndex === currentInput.length) {
           displayText += '<span class="blink">|</span>_';
         } else {
