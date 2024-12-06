@@ -57,11 +57,8 @@ export default function Memorization() {
         hiddenInputRef.current.value = '';
         setCurrentText('');
         setCurrentWordIndex(prev => {
-          if (prev >= words.length - 1) {
-            setShowGame(false);
-            return 0;
-          }
-          return prev + 1;
+          // Just move to next word, don't end the game
+          return (prev + 1) % words.length;
         });
       }
     }
@@ -82,20 +79,17 @@ export default function Memorization() {
           const inputText = currentText;
           let displayWord = '';
           
-          // Always show first letter
-          displayWord += word[0];
-          
-          // First letter handling
-          if (inputText.length > 0) {
-            const isFirstLetterCorrect = inputText[0] === word[0];
-            displayWord = `<span style="color: ${isFirstLetterCorrect ? 'green' : 'red'}">${word[0]}</span>`;
-          } else {
-            displayWord = word[0];
-          }
-          
-          // For remaining letters
-          for (let i = 1; i < word.length; i++) {
-            if (i < inputText.length) {
+          // Process each character of the current word
+          for (let i = 0; i < word.length; i++) {
+            if (i === 0) {
+              // First letter: show in green if typed correctly, red if wrong
+              if (inputText.length > 0) {
+                const isCorrect = inputText[0] === word[0];
+                displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${word[0]}</span>`;
+              } else {
+                displayWord += word[0];
+              }
+            } else if (i < inputText.length) {
               // Show typed characters in green (correct) or red (incorrect)
               const isCorrect = inputText[i] === word[i];
               displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${word[i]}</span>`;
@@ -104,13 +98,11 @@ export default function Memorization() {
               displayWord += '_';
             }
           }
+          displayWord += '<span class="blink">|</span>';
           return displayWord;
         } else {
           // Future words: show first letter and underscores for remaining letters
-          if (word.length > 0) {
-            return word[0] + '_'.repeat(Math.max(0, word.length - 1));
-          }
-          return '';
+          return word[0] + '_'.repeat(word.length - 1);
         }
       }).join(' ');
       
@@ -182,7 +174,8 @@ export default function Memorization() {
           >
             <div 
               ref={typingAreaRef} 
-              className="typing-area mb-4 min-h-[300px] whitespace-pre-wrap"
+              className="typing-area mb-4 min-h-[300px] whitespace-pre-wrap text-xl"
+              style={{ fontFamily: 'monospace' }}
             />
             <input
               ref={hiddenInputRef}
