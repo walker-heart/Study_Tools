@@ -23,10 +23,6 @@ export async function generatePDF(file: File): Promise<void> {
           
           // Process data while preserving cell positions
           const data = results.data
-            .map((row: any, index: number) => ({
-              ...row,
-              cellNumber: index + 2 // Cell number (add 2 because Papa.parse starts at 0 and we skip header)
-            }))
             .filter((row: any) => {
               // Keep only non-empty rows
               return row['Vocab Word'] && 
@@ -34,9 +30,9 @@ export async function generatePDF(file: File): Promise<void> {
                 row['Definition'] && 
                 row['Example Sentance'];
             })
-            .map(row => ({
+            .map((row: any, index: number) => ({
               ...row,
-              lineNumber: row.cellNumber - 1 // Card number is cell number minus 1
+              lineNumber: index + 7 // Start from cell 7 (after header and empty rows) and increment
             }));
           
           if (data.length === 0) {
