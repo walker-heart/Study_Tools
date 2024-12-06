@@ -21,18 +21,22 @@ export async function generatePDF(file: File): Promise<void> {
           // Log headers for debugging
           console.log('CSV Headers:', results.meta.fields);
           
-          // Map data, keeping original row numbers before filtering
+          // Keep original row numbers from CSV and subtract 1 for header
           const data = results.data
             .map((row: any, index: number) => ({
               ...row,
-              lineNumber: index + 2 - 1 // Convert to 0-based index, add 2 for CSV row number, subtract 1 as requested
+              lineNumber: index + 1 // This is the cell number in CSV (add 1 because Papa.parse starts at 0)
             }))
             .filter((row: any) => {
               return row['Vocab Word'] && 
                 row['Identifying Part Of Speach'] && 
                 row['Definition'] && 
                 row['Example Sentance'];
-            });
+            })
+            .map(row => ({
+              ...row,
+              lineNumber: row.lineNumber - 1 // Subtract 1 to account for header row
+            }));
           
           if (data.length === 0) {
             throw new Error('No valid data found in CSV file. Please ensure all required columns are present: Vocab Word, Identifying Part Of Speach, Definition, Example Sentance');
