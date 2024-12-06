@@ -31,7 +31,7 @@ router.get('/google/callback', async (req, res) => {
     // Get user info
     const ticket = await oauth2Client.verifyIdToken({
       idToken: tokens.id_token!,
-      audience: process.env.VITE_GOOGLE_CLIENT_ID
+      audience: env.VITE_GOOGLE_CLIENT_ID
     });
 
     const payload = ticket.getPayload();
@@ -59,7 +59,9 @@ router.get('/google/callback', async (req, res) => {
     res.redirect('/dashboard');
   } catch (error) {
     console.error('OAuth callback error:', error);
-    res.redirect('/signin?error=auth_failed');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Detailed error:', errorMessage);
+    res.redirect(`/signin?error=auth_failed&message=${encodeURIComponent(errorMessage)}`);
   }
 });
 
