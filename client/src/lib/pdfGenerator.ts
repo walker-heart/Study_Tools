@@ -24,10 +24,10 @@ export async function generatePDF(file: File): Promise<void> {
           createPDF(data);
           resolve();
         } catch (error) {
-          reject(error);
+          reject(error instanceof Error ? error : new Error('Failed to generate PDF'));
         }
       },
-      error: (error: ParseError) => {
+      error: (error: Error) => {
         reject(new Error(`Failed to parse CSV: ${error.message}`));
       }
     });
@@ -68,7 +68,7 @@ function createPDF(data: VocabCard[]) {
     }
 
     // Front side - Order: 1,3,2,4
-    const frontOrder = [0, 2, 1, 3]; // Maps to 1,3,2,4
+    const frontOrder = [0, 2, 1, 3];
     frontOrder.forEach((orderIndex, displayIndex) => {
       const card = group[orderIndex];
       if (!card) return;
@@ -79,12 +79,11 @@ function createPDF(data: VocabCard[]) {
       const y = marginTop + (row * (cardHeight + verticalSpacing));
       
       // Card outline
-      pdf.setDrawColor(0);
       pdf.setLineWidth(0.01);
       pdf.rect(x, y, cardWidth, cardHeight);
 
       // Card number
-      const cardNumber = String(groupIndex * 4 + orderIndex + 1);
+      const cardNumber = groupIndex * 4 + orderIndex + 1;
       pdf.setFontSize(12);
       pdf.text(`#${cardNumber}`, x + 0.2, y + 0.3);
 
@@ -92,22 +91,19 @@ function createPDF(data: VocabCard[]) {
       const word = card['Vocab Word'] || '';
       pdf.setFontSize(20);
       const wordY = y + (cardHeight * 0.45);
-      pdf.text(word, x + (cardWidth / 2), wordY, {
-        align: 'center'
-      });
+      pdf.text(word, x + (cardWidth / 2), wordY, { align: 'center' });
 
       // Part of speech (centered)
       const pos = card['Identifying Part Of Speech'] || '';
       pdf.setFontSize(12);
       const posY = y + (cardHeight * 0.65);
-      pdf.text(pos, x + (cardWidth / 2), posY, {
-        align: 'center'
-      });
+      pdf.text(pos, x + (cardWidth / 2), posY, { align: 'center' });
     });
 
-    // Back side - Order: 2,4,1,3
+    // Back side page
     pdf.addPage();
-    // Maps to desired order: 2,4,1,3
+    
+    // Back side - Order: 2,4,1,3
     const backOrder = [1, 3, 0, 2];
     backOrder.forEach((orderIndex, displayIndex) => {
       const card = group[orderIndex];
@@ -116,47 +112,40 @@ function createPDF(data: VocabCard[]) {
       const row = Math.floor(displayIndex / 2);
       const col = displayIndex % 2;
       
-      // Calculate front side position (for alignment)
-      const frontX = marginLeft + (col * (cardWidth + horizontalSpacing));
-      const frontY = marginTop + (row * (cardHeight + verticalSpacing));
-      
-      // Calculate back position (flipped on long edge)
-      const backX = pageWidth - (frontX + cardWidth);
-      const backY = pageHeight - (frontY + cardHeight);
+      // Calculate position for back side
+      const x = marginLeft + (col * (cardWidth + horizontalSpacing));
+      const y = marginTop + (row * (cardHeight + verticalSpacing));
 
       // Card outline
-      pdf.setDrawColor(0);
       pdf.setLineWidth(0.01);
-      pdf.rect(backX, backY, cardWidth, cardHeight);
+      pdf.rect(x, y, cardWidth, cardHeight);
 
       // Card number
-      const cardNumber = String(groupIndex * 4 + orderIndex + 1);
+      const cardNumber = groupIndex * 4 + orderIndex + 1;
       pdf.setFontSize(12);
-      pdf.text(`#${cardNumber}`, backX + 0.2, backY + 0.3);
+      pdf.text(`#${cardNumber}`, x + 0.2, y + 0.3);
 
       // Definition
-      pdf.setFontSize(11);
       const definition = card['Definition'] || '';
-      const wrappedDefinition = wrapText(definition, 40);
-      let textY = backY + 0.7;
-      
+      pdf.setFontSize(12);
+      const wrappedDefinition = wrapText(definition, 45);
+      let textY = y + 0.8;
+
+      // Center the definition text
       wrappedDefinition.forEach(line => {
-        if (line.trim()) {
-          pdf.text(line, backX + 0.3, textY);
-          textY += 0.25;
-        }
+        pdf.text(line, x + (cardWidth / 2), textY, { align: 'center' });
+        textY += 0.25;
       });
 
       // Example sentence
       const sentence = card['Example Sentence'] || '';
-      const wrappedSentence = wrapText(sentence, 40);
-      textY += 0.2;
-      
+      const wrappedSentence = wrapText(sentence, 45);
+      textY += 0.3; // Add extra space between definition and sentence
+
+      // Center the example sentence
       wrappedSentence.forEach(line => {
-        if (line.trim()) {
-          pdf.text(line, backX + 0.3, textY);
-          textY += 0.25;
-        }
+        pdf.text(line, x + (cardWidth / 2), textY, { align: 'center' });
+        textY += 0.25;
       });
     });
   });
