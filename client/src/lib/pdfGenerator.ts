@@ -24,7 +24,7 @@ export async function generatePDF(file: File): Promise<void> {
           // Add line numbers to the data (add 2 because CSV header is line 1)
           const dataWithLineNumbers = results.data.map((row, index) => ({
             ...row,
-            lineNumber: index + 2 // Add 2 to account for header row
+            lineNumber: index + 1 // Add 1 to match CSV row numbers
           }));
           
           const data = dataWithLineNumbers.filter((row: VocabCard) => {
