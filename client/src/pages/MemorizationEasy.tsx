@@ -131,7 +131,7 @@ export default function MemorizationEasy() {
   }, [text, setLocation]);
 
   return (
-    <div className={`container mx-auto px-4 py-8 max-w-4xl ${theme === 'dark' ? 'dark' : ''}`}>
+    <div className={`container mx-auto px-4 py-8 max-w-4xl ${theme === 'dark' ? 'dark bg-gray-900 text-white' : ''}`}>
       <h1 className="text-3xl font-bold text-center mb-8">
         Study Tools
       </h1>
