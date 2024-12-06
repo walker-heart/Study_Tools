@@ -1,0 +1,45 @@
+•	Mode-Specific Behaviors:
+	•	Easy Mode:
+	•	Shorter and simpler texts.
+	•	Slower typing pace.
+	•	Higher tolerance for errors with immediate corrective feedback.
+	•	Medium Mode:
+	•	Moderate text length and complexity.
+	•	Balanced typing pace.
+	•	Standard error highlighting.
+	•	Hard Mode:
+	•	Longer and more complex texts.
+	•	Faster typing pace.
+	•	Strict error highlighting with minimal tolerance.
+	•	Test Mode:
+	•	Timed challenges to assess memorization speed and accuracy.
+	•	Detailed performance metrics (e.g., typing speed, accuracy rate).
+	•	Adaptive difficulty based on user performance.
+	4.	Navigation and Focus Management:
+	•	Clicking the “Study Tools” header navigates back to the home page.
+	•	Clicking anywhere on the game page focuses the hidden input field, ensuring seamless typing experience.
+	5.	Color-Coded Feedback:
+	•	Green Highlights:
+	•	Indicate correctly typed characters.
+	•	Provide positive reinforcement and track progress.
+	•	Red Highlights:
+	•	Indicate incorrect inputs.
+	•	Help users identify and correct mistakes immediately.
+	6.	Caret Functionality:
+	•	Display a caret that moves in real-time as the user types.
+	•	Ensure the caret accurately reflects the current position in the text.
+	•	Manage caret position programmatically to synchronize with the hidden input.
+	7.	Offline Capability:
+	•	Implement the application as a Progressive Web App (PWA) to enable offline functionality.
+	•	Use service workers to cache necessary assets and ensure the app runs smoothly without an internet connection.
+	8.	Additional Features (Optional but Recommended):
+	•	Progress Tracking:
+	•	Visual indicators of progress (e.g., percentage completed, words memorized).
+	•	Customization Options:
+	•	Allow users to adjust font sizes, themes (light/dark mode), and background colors.
+	•	Multimedia Integration:
+	•	Option to include audio playback for auditory learning support.
+	•	Gamification Elements:
+	•	Introduce badges, achievements, or a scoring system to motivate users.
+	•	Performance Analytics:
+	•	Provide detailed statistics on typing speed, accuracy, and improvement over time.
