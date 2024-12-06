@@ -23,7 +23,7 @@ pool.query('SELECT NOW()', (err) => {
 const oauth2Client = new OAuth2Client(
   env.VITE_GOOGLE_CLIENT_ID,
   env.GOOGLE_CLIENT_SECRET,
-  'https://study-tools.wheartfield.repl.co/api/auth/google/callback'
+  'https://Study-Tools.wheartfield.repl.co/api/auth/google/callback'  // Exact match with Google Console configuration
 );
 
 router.get('/google', (req, res) => {
@@ -95,6 +95,12 @@ router.get('/google/callback', async (req, res) => {
     console.error('OAuth callback error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Detailed error:', errorMessage);
+    console.error('Full error object:', JSON.stringify(error, null, 2));
+    console.error('OAuth client configuration:', {
+      clientId: env.VITE_GOOGLE_CLIENT_ID ? 'Set' : 'Not set',
+      clientSecret: env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not set',
+      redirectUri: oauth2Client._redirectUri
+    });
     res.redirect(`/signin?error=auth_failed&message=${encodeURIComponent(errorMessage)}`);
   }
 });
