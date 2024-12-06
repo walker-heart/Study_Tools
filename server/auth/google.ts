@@ -39,8 +39,17 @@ console.log('Environment Information:', {
 // Initialize OAuth client with a default callback URL (will be updated per request)
 const oauth2Client = new OAuth2Client(
   env.VITE_GOOGLE_CLIENT_ID,
-  env.GOOGLE_CLIENT_SECRET
+  env.GOOGLE_CLIENT_SECRET,
+  getCallbackUrl() // Set the callback URL during initialization
 );
+
+// Log OAuth configuration
+console.log('OAuth Configuration:', {
+  clientIdSet: !!env.VITE_GOOGLE_CLIENT_ID,
+  clientSecretSet: !!env.GOOGLE_CLIENT_SECRET,
+  callbackUrl: getCallbackUrl(),
+  currentEnv: env.NODE_ENV
+});
 
 router.get('/', (_req, res) => {
   try {
