@@ -83,24 +83,33 @@ export default function Memorization() {
     if (!typingAreaRef.current) return;
 
     if (mode === 'easy') {
-      // In easy mode, only show the current word
+      // In easy mode, show underscores with first letters visible
       const displayText = words.map((word, index) => {
         if (index < currentWordIndex) {
+          // Show completed words in gray
           return `<span style="color: gray">${word}</span>`;
         } else if (index === currentWordIndex) {
+          // Current word being typed
           const inputText = currentText;
           let wordDisplay = '';
           for (let i = 0; i < word.length; i++) {
             if (i < inputText.length) {
+              // Show typed characters in green (correct) or red (incorrect)
               const isCorrect = inputText[i] === word[i];
               wordDisplay += `<span style="color: ${isCorrect ? 'green' : 'red'}">${word[i]}</span>`;
-            } else {
+            } else if (i === 0) {
+              // Show first letter of the word
               wordDisplay += word[i];
+            } else {
+              // Show underscore for untyped characters
+              wordDisplay += '_';
             }
           }
           return wordDisplay;
+        } else {
+          // Future words: show first letter and underscores
+          return word[0] + '_'.repeat(word.length - 1);
         }
-        return word;
       }).join(' ');
       
       typingAreaRef.current.innerHTML = displayText;
