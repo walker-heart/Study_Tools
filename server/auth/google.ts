@@ -22,18 +22,8 @@ pool.query('SELECT NOW()', (err) => {
 
 // Get the current domain from the request
 const getCallbackUrl = () => {
-  // For secure production environment, prefer APP_URL
-  if (process.env.APP_URL && process.env.NODE_ENV === 'production') {
-    return `${process.env.APP_URL}/api/auth/google/callback`;
-  }
-  
-  // For Replit environment
-  if (process.env.REPL_SLUG) {
-    return `https://${process.env.REPL_SLUG}.repl.co/api/auth/google/callback`;
-  }
-  
-  // Fallback for local development
-  return 'http://localhost:5000/api/auth/google/callback';
+  // Always use env.APP_URL which is already configured for different environments
+  return `${env.APP_URL}/api/auth/google/callback`;
 };
 
 // Log the possible callback URLs for debugging
@@ -50,19 +40,27 @@ const oauth2Client = new OAuth2Client(
 );
 
 router.get('/', (_req, res) => {
-  // Set the callback URL for this request
-  const callback = getCallbackUrl();
-  
-  const authUrl = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    redirect_uri: callback,
-    scope: [
-      'https://www.googleapis.com/auth/userinfo.email',
-      'https://www.googleapis.com/auth/userinfo.profile',
-      'openid'
-    ]
-  });
-  res.redirect(authUrl);
+  try {
+    // Set the callback URL for this request
+    const callback = getCallbackUrl();
+    console.log('Generated callback URL:', callback);
+    
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      redirect_uri: callback,
+      scope: [
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'openid'
+      ],
+      prompt: 'consent'
+    });
+    console.log('Generated auth URL:', authUrl);
+    res.redirect(authUrl);
+  } catch (error) {
+    console.error('Error in auth route:', error);
+    res.redirect(`${env.APP_URL}/signin?error=auth_init_failed`);
+  }
 });
 
 router.get('/callback', async (req, res) => {
