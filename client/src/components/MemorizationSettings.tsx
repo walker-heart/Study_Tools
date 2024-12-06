@@ -19,7 +19,16 @@ export default function MemorizationSettings() {
 
   return (
     <div>
-      {true && (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setIsOpen(!isOpen)}
+        className="mb-2"
+      >
+        ⚙️ Settings {isOpen ? '▼' : '▶'}
+      </Button>
+      
+      {isOpen && (
         <Card className={`p-4 w-64 shadow-lg ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -72,6 +81,35 @@ export default function MemorizationSettings() {
                 >
                   Dark
                 </Button>
+              </div>
+            </div>
+
+            {/* Tool-specific settings */}
+            <div className="space-y-2 mt-4 pt-4 border-t">
+              <Label>Memorization Settings</Label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Show Hints</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-16"
+                    onClick={() => {/* TODO: Implement hint toggling */}}
+                  >
+                    Yes
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Auto-advance</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-16"
+                    onClick={() => {/* TODO: Implement auto-advance toggling */}}
+                  >
+                    Off
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
