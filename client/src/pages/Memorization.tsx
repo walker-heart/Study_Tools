@@ -8,34 +8,31 @@ export default function Memorization() {
       <h1 className="text-3xl font-bold text-center mb-8">
         Study Tools
       </h1>
-      <h2 className="text-xl font-semibold text-center mb-4">
-        Select Mode
-      </h2>
 
       <Card className="p-6">
         <div className="space-y-4">
           <div className="text-center">
             <p className="text-sm text-gray-600 mb-4">
-              Choose your memorization mode:
+              Enter the text you want to memorize:
             </p>
           </div>
 
+          <textarea
+            className="w-full min-h-[200px] p-4 border rounded-lg"
+            placeholder="Enter the text here..."
+            disabled
+          />
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Link href="/memorization-easy">
-              <Button className="w-full h-32 text-lg">
-                Easy Mode
-                <p className="text-sm mt-2 font-normal">
-                  Slower pace, more forgiving
-                </p>
+              <Button className="w-full">
+                Start Easy Mode
               </Button>
             </Link>
             
             <Link href="/memorization-medium">
-              <Button className="w-full h-32 text-lg">
-                Medium Mode
-                <p className="text-sm mt-2 font-normal">
-                  Balanced pace and difficulty
-                </p>
+              <Button className="w-full">
+                Start Medium Mode
               </Button>
             </Link>
           </div>
