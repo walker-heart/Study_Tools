@@ -36,9 +36,9 @@ export default function CardPreview({ cards }: CardPreviewProps) {
                     <div className="absolute top-2 left-2 text-sm text-gray-500">
                       #{card.lineNumber}
                     </div>
-                    <div className="text-xl font-bold mb-1">{card['Vocab Word']}</div>
-                    <div className="text-sm text-gray-500">
-                      {card['Identifying Part Of Speach'].toLowerCase()}
+                    <div className="text-xl font-bold mb-2">{card['Vocab Word']}</div>
+                    <div className="text-sm text-gray-600">
+                      {card['Identifying Part Of Speach']}
                     </div>
                   </Card>
                 );
