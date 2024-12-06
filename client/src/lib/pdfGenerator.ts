@@ -6,6 +6,7 @@ interface VocabCard {
   'Identifying Part Of Speach': string; // Handle misspelling in CSV
   'Definition': string;
   'Example Sentance': string; // Handle misspelling in CSV
+  lineNumber: number; // Add line number tracking
 }
 
 type ParseResults = Papa.ParseResult<VocabCard>;
@@ -20,7 +21,13 @@ export async function generatePDF(file: File): Promise<void> {
           // Log headers for debugging
           console.log('CSV Headers:', results.meta.fields);
           
-          const data = results.data.filter((row: VocabCard) => {
+          // Add line numbers to the data (add 2 because CSV header is line 1)
+          const dataWithLineNumbers = results.data.map((row, index) => ({
+            ...row,
+            lineNumber: index + 2 // Add 2 to account for header row
+          }));
+          
+          const data = dataWithLineNumbers.filter((row: VocabCard) => {
             const hasRequiredFields = row['Vocab Word'] && 
               row['Identifying Part Of Speach'] && 
               row['Definition'] && 
@@ -100,8 +107,8 @@ function createPDF(data: VocabCard[]) {
       pdf.setLineWidth(0.01);
       pdf.rect(x, y, cardWidth, cardHeight);
 
-      // Card number (top-left corner) - Use original index from CSV
-      const cardNumber = orderIndex + 1 + (groupIndex * 4);
+      // Card number (top-left corner) - Use line number from CSV
+      const cardNumber = card.lineNumber;
       pdf.setFontSize(14);
       pdf.text(`#${cardNumber}`, x + 0.2, y + 0.4);
 
@@ -136,8 +143,8 @@ function createPDF(data: VocabCard[]) {
       pdf.setLineWidth(0.01);
       pdf.rect(x, y, cardWidth, cardHeight);
 
-      // Card number (top-left corner) - Use original index from CSV
-      const cardNumber = orderIndex + 1 + (groupIndex * 4);
+      // Card number (top-left corner) - Use line number from CSV
+      const cardNumber = card.lineNumber;
       pdf.setFontSize(14);
       pdf.text(`#${cardNumber}`, x + 0.2, y + 0.3);
 
