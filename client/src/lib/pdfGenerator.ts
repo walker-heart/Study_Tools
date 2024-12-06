@@ -80,22 +80,20 @@ function createPDF(data: VocabCard[]) {
 
       // Card number
       const cardNumber = String(groupIndex * 4 + index + 1);
-      pdf.setFontSize(10);
-      pdf.text(cardNumber, x + 0.2, y + 0.3);
+      pdf.setFontSize(14);
+      pdf.text(`#${cardNumber}`, x + 0.3, y + 0.5);
 
       // Vocab word (centered)
       const word = card['Vocab Word'] || '';
-      pdf.setFontSize(16);
-      const wordWidth = pdf.getStringUnitWidth(word) * 16 / 72;
-      pdf.text(word, x + (cardWidth / 2), y + (cardHeight / 2) - 0.2, {
+      pdf.setFontSize(24);
+      pdf.text(word, x + (cardWidth / 2), y + (cardHeight / 2), {
         align: 'center'
       });
 
       // Part of speech (centered)
       const pos = card['Identifying Part Of Speech'] || '';
-      pdf.setFontSize(12);
-      const posWidth = pdf.getStringUnitWidth(pos) * 12 / 72;
-      pdf.text(pos, x + (cardWidth / 2), y + (cardHeight / 2) + 0.3, {
+      pdf.setFontSize(14);
+      pdf.text(pos, x + (cardWidth / 2), y + (cardHeight / 2) + 0.5, {
         align: 'center'
       });
     });
@@ -122,31 +120,31 @@ function createPDF(data: VocabCard[]) {
 
       // Card number
       const cardNumber = String(groupIndex * 4 + index + 1);
-      pdf.setFontSize(10);
-      pdf.text(cardNumber, backX + 0.2, backY + 0.3);
+      pdf.setFontSize(14);
+      pdf.text(`#${cardNumber}`, backX + 0.3, backY + 0.5);
 
       // Definition
       pdf.setFontSize(12);
       const definition = card['Definition'] || '';
-      const wrappedDefinition = wrapText(definition, 40);
-      let textY = backY + 0.6;
+      const wrappedDefinition = wrapText(definition, 45);
+      let textY = backY + 1.0; // Start text lower to match reference
       
       wrappedDefinition.forEach(line => {
         if (line.trim()) {
-          pdf.text(line, backX + 0.3, textY);
-          textY += 0.25;
+          pdf.text(line, backX + 0.4, textY);
+          textY += 0.3;
         }
       });
 
       // Example sentence
       const sentence = card['Example Sentence'] || '';
-      const wrappedSentence = wrapText(sentence, 40);
-      textY += 0.2; // Add space between definition and sentence
+      const wrappedSentence = wrapText(sentence, 45);
+      textY += 0.3; // More space between definition and sentence
       
       wrappedSentence.forEach(line => {
         if (line.trim()) {
-          pdf.text(line, backX + 0.3, textY);
-          textY += 0.25;
+          pdf.text(line, backX + 0.4, textY);
+          textY += 0.3;
         }
       });
     });
