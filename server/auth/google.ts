@@ -26,7 +26,7 @@ const oauth2Client = new OAuth2Client(
   `${env.APP_URL}/api/auth/google/callback`  // Use environment variable for consistency
 );
 
-router.get('/google', (req, res) => {
+router.get('/', (req, res) => {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: [
@@ -38,7 +38,7 @@ router.get('/google', (req, res) => {
   res.redirect(authUrl);
 });
 
-router.get('/google/callback', async (req, res) => {
+router.get('/callback', async (req, res) => {
   try {
     const { code } = req.query;
     const { tokens } = await oauth2Client.getToken(code as string);
