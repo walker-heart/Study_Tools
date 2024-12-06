@@ -7,11 +7,16 @@
   font-family: 'Courier New', monospace;
   line-height: 1.6;
   letter-spacing: 0.05em;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  color: #1a1a1a;
 }
 
 .typing-area .blink {
   animation: blink 1s infinite;
   color: #1a1a1a;
+  font-weight: bold;
 }
 
 .typing-input {
