@@ -14,13 +14,6 @@ export default function MemorizationSettings() {
     fontFamily,
     setFontFamily,
     theme,
-    setTheme,
-    showHints,
-    setShowHints,
-    autoAdvance,
-    setAutoAdvance,
-    autoAdvanceDelay,
-    setAutoAdvanceDelay,
   } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -73,77 +66,6 @@ export default function MemorizationSettings() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Theme</Label>
-              <div className="flex gap-2">
-                <Button
-                  variant={theme === 'light' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setTheme('light')}
-                  className="flex-1"
-                >
-                  Light
-                </Button>
-                <Button
-                  variant={theme === 'dark' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setTheme('dark')}
-                  className="flex-1"
-                >
-                  Dark
-                </Button>
-              </div>
-            </div>
-
-            {/* Tool-specific settings */}
-            <div className="space-y-2 mt-4 pt-4 border-t">
-              <Label>Memorization Settings</Label>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Show Hints</span>
-                  <Button
-                    variant={showHints ? "default" : "outline"}
-                    size="sm"
-                    className="w-16"
-                    onClick={() => setShowHints(!showHints)}
-                  >
-                    {showHints ? "On" : "Off"}
-                  </Button>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">Auto-advance</span>
-                    <Button
-                      variant={autoAdvance ? "default" : "outline"}
-                      size="sm"
-                      className="w-16"
-                      onClick={() => setAutoAdvance(!autoAdvance)}
-                    >
-                      {autoAdvance ? "On" : "Off"}
-                    </Button>
-                  </div>
-                  {autoAdvance && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Delay (seconds)</span>
-                        <span className="text-sm text-gray-500">
-                          {autoAdvanceDelay / 1000}s
-                        </span>
-                      </div>
-                      <Slider
-                        value={[autoAdvanceDelay]}
-                        onValueChange={([value]) => setAutoAdvanceDelay(value)}
-                        min={1000}
-                        max={10000}
-                        step={1000}
-                        className="w-full"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           </div>
         </Card>

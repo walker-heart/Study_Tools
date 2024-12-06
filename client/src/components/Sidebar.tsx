@@ -23,12 +23,12 @@ export default function Sidebar() {
       {/* Sidebar content */}
       <div className={`h-full w-48 p-4 shadow-xl border-r ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white border-gray-200'}`}>
         <div className="space-y-4">
-          <Link href="/">
+          <Link href="/dashboard">
             <Button
               variant="ghost"
               className="w-full justify-start"
             >
-              🏠 Home
+              🏠 Study Tools Hub
             </Button>
           </Link>
 
