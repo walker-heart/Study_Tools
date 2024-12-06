@@ -85,6 +85,14 @@ export default function Memorization() {
           // Always show first letter
           displayWord += word[0];
           
+          // First letter handling
+          if (inputText.length > 0) {
+            const isFirstLetterCorrect = inputText[0] === word[0];
+            displayWord = `<span style="color: ${isFirstLetterCorrect ? 'green' : 'red'}">${word[0]}</span>`;
+          } else {
+            displayWord = word[0];
+          }
+          
           // For remaining letters
           for (let i = 1; i < word.length; i++) {
             if (i < inputText.length) {
@@ -167,23 +175,33 @@ export default function Memorization() {
           </div>
         </Card>
       ) : (
-        <Card 
-          className="p-6 min-h-[400px] cursor-text" 
-          onClick={focusInput}
-        >
-          <div 
-            ref={typingAreaRef} 
-            className="typing-area mb-4 min-h-[300px] whitespace-pre-wrap"
-          />
-          <input
-            ref={hiddenInputRef}
-            type="text"
-            className="opacity-0 absolute"
-            onInput={handleTyping}
-            onKeyDown={handleKeyPress}
-            autoFocus
-          />
-        </Card>
+        <div className="space-y-4">
+          <Card 
+            className="p-6 min-h-[400px] cursor-text" 
+            onClick={focusInput}
+          >
+            <div 
+              ref={typingAreaRef} 
+              className="typing-area mb-4 min-h-[300px] whitespace-pre-wrap"
+            />
+            <input
+              ref={hiddenInputRef}
+              type="text"
+              className="opacity-0 absolute"
+              onInput={handleTyping}
+              onKeyDown={handleKeyPress}
+              autoFocus
+            />
+          </Card>
+          <div className="flex justify-center">
+            <Button 
+              onClick={() => setShowGame(false)}
+              className="w-32"
+            >
+              Back
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );
