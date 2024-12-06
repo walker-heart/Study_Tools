@@ -21,14 +21,14 @@ export async function generatePDF(file: File): Promise<void> {
           // Log headers for debugging
           console.log('CSV Headers:', results.meta.fields);
           
-          // Process data while preserving original row positions
+          // Process data while preserving cell positions
           const data = results.data
             .map((row: any, index: number) => ({
               ...row,
-              originalIndex: index + 2 // Add 2 because Papa.parse starts at 0, and we want to match Excel-style row numbers
+              cellNumber: index + 2 // Cell number (add 2 because Papa.parse starts at 0 and we skip header)
             }))
             .filter((row: any) => {
-              // Keep track of non-empty rows
+              // Keep only non-empty rows
               return row['Vocab Word'] && 
                 row['Identifying Part Of Speach'] && 
                 row['Definition'] && 
@@ -36,7 +36,7 @@ export async function generatePDF(file: File): Promise<void> {
             })
             .map(row => ({
               ...row,
-              lineNumber: row.originalIndex - 1 // Subtract 1 from Excel row number as requested
+              lineNumber: row.cellNumber - 1 // Card number is cell number minus 1
             }));
           
           if (data.length === 0) {
