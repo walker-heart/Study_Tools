@@ -100,8 +100,8 @@ function createPDF(data: VocabCard[]) {
       pdf.setLineWidth(0.01);
       pdf.rect(x, y, cardWidth, cardHeight);
 
-      // Card number (top-left corner)
-      const cardNumber = groupIndex * 4 + orderIndex + 1;
+      // Card number (top-left corner) - Use original index from CSV
+      const cardNumber = orderIndex + 1 + (groupIndex * 4);
       pdf.setFontSize(14);
       pdf.text(`#${cardNumber}`, x + 0.2, y + 0.4);
 
@@ -136,8 +136,8 @@ function createPDF(data: VocabCard[]) {
       pdf.setLineWidth(0.01);
       pdf.rect(x, y, cardWidth, cardHeight);
 
-      // Card number (top-left corner)
-      const cardNumber = groupIndex * 4 + orderIndex + 1;
+      // Card number (top-left corner) - Use original index from CSV
+      const cardNumber = orderIndex + 1 + (groupIndex * 4);
       pdf.setFontSize(14);
       pdf.text(`#${cardNumber}`, x + 0.2, y + 0.3);
 
