@@ -102,7 +102,7 @@ export default function MemorizationMedium() {
       <MemorizationSettings />
 
       {!showGame ? (
-        <div className="text-center">
+        <div className={`text-center ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
           <p>Loading...</p>
         </div>
       ) : (
