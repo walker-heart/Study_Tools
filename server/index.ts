@@ -20,8 +20,32 @@ function log(message: string) {
 }
 
 const app = express();
+// Allow both the Replit domain and localhost for development
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? process.env.CLIENT_URL : 'http://localhost:5000',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    try {
+      const url = new URL(origin);
+      // Allow any subdomain of repl.co, replit.dev, and localhost
+      if (url.hostname.endsWith('.repl.co') || 
+          url.hostname.endsWith('.replit.dev') || 
+          url.hostname === 'localhost') {
+        callback(null, true);
+        return;
+      }
+      
+      log(`Blocked by CORS: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    } catch (error) {
+      log(`Error parsing origin: ${error}`);
+      callback(new Error('Invalid origin'));
+    }
+  },
   credentials: true
 }));
 app.use(express.json());

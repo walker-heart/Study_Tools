@@ -20,15 +20,42 @@ pool.query('SELECT NOW()', (err) => {
   }
 });
 
+// Get the current domain from the request
+const getCallbackUrl = () => {
+  // For secure production environment, prefer APP_URL
+  if (process.env.APP_URL && process.env.NODE_ENV === 'production') {
+    return `${process.env.APP_URL}/api/auth/google/callback`;
+  }
+  
+  // For Replit environment
+  if (process.env.REPL_SLUG) {
+    return `https://${process.env.REPL_SLUG}.repl.co/api/auth/google/callback`;
+  }
+  
+  // Fallback for local development
+  return 'http://localhost:5000/api/auth/google/callback';
+};
+
+// Log the possible callback URLs for debugging
+console.log('Possible callback URLs:', {
+  production: process.env.APP_URL ? `${process.env.APP_URL}/api/auth/google/callback` : 'not set',
+  replit: process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.repl.co/api/auth/google/callback` : 'not set',
+  local: 'http://localhost:5000/api/auth/google/callback'
+});
+
+// Initialize OAuth client with a default callback URL (will be updated per request)
 const oauth2Client = new OAuth2Client(
   env.VITE_GOOGLE_CLIENT_ID,
-  env.GOOGLE_CLIENT_SECRET,
-  `${env.APP_URL}/api/auth/google/callback`  // Use environment variable for consistency
+  env.GOOGLE_CLIENT_SECRET
 );
 
-router.get('/', (req, res) => {
+router.get('/', (_req, res) => {
+  // Set the callback URL for this request
+  const callback = getCallbackUrl();
+  
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
+    redirect_uri: callback,
     scope: [
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile',
@@ -41,7 +68,11 @@ router.get('/', (req, res) => {
 router.get('/callback', async (req, res) => {
   try {
     const { code } = req.query;
-    const { tokens } = await oauth2Client.getToken(code as string);
+    const callback = getCallbackUrl();
+    const { tokens } = await oauth2Client.getToken({
+      code: code as string,
+      redirect_uri: callback
+    });
     oauth2Client.setCredentials(tokens);
 
     // Get user info
