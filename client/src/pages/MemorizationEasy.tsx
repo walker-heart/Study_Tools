@@ -19,11 +19,23 @@ export default function MemorizationEasy() {
   const inputRef = useRef<HTMLInputElement>(null);
   const displayRef = useRef<HTMLDivElement>(null);
 
-  // Update the display with color-coded feedback
+  // Update the display with color-coded feedback and first letters hint
   const updateDisplay = () => {
     if (!displayRef.current) return;
     
-    let displayText = '';
+    // First, show the first letters of each word
+    let firstLetters = '';
+    const words = text.split(' ');
+    words.forEach((word, index) => {
+      if (word.length > 0) {
+        firstLetters += word[0];
+        if (index < words.length - 1) firstLetters += ' ';
+      }
+    });
+    
+    let displayText = `<div class="mb-4">First letters: ${firstLetters}</div>`;
+    
+    // Then show the regular typing display
     let inputIndex = 0;
     let hasError = false;
     
