@@ -38,12 +38,18 @@ app.use(cors({
       log(`Incoming request from origin: ${origin}`);
       log(`Parsed hostname: ${hostname}`);
       
-      // Allow Replit domains and localhost
-      if (hostname.endsWith('.repl.co') || 
-          hostname.endsWith('.replit.dev') ||
-          hostname.endsWith('.preview.app.github.dev') ||
-          hostname === 'localhost' ||
-          hostname === '0.0.0.0') {
+      // Allow Google authentication domains
+      const allowedDomains = [
+        '.repl.co',
+        '.replit.dev',
+        '.preview.app.github.dev',
+        'accounts.google.com',
+        'oauth2.googleapis.com',
+        'localhost',
+        '0.0.0.0'
+      ];
+
+      if (allowedDomains.some(domain => hostname === domain || hostname.endsWith(domain))) {
         log(`CORS allowed for: ${hostname}`);
         callback(null, true);
         return;
@@ -58,7 +64,8 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials'],
+  exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
