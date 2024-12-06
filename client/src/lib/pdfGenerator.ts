@@ -8,13 +8,16 @@ interface VocabCard {
   'Example Sentence': string;
 }
 
+type ParseResults = Papa.ParseResult<VocabCard>;
+type ParseError = Papa.ParseError;
+
 export async function generatePDF(file: File): Promise<void> {
   return new Promise((resolve, reject) => {
     Papa.parse<VocabCard>(file, {
       header: true,
-      complete: (results) => {
+      complete: (results: ParseResults) => {
         try {
-          const data = results.data.filter(row => row['Vocab Word']);
+          const data = results.data.filter((row: VocabCard) => row['Vocab Word']);
           if (data.length === 0) {
             throw new Error('No valid data found in CSV file');
           }
@@ -24,7 +27,7 @@ export async function generatePDF(file: File): Promise<void> {
           reject(error);
         }
       },
-      error: (error) => {
+      error: (error: ParseError) => {
         reject(new Error(`Failed to parse CSV: ${error.message}`));
       }
     });
