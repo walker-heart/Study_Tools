@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import MemorizationSettings from "@/components/MemorizationSettings";
 
 export default function MemorizationMedium() {
   // Get text from URL parameters
@@ -14,6 +15,11 @@ export default function MemorizationMedium() {
   const [currentInput, setCurrentInput] = useState<string>('');
   const [showGame, setShowGame] = useState<boolean>(true);
   const [, setLocation] = useLocation();
+  
+  // Settings state
+  const [fontSize, setFontSize] = useState<number>(16);
+  const [fontFamily, setFontFamily] = useState<string>('monospace');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
@@ -86,13 +92,22 @@ export default function MemorizationMedium() {
   }, [text, setLocation]);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className={`container mx-auto px-4 py-8 max-w-4xl ${theme === 'dark' ? 'dark bg-gray-900 text-white' : ''}`}>
       <h1 className="text-3xl font-bold text-center mb-8">
         Study Tools
       </h1>
       <h2 className="text-xl font-semibold text-center mb-4">
         Mode: Medium
       </h2>
+
+      <MemorizationSettings
+        fontSize={fontSize}
+        onFontSizeChange={setFontSize}
+        fontFamily={fontFamily}
+        onFontFamilyChange={setFontFamily}
+        theme={theme}
+        onThemeChange={setTheme}
+      />
 
       {!showGame ? (
         <div className="text-center">
@@ -101,13 +116,16 @@ export default function MemorizationMedium() {
       ) : (
         <div className="space-y-4">
           <Card 
-            className="p-6 min-h-[400px] cursor-text relative" 
+            className={`p-6 min-h-[400px] cursor-text relative ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}
             onClick={() => inputRef.current?.focus()}
           >
             <div 
               ref={displayRef} 
-              className="typing-area mb-4 min-h-[300px] whitespace-pre-wrap text-xl"
-              style={{ fontFamily: 'monospace' }}
+              className="typing-area mb-4 min-h-[300px] whitespace-pre-wrap"
+              style={{ 
+                fontFamily: fontFamily,
+                fontSize: `${fontSize}px`,
+              }}
             />
             <input
               ref={inputRef}
