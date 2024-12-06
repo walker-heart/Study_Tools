@@ -86,10 +86,14 @@ router.get('/callback', async (req, res) => {
         req.session.authenticated = true;
       }
 
-      res.redirect('/dashboard');
+      const redirectUrl = `${env.APP_URL}/dashboard`;
+      console.log('Redirecting to:', redirectUrl);
+      res.redirect(redirectUrl);
     } catch (dbError) {
       console.error('Database error:', dbError);
-      throw new Error('Failed to save user information');
+      const redirectUrl = `${env.APP_URL}/signin?error=database_error`;
+      console.log('Error redirect to:', redirectUrl);
+      res.redirect(redirectUrl);
     }
   } catch (error) {
     console.error('OAuth callback error:', error);
@@ -101,7 +105,9 @@ router.get('/callback', async (req, res) => {
       clientSecret: env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not set',
       redirectUri: `${env.APP_URL}/api/auth/google/callback`
     });
-    res.redirect(`/signin?error=auth_failed&message=${encodeURIComponent(errorMessage)}`);
+    const redirectUrl = `${env.APP_URL}/signin?error=auth_failed&message=${encodeURIComponent(errorMessage)}`;
+    console.log('Error redirect to:', redirectUrl);
+    res.redirect(redirectUrl);
   }
 });
 
