@@ -31,9 +31,10 @@ app.use(cors({
 
     try {
       const url = new URL(origin);
-      // Allow any subdomain of repl.co, replit.dev, and localhost
+      // Allow Replit domains and localhost
       if (url.hostname.endsWith('.repl.co') || 
-          url.hostname.endsWith('.replit.dev') || 
+          url.hostname.endsWith('.replit.dev') ||
+          url.hostname.endsWith('.preview.app.github.dev') ||
           url.hostname === 'localhost') {
         callback(null, true);
         return;
