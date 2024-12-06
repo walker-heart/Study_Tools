@@ -7,6 +7,7 @@ import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import Layout from "./components/Layout";
+import Landing from "./pages/Landing";
 import Home from "./pages/Home";
 import Flashcards from "./pages/Flashcards";
 import Memorization from "./pages/Memorization";
@@ -20,7 +21,8 @@ function Router() {
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Home} />
+        <Route path="/" component={Landing} />
+        <Route path="/dashboard" component={Home} />
         <Route path="/flashcards" component={Flashcards} />
         <Route path="/memorization" component={Memorization} />
         <Route path="/memorization-easy" component={MemorizationEasy} />
