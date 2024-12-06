@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { useSettings } from '@/contexts/SettingsContext';
 
 export default function Sidebar() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const [showTools, setShowTools] = useState(false);
   const { theme } = useSettings();
 
   return (
-    <div className={`fixed left-0 top-0 h-full z-50 transition-all duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-40'}`}>
+    <div className={`fixed left-0 top-0 h-full z-50 transition-all duration-200 ease-in-out ${isOpen ? 'translate-x-0 shadow-lg' : '-translate-x-40'}`}>
       {/* Toggle button */}
       <Button
         variant="ghost"
