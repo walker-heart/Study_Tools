@@ -2,75 +2,146 @@ import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+type GameMode = 'easy' | 'medium' | 'hard' | 'test';
+
+interface DisplayOptions {
+  showFullText: boolean;
+  showPartial: boolean;
+  showHints: boolean;
+}
+
+const getModeDisplay = (mode: GameMode): DisplayOptions => {
+  switch (mode) {
+    case 'easy':
+      return { showFullText: true, showPartial: true, showHints: true };
+    case 'medium':
+      return { showFullText: false, showPartial: true, showHints: true };
+    case 'hard':
+      return { showFullText: false, showPartial: false, showHints: true };
+    case 'test':
+      return { showFullText: false, showPartial: false, showHints: false };
+  }
+};
+
 export default function Memorization() {
-  const [mode, setMode] = useState<string>("");
+  const [mode, setMode] = useState<GameMode | ''>('');
   const [showGame, setShowGame] = useState(false);
-  const [text, setText] = useState("");
-  const [currentText, setCurrentText] = useState("");
+  const [text, setText] = useState('');
+  const [currentText, setCurrentText] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [words, setWords] = useState<string[]>([]);
+  const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const typingAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (showGame) {
       focusInput();
+      setWords(text.split(/\s+/));
     }
   }, [showGame]);
 
   const handleTyping = () => {
-    if (!hiddenInputRef.current || !typingAreaRef.current) return;
+    if (!hiddenInputRef.current || !typingAreaRef.current || !mode) return;
 
     const inputValue = hiddenInputRef.current.value;
     setCurrentText(inputValue);
 
-    // Clear input if correct
-    if (inputValue === text.substring(currentIndex, currentIndex + inputValue.length)) {
-      if (inputValue.length === text.length - currentIndex) {
-        // Completed the text
-        setShowGame(false);
-        setCurrentIndex(0);
-        setCurrentText("");
+    const displayOptions = getModeDisplay(mode as GameMode);
+    const currentWord = words[currentWordIndex];
+    
+    if (mode === 'easy') {
+      // In easy mode, check word by word
+      if (inputValue === currentWord) {
+        hiddenInputRef.current.value = '';
+        setCurrentWordIndex(prev => {
+          if (prev === words.length - 1) {
+            setShowGame(false);
+            return 0;
+          }
+          return prev + 1;
+        });
       }
-      hiddenInputRef.current.value = "";
-      setCurrentIndex(prevIndex => prevIndex + inputValue.length);
+    } else {
+      // For other modes, check the entire text
+      if (inputValue === text.substring(currentIndex, currentIndex + inputValue.length)) {
+        if (inputValue.length === text.length - currentIndex) {
+          setShowGame(false);
+          setCurrentIndex(0);
+          setCurrentText('');
+          setCurrentWordIndex(0);
+        }
+        hiddenInputRef.current.value = '';
+        setCurrentIndex(prev => prev + inputValue.length);
+      }
     }
 
-    updateTypingDisplay();
+    updateDisplay(displayOptions);
   };
 
-  const updateTypingDisplay = () => {
+  const updateDisplay = (displayOptions: DisplayOptions) => {
     if (!typingAreaRef.current) return;
 
-    const displayText = text.split('').map((char, index) => {
-      if (index < currentIndex) {
-        return `<span style="color: gray">${char}</span>`;
-      } else if (index < currentIndex + currentText.length) {
-        const inputChar = currentText[index - currentIndex];
-        const isCorrect = inputChar === char;
-        return `<span style="color: ${isCorrect ? 'green' : 'red'}">${char}</span>`;
-      }
-      return char;
-    }).join('');
+    if (mode === 'easy') {
+      // In easy mode, only show the current word
+      const displayText = words.map((word, index) => {
+        if (index < currentWordIndex) {
+          return `<span style="color: gray">${word}</span>`;
+        } else if (index === currentWordIndex) {
+          const inputText = currentText;
+          let wordDisplay = '';
+          for (let i = 0; i < word.length; i++) {
+            if (i < inputText.length) {
+              const isCorrect = inputText[i] === word[i];
+              wordDisplay += `<span style="color: ${isCorrect ? 'green' : 'red'}">${word[i]}</span>`;
+            } else {
+              wordDisplay += word[i];
+            }
+          }
+          return wordDisplay;
+        }
+        return word;
+      }).join(' ');
+      
+      typingAreaRef.current.innerHTML = displayText;
+    } else {
+      // For other modes, show the text based on display options
+      const displayText = text.split('').map((char, index) => {
+        if (index < currentIndex) {
+          return `<span style="color: gray">${char}</span>`;
+        } else if (index < currentIndex + currentText.length) {
+          const inputChar = currentText[index - currentIndex];
+          const isCorrect = inputChar === char;
+          return `<span style="color: ${isCorrect ? 'green' : 'red'}">${char}</span>`;
+        }
+        return displayOptions.showFullText ? char : 
+               displayOptions.showPartial && index % 3 === 0 ? char : 
+               displayOptions.showHints ? '_' : '';
+      }).join('');
 
-    typingAreaRef.current.innerHTML = displayText;
+      typingAreaRef.current.innerHTML = displayText;
+    }
   };
 
   const handleKeyPress = (event: React.KeyboardEvent) => {
     if (event.key === 'Escape') {
       setShowGame(false);
       setCurrentIndex(0);
-      setCurrentText("");
+      setCurrentText('');
+      setCurrentWordIndex(0);
     }
   };
 
-  const startGame = (selectedMode: string) => {
+  const startGame = (selectedMode: GameMode) => {
     if (!text.trim()) return;
     setMode(selectedMode);
     setShowGame(true);
     setCurrentIndex(0);
-    setCurrentText("");
+    setCurrentText('');
+    setCurrentWordIndex(0);
     if (typingAreaRef.current) {
-      typingAreaRef.current.innerHTML = text;
+      const displayOptions = getModeDisplay(selectedMode);
+      updateDisplay(displayOptions);
     }
   };
 
