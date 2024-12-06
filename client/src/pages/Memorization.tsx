@@ -6,22 +6,72 @@ export default function Memorization() {
   const [mode, setMode] = useState<string>("");
   const [showGame, setShowGame] = useState(false);
   const [text, setText] = useState("");
+  const [currentText, setCurrentText] = useState("");
+  const [currentIndex, setCurrentIndex] = useState(0);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const typingAreaRef = useRef<HTMLDivElement>(null);
 
-  const handleTyping = () => {
-    if (hiddenInputRef.current && typingAreaRef.current) {
-      // Implementation will go here
+  useEffect(() => {
+    if (showGame) {
+      focusInput();
     }
+  }, [showGame]);
+
+  const handleTyping = () => {
+    if (!hiddenInputRef.current || !typingAreaRef.current) return;
+
+    const inputValue = hiddenInputRef.current.value;
+    setCurrentText(inputValue);
+
+    // Clear input if correct
+    if (inputValue === text.substring(currentIndex, currentIndex + inputValue.length)) {
+      if (inputValue.length === text.length - currentIndex) {
+        // Completed the text
+        setShowGame(false);
+        setCurrentIndex(0);
+        setCurrentText("");
+      }
+      hiddenInputRef.current.value = "";
+      setCurrentIndex(prevIndex => prevIndex + inputValue.length);
+    }
+
+    updateTypingDisplay();
+  };
+
+  const updateTypingDisplay = () => {
+    if (!typingAreaRef.current) return;
+
+    const displayText = text.split('').map((char, index) => {
+      if (index < currentIndex) {
+        return `<span style="color: gray">${char}</span>`;
+      } else if (index < currentIndex + currentText.length) {
+        const inputChar = currentText[index - currentIndex];
+        const isCorrect = inputChar === char;
+        return `<span style="color: ${isCorrect ? 'green' : 'red'}">${char}</span>`;
+      }
+      return char;
+    }).join('');
+
+    typingAreaRef.current.innerHTML = displayText;
   };
 
   const handleKeyPress = (event: React.KeyboardEvent) => {
-    // Implementation will go here
+    if (event.key === 'Escape') {
+      setShowGame(false);
+      setCurrentIndex(0);
+      setCurrentText("");
+    }
   };
 
   const startGame = (selectedMode: string) => {
+    if (!text.trim()) return;
     setMode(selectedMode);
     setShowGame(true);
+    setCurrentIndex(0);
+    setCurrentText("");
+    if (typingAreaRef.current) {
+      typingAreaRef.current.innerHTML = text;
+    }
   };
 
   const focusInput = () => {
@@ -31,16 +81,18 @@ export default function Memorization() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl font-bold text-center mb-8">
-        Memorization Tool
+        Study Tools
       </h1>
+      <h2 className="text-xl font-semibold text-center mb-4">
+        {mode ? `Mode: ${mode.charAt(0).toUpperCase() + mode.slice(1)}` : "Memorization Tool"}
+      </h2>
 
       {!showGame ? (
         <Card className="p-6">
           <div className="space-y-4">
             <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">Enter Text to Memorize</h2>
-              <p className="text-sm text-gray-600">
-                Enter the text you want to memorize below and select a difficulty level.
+              <p className="text-sm text-gray-600 mb-4">
+                Enter the text you want to memorize:
               </p>
             </div>
 
@@ -66,7 +118,7 @@ export default function Memorization() {
         >
           <div 
             ref={typingAreaRef} 
-            className="typing-area mb-4 min-h-[300px]"
+            className="typing-area mb-4 min-h-[300px] whitespace-pre-wrap"
           />
           <input
             ref={hiddenInputRef}
