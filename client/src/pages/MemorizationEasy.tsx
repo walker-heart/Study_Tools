@@ -29,12 +29,17 @@ export default function MemorizationEasy() {
     let errors = new Array(currentInput.length).fill(false);
     
     // First pass: mark errors
-    // Any character in the wrong position is an error
+    // Once we hit an error, all subsequent characters are errors too
+    let hasError = false;
     for (let i = 0; i < currentInput.length; i++) {
       // Mark as error if:
-      // 1. We're past the text length
-      // 2. The character doesn't match exactly at this position
-      errors[i] = i >= text.length || currentInput[i] !== text[i];
+      // 1. We've already encountered an error
+      // 2. We're past the text length
+      // 3. The character doesn't match exactly at this position
+      if (hasError || i >= text.length || currentInput[i] !== text[i]) {
+        hasError = true;
+        errors[i] = true;
+      }
     }
     
     for (let i = 0; i < text.length; i++) {
