@@ -23,7 +23,7 @@ pool.query('SELECT NOW()', (err) => {
 const oauth2Client = new OAuth2Client(
   env.VITE_GOOGLE_CLIENT_ID,
   env.GOOGLE_CLIENT_SECRET,
-  'https://Study-Tools.wheartfield.repl.co/api/auth/google/callback'
+  'https://study-tools.wheartfield.repl.co/api/auth/google/callback'
 );
 
 router.get('/google', (req, res) => {
