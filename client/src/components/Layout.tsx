@@ -15,7 +15,7 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className={`min-h-screen transition-all duration-300 ${theme === 'dark' ? 'dark bg-gray-900 text-white' : 'bg-white'}`}>
       {showSidebar && <Sidebar />}
-      <main className={`transition-all duration-300 ${showSidebar ? 'pl-16 md:pl-20' : ''}`}>
+      <main className={`transition-all duration-300 ${showSidebar ? 'ml-0 md:ml-12' : ''}`}>
         {children}
       </main>
     </div>

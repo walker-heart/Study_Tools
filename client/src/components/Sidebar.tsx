@@ -9,19 +9,19 @@ export default function Sidebar() {
   const { theme } = useSettings();
 
   return (
-    <div className={`fixed left-0 top-0 h-full z-50 transition-all duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-48'}`}>
+    <div className={`fixed left-0 top-0 h-full z-50 transition-all duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-40'}`}>
       {/* Toggle button */}
       <Button
-        variant="outline"
+        variant="ghost"
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
-        className={`absolute right-0 top-4 translate-x-full ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}
+        className={`absolute right-0 top-4 translate-x-full rounded-l-none border-l-0 ${theme === 'dark' ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-white hover:bg-gray-100'}`}
       >
         {isOpen ? '←' : '→'}
       </Button>
 
       {/* Sidebar content */}
-      <div className={`h-full w-48 p-4 shadow-lg ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
+      <div className={`h-full w-48 p-4 shadow-xl border-r ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white border-gray-200'}`}>
         <div className="space-y-4">
           <Link href="/">
             <Button
