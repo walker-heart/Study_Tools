@@ -12,6 +12,9 @@ import Flashcards from "./pages/Flashcards";
 import Memorization from "./pages/Memorization";
 import MemorizationEasy from "./pages/MemorizationEasy";
 import MemorizationMedium from "./pages/MemorizationMedium";
+import Settings from "./pages/Settings";
+import SignIn from "./pages/SignIn";
+import SignUp from "./pages/SignUp";
 
 function Router() {
   return (
@@ -22,6 +25,9 @@ function Router() {
         <Route path="/memorization" component={Memorization} />
         <Route path="/memorization-easy" component={MemorizationEasy} />
         <Route path="/memorization-medium" component={MemorizationMedium} />
+        <Route path="/settings" component={Settings} />
+        <Route path="/signin" component={SignIn} />
+        <Route path="/signup" component={SignUp} />
         <Route>
           <div className="container mx-auto px-4 py-8 text-center">
             <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
