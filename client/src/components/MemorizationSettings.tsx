@@ -35,7 +35,7 @@ export default function MemorizationSettings() {
               <Label>Font Size</Label>
               <Slider
                 value={[fontSize]}
-                onValueChange={([value]) => onFontSizeChange(value)}
+                onValueChange={([value]) => setFontSize(value)}
                 min={12}
                 max={24}
                 step={1}
@@ -48,7 +48,7 @@ export default function MemorizationSettings() {
 
             <div className="space-y-2">
               <Label>Font Family</Label>
-              <Select value={fontFamily} onValueChange={onFontFamilyChange}>
+              <Select value={fontFamily} onValueChange={setFontFamily}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a font" />
                 </SelectTrigger>
@@ -68,7 +68,7 @@ export default function MemorizationSettings() {
                 <Button
                   variant={theme === 'light' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => onThemeChange('light')}
+                  onClick={() => setTheme('light')}
                   className="flex-1"
                 >
                   Light
@@ -76,7 +76,7 @@ export default function MemorizationSettings() {
                 <Button
                   variant={theme === 'dark' ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => onThemeChange('dark')}
+                  onClick={() => setTheme('dark')}
                   className="flex-1"
                 >
                   Dark
