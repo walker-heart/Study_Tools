@@ -103,17 +103,17 @@ function createPDF(data: VocabCard[]) {
       // Card number (top-left corner)
       const cardNumber = groupIndex * 4 + orderIndex + 1;
       pdf.setFontSize(14);
-      pdf.text(`#${cardNumber}`, x + 0.2, y + 0.3);
+      pdf.text(`#${cardNumber}`, x + 0.2, y + 0.4);
 
       // Vocab word (centered)
       const word = card['Vocab Word'] || '';
       pdf.setFontSize(28);
-      pdf.text(word, x + (cardWidth / 2), y + (cardHeight * 0.5), { align: 'center' });
+      pdf.text(word, x + (cardWidth / 2), y + (cardHeight * 0.6), { align: 'center' });
 
       // Part of speech (below word)
       const pos = card['Identifying Part Of Speach'] || '';
       pdf.setFontSize(16);
-      pdf.text(pos, x + (cardWidth / 2), y + (cardHeight * 0.7), { align: 'center' });
+      pdf.text(pos, x + (cardWidth / 2), y + (cardHeight * 0.8), { align: 'center' });
     });
 
     // Back side page
@@ -157,7 +157,7 @@ function createPDF(data: VocabCard[]) {
       // Definition
       pdf.setFontSize(defFontSize);
       const wrappedDefinition = wrapText(definition, Math.floor(45 * (16/defFontSize)));
-      let textY = y + 0.7;
+      let textY = y + 0.9; // Increased initial Y position
 
       wrappedDefinition.forEach(line => {
         pdf.text(line, x + (cardWidth / 2), textY, { align: 'center' });
@@ -167,7 +167,7 @@ function createPDF(data: VocabCard[]) {
       // Example sentence
       pdf.setFontSize(sentFontSize);
       const wrappedSentence = wrapText(sentence, Math.floor(45 * (16/sentFontSize)));
-      textY += 0.3; // Space between definition and sentence
+      textY += 0.4; // Increased space between definition and sentence
 
       wrappedSentence.forEach(line => {
         pdf.text(line, x + (cardWidth / 2), textY, { align: 'center' });
