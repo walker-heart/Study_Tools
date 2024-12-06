@@ -8,7 +8,20 @@ import { Slider } from "@/components/ui/slider";
 import { useSettings } from "@/contexts/SettingsContext";
 
 export default function MemorizationSettings() {
-  const { fontSize, setFontSize, fontFamily, setFontFamily, theme, setTheme } = useSettings();
+  const {
+    fontSize,
+    setFontSize,
+    fontFamily,
+    setFontFamily,
+    theme,
+    setTheme,
+    showHints,
+    setShowHints,
+    autoAdvance,
+    setAutoAdvance,
+    autoAdvanceDelay,
+    setAutoAdvanceDelay,
+  } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
 
   const fontOptions = [
@@ -87,28 +100,48 @@ export default function MemorizationSettings() {
             {/* Tool-specific settings */}
             <div className="space-y-2 mt-4 pt-4 border-t">
               <Label>Memorization Settings</Label>
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm">Show Hints</span>
                   <Button
-                    variant="outline"
+                    variant={showHints ? "default" : "outline"}
                     size="sm"
                     className="w-16"
-                    onClick={() => {/* TODO: Implement hint toggling */}}
+                    onClick={() => setShowHints(!showHints)}
                   >
-                    Yes
+                    {showHints ? "On" : "Off"}
                   </Button>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Auto-advance</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-16"
-                    onClick={() => {/* TODO: Implement auto-advance toggling */}}
-                  >
-                    Off
-                  </Button>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Auto-advance</span>
+                    <Button
+                      variant={autoAdvance ? "default" : "outline"}
+                      size="sm"
+                      className="w-16"
+                      onClick={() => setAutoAdvance(!autoAdvance)}
+                    >
+                      {autoAdvance ? "On" : "Off"}
+                    </Button>
+                  </div>
+                  {autoAdvance && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Delay (seconds)</span>
+                        <span className="text-sm text-gray-500">
+                          {autoAdvanceDelay / 1000}s
+                        </span>
+                      </div>
+                      <Slider
+                        value={[autoAdvanceDelay]}
+                        onValueChange={([value]) => setAutoAdvanceDelay(value)}
+                        min={1000}
+                        max={10000}
+                        step={1000}
+                        className="w-full"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
