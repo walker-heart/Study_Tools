@@ -40,23 +40,28 @@ export default function Memorization() {
         let displayWord = '';
         
         // Create base word with underscores
-        const baseLength = Math.max(word.length, typedPart.length);
-        const baseWord = '_'.repeat(baseLength);
+        const baseLength = word.length;
         
-        // Overlay typed characters and caret
         for (let i = 0; i < baseLength; i++) {
           if (i < typedPart.length) {
             // Show typed character (correct in green, incorrect in red)
-            const isCorrect = i < word.length && typedPart[i] === word[i];
+            const isCorrect = typedPart[i] === word[i];
             displayWord += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedPart[i]}</span>`;
           } else if (i === typedPart.length) {
             // Show caret at current typing position
-            displayWord += '<span class="blink">|</span>';
-            if (i < word.length) displayWord += '_';
-          } else if (i < word.length) {
-            // Show remaining underscores for the actual word
+            displayWord += '<span class="blink">|</span>_';
+          } else {
+            // Show remaining underscores
             displayWord += '_';
           }
+        }
+        
+        // If typed more characters than word length, append them in red
+        if (typedPart.length > word.length) {
+          displayWord += `<span style="color: red">${typedPart.slice(word.length)}</span>`;
+        } else if (typedPart.length === word.length) {
+          // Add caret at the end if we've typed exactly to the end
+          displayWord += '<span class="blink">|</span>';
         }
         return displayWord;
       }
