@@ -5,23 +5,10 @@ import { SelectValue, SelectTrigger, SelectContent, SelectItem, Select } from "@
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 
-interface MemorizationSettingsProps {
-  fontSize: number;
-  onFontSizeChange: (size: number) => void;
-  fontFamily: string;
-  onFontFamilyChange: (font: string) => void;
-  theme: 'light' | 'dark';
-  onThemeChange: (theme: 'light' | 'dark') => void;
-}
+import { useSettings } from "@/contexts/SettingsContext";
 
-export default function MemorizationSettings({
-  fontSize,
-  onFontSizeChange,
-  fontFamily,
-  onFontFamilyChange,
-  theme,
-  onThemeChange,
-}: MemorizationSettingsProps) {
+export default function MemorizationSettings() {
+  const { fontSize, setFontSize, fontFamily, setFontFamily, theme, setTheme } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
 
   const fontOptions = [

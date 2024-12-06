@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSettings } from "@/contexts/SettingsContext";
 import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,10 +17,8 @@ export default function MemorizationEasy() {
   const [showGame, setShowGame] = useState<boolean>(true);
   const [, setLocation] = useLocation();
   
-  // Settings state
-  const [fontSize, setFontSize] = useState<number>(16);
-  const [fontFamily, setFontFamily] = useState<string>('monospace');
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  // Get settings from global context
+  const { fontSize, fontFamily, theme } = useSettings();
   
   // Refs
   const inputRef = useRef<HTMLInputElement>(null);
@@ -139,14 +138,7 @@ export default function MemorizationEasy() {
         Mode: Easy
       </h2>
 
-      <MemorizationSettings
-        fontSize={fontSize}
-        onFontSizeChange={setFontSize}
-        fontFamily={fontFamily}
-        onFontFamilyChange={setFontFamily}
-        theme={theme}
-        onThemeChange={setTheme}
-      />
+      <MemorizationSettings />
 
       {!showGame ? (
         <div className="text-center">
