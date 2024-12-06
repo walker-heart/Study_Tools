@@ -18,17 +18,8 @@ export default function MemorizationSettings() {
   ];
 
   return (
-    <div className="fixed top-4 right-4 z-50">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setIsOpen(!isOpen)}
-        className="mb-2"
-      >
-        ⚙️ Settings
-      </Button>
-
-      {isOpen && (
+    <div>
+      {true && (
         <Card className={`p-4 w-64 shadow-lg ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
           <div className="space-y-4">
             <div className="space-y-2">
