@@ -31,11 +31,19 @@ app.use(cors({
 
     try {
       const url = new URL(origin);
+      const hostname = url.hostname.toLowerCase();
+      
+      // Log the incoming request origin for debugging
+      log(`Incoming request from origin: ${origin}`);
+      log(`Parsed hostname: ${hostname}`);
+      
       // Allow Replit domains and localhost
-      if (url.hostname.endsWith('.repl.co') || 
-          url.hostname.endsWith('.replit.dev') ||
-          url.hostname.endsWith('.preview.app.github.dev') ||
-          url.hostname === 'localhost') {
+      if (hostname.endsWith('.repl.co') || 
+          hostname.endsWith('.replit.dev') ||
+          hostname.endsWith('.preview.app.github.dev') ||
+          hostname === 'localhost' ||
+          hostname === '0.0.0.0') {
+        log(`CORS allowed for: ${hostname}`);
         callback(null, true);
         return;
       }
@@ -47,7 +55,9 @@ app.use(cors({
       callback(new Error('Invalid origin'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));

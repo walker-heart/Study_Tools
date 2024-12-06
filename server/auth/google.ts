@@ -26,11 +26,14 @@ const getCallbackUrl = () => {
   return `${env.APP_URL}/api/auth/google/callback`;
 };
 
-// Log the possible callback URLs for debugging
-console.log('Possible callback URLs:', {
-  production: process.env.APP_URL ? `${process.env.APP_URL}/api/auth/google/callback` : 'not set',
-  replit: process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.repl.co/api/auth/google/callback` : 'not set',
-  local: 'http://localhost:5000/api/auth/google/callback'
+// Log environment information for debugging
+console.log('Environment Information:', {
+  REPL_SLUG: process.env.REPL_SLUG,
+  REPL_OWNER: process.env.REPL_OWNER,
+  REPL_ID: process.env.REPL_ID,
+  NODE_ENV: process.env.NODE_ENV,
+  APP_URL: env.APP_URL,
+  finalCallbackUrl: `${env.APP_URL}/api/auth/google/callback`
 });
 
 // Initialize OAuth client with a default callback URL (will be updated per request)
@@ -65,8 +68,21 @@ router.get('/', (_req, res) => {
 
 router.get('/callback', async (req, res) => {
   try {
+    console.log('Received callback request:', {
+      query: req.query,
+      headers: req.headers,
+      originalUrl: req.originalUrl
+    });
+    
     const { code } = req.query;
+    if (!code) {
+      console.error('No code received in callback');
+      return res.redirect(`${env.APP_URL}/signin?error=no_code`);
+    }
+    
     const callback = getCallbackUrl();
+    console.log('Using callback URL:', callback);
+    
     const { tokens } = await oauth2Client.getToken({
       code: code as string,
       redirect_uri: callback
@@ -133,6 +149,11 @@ router.get('/callback', async (req, res) => {
       clientId: env.VITE_GOOGLE_CLIENT_ID ? 'Set' : 'Not set',
       clientSecret: env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not set',
       redirectUri: `${env.APP_URL}/api/auth/google/callback`
+    });
+    console.error('Environment details:', {
+      APP_URL: env.APP_URL,
+      NODE_ENV: env.NODE_ENV,
+      actualCallbackUrl: getCallbackUrl()
     });
     const redirectUrl = `${env.APP_URL}/signin?error=auth_failed&message=${encodeURIComponent(errorMessage)}`;
     console.log('Error redirect to:', redirectUrl);
