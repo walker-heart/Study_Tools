@@ -107,7 +107,8 @@ function createPDF(data: VocabCard[]) {
 
     // Back side - Order: 2,4,1,3
     pdf.addPage();
-    const backOrder = [1, 3, 0, 2]; // Maps to 2,4,1,3
+    // Maps to desired order: 2,4,1,3
+    const backOrder = [1, 3, 0, 2];
     backOrder.forEach((orderIndex, displayIndex) => {
       const card = group[orderIndex];
       if (!card) return;
