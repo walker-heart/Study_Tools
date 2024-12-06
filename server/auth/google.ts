@@ -23,7 +23,7 @@ pool.query('SELECT NOW()', (err) => {
 const oauth2Client = new OAuth2Client(
   env.VITE_GOOGLE_CLIENT_ID,
   env.GOOGLE_CLIENT_SECRET,
-  'https://study-tools.repl.co/api/auth/google/callback'  // Case-sensitive URL matching Google Console
+  `${env.APP_URL}/api/auth/google/callback`  // Use environment variable for consistency
 );
 
 router.get('/google', (req, res) => {
@@ -99,7 +99,7 @@ router.get('/google/callback', async (req, res) => {
     console.error('OAuth client configuration:', {
       clientId: env.VITE_GOOGLE_CLIENT_ID ? 'Set' : 'Not set',
       clientSecret: env.GOOGLE_CLIENT_SECRET ? 'Set' : 'Not set',
-      redirectUri: 'https://study-tools.repl.co/api/auth/google/callback'
+      redirectUri: `${env.APP_URL}/api/auth/google/callback`
     });
     res.redirect(`/signin?error=auth_failed&message=${encodeURIComponent(errorMessage)}`);
   }
