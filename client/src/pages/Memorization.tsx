@@ -23,41 +23,45 @@ export default function Memorization() {
     
     let displayText = '';
     let inputIndex = 0;
+    let hasError = false;  // Track if we've encountered an error
     
-    // Process each character in the target text
+    // Process each character in the text
     for (let i = 0; i < text.length; i++) {
-      const currentChar = text[i];
-      
       if (inputIndex < currentInput.length) {
-        // Handle typed characters (including spaces)
+        // Handle typed characters
         const typedChar = currentInput[inputIndex];
-        const isCorrect = typedChar === currentChar;
+        
+        // Check if this character is correct (only if no previous errors)
+        const isCorrect = !hasError && typedChar === text[i];
+        
+        // If this character is wrong, mark all future characters as wrong
+        if (typedChar !== text[i]) {
+          hasError = true;
+        }
+        
         displayText += `<span style="color: ${isCorrect ? 'green' : 'red'}">${typedChar}</span>`;
         inputIndex++;
       } else if (inputIndex === currentInput.length) {
         // Show caret at current position
         displayText += '<span class="blink">|</span>';
         // Add underscore for non-space characters
-        if (currentChar !== ' ') {
-          displayText += '_';
-        } else {
-          displayText += ' ';
-        }
+        displayText += text[i] === ' ' ? ' ' : '_';
         inputIndex++;
       } else {
         // Show remaining characters as underscores or spaces
-        displayText += currentChar === ' ' ? ' ' : '_';
+        displayText += text[i] === ' ' ? ' ' : '_';
       }
     }
     
     // Handle any extra typed characters beyond the text length
-    if (inputIndex === currentInput.length && currentInput.length > text.length) {
+    while (inputIndex < currentInput.length) {
+      displayText += `<span style="color: red">${currentInput[inputIndex]}</span>`;
+      inputIndex++;
+    }
+    
+    // If at the end of input, show the caret
+    if (inputIndex === currentInput.length) {
       displayText += '<span class="blink">|</span>';
-    } else {
-      while (inputIndex < currentInput.length) {
-        displayText += `<span style="color: red">${currentInput[inputIndex]}</span>`;
-        inputIndex++;
-      }
     }
 
     displayRef.current.innerHTML = displayText;
