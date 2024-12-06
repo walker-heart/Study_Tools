@@ -46,6 +46,11 @@
   font-family: 'Inter', sans-serif;
   resize: vertical;
   transition: border-color 0.3s ease;
+  color: #1a1a1a;
+}
+
+.text-input::placeholder {
+  color: #6b7280;
 }
 
 .text-input:focus {
