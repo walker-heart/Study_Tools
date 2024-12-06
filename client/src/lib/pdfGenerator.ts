@@ -32,7 +32,7 @@ export async function generatePDF(file: File): Promise<void> {
             })
             .map((row: any, index: number) => ({
               ...row,
-              lineNumber: (index + 7) - 1 // Start from cell 7, subtract 1 to match cell number minus 1
+              lineNumber: row.originalIndex - 1 // Use originalIndex from Home.tsx parsing, minus 1 for header
             }));
           
           if (data.length === 0) {
