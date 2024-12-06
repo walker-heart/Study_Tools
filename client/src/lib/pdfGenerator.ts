@@ -89,14 +89,14 @@ function createPDF(data: VocabCard[]) {
 
       // Vocab word (centered)
       const word = card['Vocab Word'] || '';
-      pdf.setFontSize(20);
-      const wordY = y + (cardHeight * 0.45);
+      pdf.setFontSize(24);
+      const wordY = y + (cardHeight * 0.5);
       pdf.text(word, x + (cardWidth / 2), wordY, { align: 'center' });
 
-      // Part of speech (centered)
+      // Part of speech (centered, below word)
       const pos = card['Identifying Part Of Speech'] || '';
-      pdf.setFontSize(12);
-      const posY = y + (cardHeight * 0.65);
+      pdf.setFontSize(14);
+      const posY = y + (cardHeight * 0.7);
       pdf.text(pos, x + (cardWidth / 2), posY, { align: 'center' });
     });
 
@@ -127,25 +127,25 @@ function createPDF(data: VocabCard[]) {
 
       // Definition
       const definition = card['Definition'] || '';
-      pdf.setFontSize(12);
-      const wrappedDefinition = wrapText(definition, 45);
-      let textY = y + 0.8;
+      pdf.setFontSize(14);
+      const wrappedDefinition = wrapText(definition, 40);
+      let textY = y + 0.7;
 
       // Center the definition text
       wrappedDefinition.forEach(line => {
         pdf.text(line, x + (cardWidth / 2), textY, { align: 'center' });
-        textY += 0.25;
+        textY += 0.3;
       });
 
       // Example sentence
       const sentence = card['Example Sentence'] || '';
-      const wrappedSentence = wrapText(sentence, 45);
-      textY += 0.3; // Add extra space between definition and sentence
+      const wrappedSentence = wrapText(sentence, 40);
+      textY += 0.4; // Add more space between definition and sentence
 
       // Center the example sentence
       wrappedSentence.forEach(line => {
         pdf.text(line, x + (cardWidth / 2), textY, { align: 'center' });
-        textY += 0.25;
+        textY += 0.3;
       });
     });
   });
