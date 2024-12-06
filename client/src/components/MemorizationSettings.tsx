@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
+import { SelectValue, SelectTrigger, SelectContent, SelectItem, Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 
@@ -61,11 +61,18 @@ export default function MemorizationSettings({
 
             <div className="space-y-2">
               <Label>Font Family</Label>
-              <Select
-                value={fontFamily}
-                onValueChange={onFontFamilyChange}
-                options={fontOptions}
-              />
+              <Select value={fontFamily} onValueChange={onFontFamilyChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a font" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fontOptions.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

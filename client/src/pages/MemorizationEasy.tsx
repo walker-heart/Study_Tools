@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import MemorizationSettings from "@/components/MemorizationSettings";
 
 export default function MemorizationEasy() {
   // Get text from URL parameters
