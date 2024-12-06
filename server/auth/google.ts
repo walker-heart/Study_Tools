@@ -5,8 +5,8 @@ import { env } from '../lib/env';
 const router = Router();
 
 const oauth2Client = new OAuth2Client(
-  process.env.VITE_GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
+  env.VITE_GOOGLE_CLIENT_ID,
+  env.GOOGLE_CLIENT_SECRET,
   `${env.APP_URL}/api/auth/google/callback`
 );
 
@@ -41,11 +41,16 @@ router.get('/google/callback', async (req, res) => {
 
     // Store user in database or session
     const user = {
-      email: payload.email,
-      name: payload.name,
+      email: payload.email ?? '',
+      name: payload.name ?? '',
       picture: payload.picture,
-      googleId: payload.sub
+      googleId: payload.sub ?? ''
     };
+
+    // Validate required fields
+    if (!user.email || !user.name) {
+      throw new Error('Required user information missing from Google response');
+    }
 
     if (req.session) {
       req.session.user = user;
