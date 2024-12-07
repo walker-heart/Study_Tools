@@ -105,7 +105,7 @@ export async function signIn(req: Request, res: Response, next: NextFunction) {
 
 export async function signOut(req: Request, res: Response, next: NextFunction) {
   try {
-    req.session.destroy((err) => {
+    req.session.destroy((err: Error | null) => {
       if (err) {
         throw err;
       }

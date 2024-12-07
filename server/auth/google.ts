@@ -18,7 +18,7 @@ passport.use(new GoogleStrategy({
     callbackURL: `${env.APP_URL}/api/auth/google/callback`,
     scope: ['email', 'profile']
   },
-  async (accessToken, refreshToken, profile, done) => {
+  async (accessToken: string, refreshToken: string, profile: any, done: (error: any, user?: any) => void) => {
     try {
       // Check if user exists
       const [existingUser] = await db
