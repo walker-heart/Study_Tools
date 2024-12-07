@@ -8,6 +8,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { SettingsProvider } from "./contexts/SettingsContext";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminProtectedRoute from "./components/AdminProtectedRoute";
+import AdminDashboard from "./pages/AdminDashboard";
 import Landing from "./pages/Landing";
 import Home from "./pages/Home";
 import Flashcards from "./pages/Flashcards";
@@ -55,6 +57,13 @@ function Router() {
         </Route>
         <Route path="/signin" component={SignIn} />
         <Route path="/signup" component={SignUp} />
+        <Route path="/admin">
+          <ProtectedRoute>
+            <AdminProtectedRoute>
+              <AdminDashboard />
+            </AdminProtectedRoute>
+          </ProtectedRoute>
+        </Route>
         <Route>
           <div className="container mx-auto px-4 py-8 text-center">
             <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>

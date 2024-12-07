@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -6,7 +6,26 @@ import { useSettings } from '@/contexts/SettingsContext';
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(true);
   const [showTools, setShowTools] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { theme } = useSettings();
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      try {
+        const response = await fetch('/api/auth/check-admin', {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setIsAdmin(data.isAdmin);
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+      }
+    };
+
+    checkAdminStatus();
+  }, []);
 
   return (
     <div className={`fixed left-0 top-0 h-full z-50 transition-all duration-200 ease-in-out ${isOpen ? 'translate-x-0 shadow-lg' : '-translate-x-40'}`}>
@@ -66,6 +85,16 @@ export default function Sidebar() {
 
         {/* Settings button at bottom */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          {isAdmin && (
+            <Link href="/admin">
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+              >
+                🛠️ Admin Dashboard
+              </Button>
+            </Link>
+          )}
           <Link href="/settings">
             <Button
               variant="ghost"
