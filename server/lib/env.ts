@@ -7,8 +7,8 @@ const envSchema = z.object({
   APP_URL: z.string().default(
     process.env.REPL_SLUG 
       ? `https://${process.env.REPL_SLUG.toLowerCase()}.repl.co`
-      : process.env.REPL_ID && process.env.REPL_OWNER
-        ? `https://${process.env.REPL_ID}-${process.env.REPL_OWNER.toLowerCase()}.repl.co` 
+      : process.env.REPL_ID
+        ? `https://${process.env.REPL_ID.toLowerCase()}.id.repl.co` 
         : 'http://localhost:5000'
   ),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
