@@ -68,7 +68,8 @@ export async function signIn(req: Request, res: Response) {
     // Set user session
     req.session.user = {
       id: user.id,
-      email: user.email
+      email: user.email,
+      isAdmin: user.isAdmin
     };
     req.session.authenticated = true;
     
@@ -81,7 +82,8 @@ export async function signIn(req: Request, res: Response) {
       user: { 
         id: user.id, 
         email: user.email,
-        theme: user.theme || 'light' 
+        theme: user.theme || 'light',
+        isAdmin: user.isAdmin || false
       } 
     });
   } catch (error) {
@@ -91,10 +93,24 @@ export async function signIn(req: Request, res: Response) {
 }
 
 export async function checkAdmin(req: Request, res: Response) {
-  if (req.session.user?.id) {
-    const [user] = await db.select().from(users).where(eq(users.id, req.session.user.id));
+  try {
+    if (!req.session.user?.id) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const [user] = await db
+      .select({
+        isAdmin: users.isAdmin
+      })
+      .from(users)
+      .where(eq(users.id, req.session.user.id))
+      .limit(1);
+
+    console.log('Admin check for user:', req.session.user.id, 'Result:', user);
+    
     res.json({ isAdmin: user?.isAdmin || false });
-  } else {
-    res.status(401).json({ message: "Not authenticated" });
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    res.status(500).json({ message: "Error checking admin status" });
   }
 }
