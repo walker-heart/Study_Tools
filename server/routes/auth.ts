@@ -75,7 +75,15 @@ export async function signIn(req: Request, res: Response) {
     // Also send JWT token for API authentication
     const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
 
-    res.json({ token, user: { id: user.id, email: user.email } });
+    // Include theme in the response
+    res.json({ 
+      token, 
+      user: { 
+        id: user.id, 
+        email: user.email,
+        theme: user.theme || 'light' 
+      } 
+    });
   } catch (error) {
     console.error('Sign in error:', error);
     res.status(500).json({ message: "Error signing in" });
