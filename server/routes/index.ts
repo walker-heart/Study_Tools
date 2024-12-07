@@ -1,15 +1,20 @@
-import type { Express, Router } from "express";
+import { Router, type Express } from "express";
 import { signUp, signIn, checkAuth, checkAdmin } from "./auth";
 import { updateTheme, getTheme } from "./user";
 
-export function registerRoutes(app: Express): Router | void {
+export function registerRoutes(app: Express): void {
+  const router = Router();
+
   // Auth routes - Email/Password only
-  app.post('/api/auth/signup', signUp);
-  app.post('/api/auth/signin', signIn);
-  app.get('/api/auth/check', checkAuth);
-  app.get('/api/auth/check-admin', checkAdmin);
+  router.post('/api/auth/signup', signUp);
+  router.post('/api/auth/signin', signIn);
+  router.get('/api/auth/check', checkAuth);
+  router.get('/api/auth/check-admin', checkAdmin);
 
   // User routes
-  app.get('/api/user/theme', getTheme);
-  app.put('/api/user/theme', updateTheme);
+  router.get('/api/user/theme', getTheme);
+  router.put('/api/user/theme', updateTheme);
+
+  // Use the router middleware
+  app.use(router);
 }
