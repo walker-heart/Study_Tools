@@ -10,25 +10,22 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setLocation('/signin');
-        return;
-      }
-
       try {
-        // Verify token client-side
-        const tokenData = JSON.parse(atob(token.split('.')[1]));
-        const expirationTime = tokenData.exp * 1000; // Convert to milliseconds
+        const response = await fetch('/api/auth/check', {
+          credentials: 'include'
+        });
         
-        if (Date.now() >= expirationTime) {
-          // Token has expired
-          localStorage.removeItem('token');
+        if (!response.ok) {
+          setLocation('/signin');
+          return;
+        }
+
+        const data = await response.json();
+        if (!data.authenticated) {
           setLocation('/signin');
         }
       } catch (error) {
-        console.error('Token verification failed:', error);
-        localStorage.removeItem('token');
+        console.error('Auth check failed:', error);
         setLocation('/signin');
       }
     };
@@ -36,8 +33,8 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     // Check immediately
     checkAuth();
 
-    // Set up periodic checks every minute
-    const interval = setInterval(checkAuth, 60 * 1000);
+    // Set up periodic checks every 5 minutes
+    const interval = setInterval(checkAuth, 5 * 60 * 1000);
 
     // Cleanup interval on unmount
     return () => clearInterval(interval);
