@@ -1,10 +1,14 @@
-import type { Express, Router } from "express";
+import { Router } from "express";
 import { signUp, signIn, signOut, checkAuth } from "./auth";
 
-export function registerRoutes(app: Express): Router | void {
+export function registerRoutes(): Router {
+  const router = Router();
+
   // Auth routes - Email/Password only
-  app.post('/api/auth/signup', signUp);
-  app.post('/api/auth/signin', signIn);
-  app.post('/api/auth/signout', signOut);
-  app.get('/api/auth/check', checkAuth);
+  router.post('/api/auth/signup', signUp);
+  router.post('/api/auth/signin', signIn);
+  router.post('/api/auth/signout', signOut);
+  router.get('/api/auth/check', checkAuth);
+
+  return router;
 }
