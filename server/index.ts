@@ -40,7 +40,10 @@ app.use(cors({
       const allowedDomains = [
         '.repl.co',
         '.replit.dev',
+        '.replit.app',
         '.preview.app.github.dev',
+        'wtoolsw.com',
+        'w-schooltools.replit.app',
         'accounts.google.com',
         'oauth2.googleapis.com',
         'www.googleapis.com',
