@@ -9,6 +9,9 @@ declare module 'express-session' {
       email: string;
     };
     authenticated?: boolean;
+    passport?: {
+      user?: number;
+    };
   }
 }
 
@@ -21,6 +24,9 @@ export interface ErrorWithStatus extends Error {
 declare module 'express' {
   export interface Request {
     user?: User;
+    isAuthenticated(): this is { user: User };
+    logIn(user: User, callback: (err: any) => void): void;
+    logout(callback: (err: any) => void): void;
   }
   
   export interface Response {
@@ -30,6 +36,6 @@ declare module 'express' {
   }
 
   export interface ErrorRequestHandler {
-    (err: ErrorWithStatus, req: Request, res: Response, next: NextFunction): void;
+    (err: ErrorWithStatus, req: Request, res: Response, next: NextFunction): Promise<void> | void;
   }
 }
