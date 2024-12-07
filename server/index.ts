@@ -53,22 +53,13 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     // Verify database connection
     await db.execute(sql`SELECT 1`);
     log('Database connection successful');
-
-    // Register routes
-    const router = registerRoutes();
-    app.use(router);
     
     const server = createServer(app);
 
-    // Error handling middleware
-    app.use((err: ErrorWithStatus, req: Request, res: Response, next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
-      log(`Error: ${message}`);
-      res.status(status).json({ message });
-      next();
-    });
-
+    // Register routes first
+    const router = registerRoutes();
+    app.use(router);
+    
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
@@ -77,6 +68,17 @@ app.use((req: Request, res: Response, next: NextFunction) => {
         res.sendFile('index.html', { root: './dist' });
       });
     }
+
+    // Error handling middleware must be after all routes
+    app.use((err: ErrorWithStatus, req: Request, res: Response, next: NextFunction) => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      log(`Error: ${message}`);
+      res.status(status).json({ message });
+      if (!res.headersSent) {
+        next(err);
+      }
+    });
 
     const PORT = parseInt(process.env.PORT || '5000', 10);
     server.listen({
