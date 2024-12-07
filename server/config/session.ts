@@ -36,8 +36,8 @@ try {
 // Export session configuration
 export const sessionConfig = {
   store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'development-session-secret',
-  resave: true, // Required for rolling sessions
+  secret: process.env.SESSION_SECRET || 'development-session-secret', // Uses SESSION_SECRET from env
+  resave: false,
   saveUninitialized: false,
   rolling: true, // Refresh session with each request
   cookie: {
