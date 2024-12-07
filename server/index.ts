@@ -39,11 +39,11 @@ app.use(initializePassport());
 app.use(initializeSession());
 
 // Request logging middleware
-app.use('*', (req: Request, res: Response, next: NextFunction) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
   res.on("finish", () => {
     const duration = Date.now() - start;
-    log(`${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
+    log(`${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`);
   });
   next();
 });
@@ -70,14 +70,15 @@ app.use('*', (req: Request, res: Response, next: NextFunction) => {
     }
 
     // Error handling middleware must be after all routes
-    app.use('*', (err: ErrorWithStatus, req: Request, res: Response, next: NextFunction) => {
+    app.use((err: ErrorWithStatus, req: Request, res: Response, next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
       log(`Error: ${message}`);
-      res.status(status).json({ message });
+      
       if (!res.headersSent) {
-        next(err);
+        res.status(status).json({ message });
       }
+      next(err);
     });
 
     const PORT = parseInt(process.env.PORT || '5000', 10);

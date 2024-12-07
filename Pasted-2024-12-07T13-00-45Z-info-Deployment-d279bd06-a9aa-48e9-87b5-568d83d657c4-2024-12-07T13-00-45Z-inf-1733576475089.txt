@@ -1,0 +1,36 @@
+2024-12-07T13:00:45Z info: Deployment: d279bd06-a9aa-48e9-87b5-568d83d657c4
+2024-12-07T13:00:45Z info: Build: d93bdebd-e2dd-4732-b57d-c62c7976f843
+2024-12-07T13:00:45Z info: Connecting to builder
+2024-12-07T13:00:48Z info: Builder connected
+2024-12-07T13:00:49Z info: Installing packages
+--> npm install
+
+
+up to date, audited 563 packages in 2s
+
+npm notice
+npm notice New minor version of npm available! 10.8.1 -> 10.9.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v10.9.2
+npm notice To update run: npm install -g npm@10.9.2
+npm notice
+
+2024-12-07T13:00:51Z info: Starting Build
+
+> rest-express@1.0.0 build
+> vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+
+
+vite v5.4.11 building for production...
+
+transforming...
+
+server/auth/passport.ts(11,19): error TS2339: Property 'id' does not exist on type 'User'.
+
+server/routes/index.ts(11,5): error TS2322: Type '(req: Request, res: Response, next: NextFunction) => void' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+  Types of parameters 'req' and 'req' are incompatible.
+    Type 'import("/home/runner/Study-Tools/node_modules/@types/express-serve-static-core/index").Request<import("/home/runner/Study-Tools/node_modules/@types/express-serve-static-core/index").ParamsDictionary, any, any, qs.ParsedQs, Record<string, any>>' is not assignable to type 'import("/home/runner/Study-Tools/node_modules/@types/express/index").Request<import("/home/runner/Study-Tools/node_modules/@types/express-serve-static-core/index").ParamsDictionary, any, any, qs.ParsedQs, Record<string, any>>'.
+      Types of property 'user' are incompatible.
+        Type 'User | undefined' is not assignable to type '{ email: string; id: number; firstName: string | null; lastName: string | null; passwordHash: string | null; provider: string | null; providerId: string | null; createdAt: Date | null; updatedAt: Date | null; } | undefined'.
+          Type 'User' is missing the following properties from type '{ email: string; id: number; firstName: string | null; lastName: string | null; passwordHash: string | null; provider: string | null; providerId: string | null; createdAt: Date | null; updatedAt: Date | null; }': email, id, firstName, lastName, and 5 more.
+
+✓ 2091 modules transformed.
