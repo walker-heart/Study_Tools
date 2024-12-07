@@ -142,9 +142,15 @@ app.use((req, res, next) => {
       process.exit(1);
     }
 
-    registerRoutes(app);
+    // Register routes before error handling
+    const router = registerRoutes(app);
+    if (router) {
+      app.use(router);
+    }
+    
     const server = createServer(app);
 
+    // Error handling middleware
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
