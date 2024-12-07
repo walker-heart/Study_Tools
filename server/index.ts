@@ -97,7 +97,7 @@ app.use('/assets', express.static(path.join(publicPath, 'assets'), {
   fallthrough: true
 }));
 
-// Handle 404s for static files
+// Handle static file errors
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   if (err.code === 'ENOENT') {
     log(`Static file not found: ${req.url}`);
@@ -108,18 +108,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// Handle 404s for static files
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  if (err.code === 'ENOENT') {
-    log(`Static file not found: ${req.url}`);
-    next();
-  } else {
-    log(`Static file error: ${err.message}`);
-    next(err);
-  }
-});
-
-// Log the paths being used for debugging
+// Log static file paths for debugging
 log(`Serving static files from: ${publicPath}`);
 
 // Basic request handlers
