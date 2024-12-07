@@ -7,6 +7,7 @@ import session from "express-session";
 import { sessionConfig } from "./config/session";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
+import { env } from "./lib/env";
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -155,17 +156,24 @@ app.use((req, res, next) => {
     // importantly only setup vite in development and after
     // setting up all the other routes so the catch-all route
     // doesn't interfere with the other routes
+    // Configure server based on environment
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
+      // Ensure static files are served in production
       serveStatic(app);
+      
+      // Add catch-all route to serve index.html for client-side routing
+      app.get('*', (_req, res) => {
+        res.sendFile('index.html', { root: './dist' });
+      });
     }
 
-    // ALWAYS serve the app on port 5000
-    // this serves both the API and the client
-    const PORT = 5000;
+    // Get port from environment or default to 5000
+    const PORT = process.env.PORT || 5000;
     server.listen(PORT, "0.0.0.0", () => {
-      log(`serving on port ${PORT}`);
+      log(`Server running in ${app.get("env")} mode on port ${PORT}`);
+      log(`APP_URL: ${env.APP_URL}`);
     });
   } catch (error) {
     log(`Fatal error: ${error}`);
