@@ -14,16 +14,22 @@ export async function updateTheme(req: Request, res: Response) {
       return res.status(400).json({ message: "Invalid theme value" });
     }
 
-    // Update user's theme preference using SQL
-    const result = await db
-      .update(users)
-      .set({ theme })
-      .where(eq(users.id, req.session.user.id))
-      .returning();
+    // First check if user exists
+    const userExists = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, req.session.user.id));
 
-    if (!result || result.length === 0) {
+    if (!userExists.length) {
       return res.status(404).json({ message: "User not found" });
     }
+
+    // Update theme
+    await db
+      .update(users)
+      .set({ theme })
+      .where(eq(users.id, req.session.user.id));
+
     res.json({ theme });
   } catch (error) {
     console.error('Update theme error:', error);
@@ -37,14 +43,18 @@ export async function getTheme(req: Request, res: Response) {
       return res.status(401).json({ message: "Not authenticated" });
     }
 
-    // Get user's theme preference using SQL
-    const result = await db.select({ theme: users.theme }).from(users).where(eq(users.id, req.session.user.id));
-    if (result.length === 0) {
+    // Get user's theme preference
+    const result = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, req.session.user.id));
+
+    if (!result.length) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const user = result[0];
-    res.json({ theme: user.theme || 'light' });
+    const theme = result[0].theme || 'light';
+    res.json({ theme });
   } catch (error) {
     console.error('Get theme error:', error);
     res.status(500).json({ message: "Error getting theme preference" });
