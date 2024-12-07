@@ -25,10 +25,8 @@ export default function Settings() {
                 console.error('Failed to set light theme:', error);
               }
             }}
-            className={`w-32 ${
-              theme === 'light' 
-                ? 'bg-white text-gray-900 border-2 border-gray-300 hover:bg-gray-100' 
-                : 'bg-transparent border-2 border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
+            className={`w-32 bg-white text-gray-900 border-2 border-gray-300 hover:bg-gray-100 ${
+              theme === 'light' ? 'ring-2 ring-blue-500' : ''
             }`}
           >
             ☀️ Light
@@ -42,10 +40,8 @@ export default function Settings() {
                 console.error('Failed to set dark theme:', error);
               }
             }}
-            className={`w-32 ${
-              theme === 'dark'
-                ? 'bg-gray-900 text-white hover:bg-gray-800'
-                : 'bg-transparent border-2 border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
+            className={`w-32 bg-gray-900 text-white hover:bg-gray-800 ${
+              theme === 'dark' ? 'ring-2 ring-blue-500' : ''
             }`}
           >
             🌙 Dark
