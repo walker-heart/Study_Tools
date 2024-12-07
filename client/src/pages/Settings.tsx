@@ -17,7 +17,6 @@ export default function Settings() {
         {/* Theme Toggle at Top */}
         <div className="flex justify-center gap-4 items-center">
           <Button
-            variant={theme === 'light' ? 'default' : 'outline'}
             size="lg"
             onClick={async () => {
               try {
@@ -26,12 +25,15 @@ export default function Settings() {
                 console.error('Failed to set light theme:', error);
               }
             }}
-            className={`w-32 ${theme === 'light' ? 'bg-primary text-primary-foreground' : ''}`}
+            className={`w-32 ${
+              theme === 'light' 
+                ? 'bg-gray-900 text-white hover:bg-gray-800' 
+                : 'bg-transparent border-2 border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
+            }`}
           >
             ☀️ Light
           </Button>
           <Button
-            variant={theme === 'dark' ? 'default' : 'outline'}
             size="lg"
             onClick={async () => {
               try {
@@ -40,7 +42,11 @@ export default function Settings() {
                 console.error('Failed to set dark theme:', error);
               }
             }}
-            className={`w-32 ${theme === 'dark' ? 'bg-primary text-primary-foreground' : ''}`}
+            className={`w-32 ${
+              theme === 'dark'
+                ? 'bg-gray-100 text-gray-900 hover:bg-white'
+                : 'bg-transparent border-2 border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
+            }`}
           >
             🌙 Dark
           </Button>
