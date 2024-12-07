@@ -19,18 +19,30 @@ export default function Settings() {
           <Button
             variant={theme === 'light' ? 'default' : 'outline'}
             size="lg"
-            onClick={() => setTheme('light')}
-            className="w-32"
+            onClick={async () => {
+              try {
+                await setTheme('light');
+              } catch (error) {
+                console.error('Failed to set light theme:', error);
+              }
+            }}
+            className={`w-32 ${theme === 'light' ? 'bg-primary text-primary-foreground' : ''}`}
           >
-            Light
+            ☀️ Light
           </Button>
           <Button
             variant={theme === 'dark' ? 'default' : 'outline'}
             size="lg"
-            onClick={() => setTheme('dark')}
-            className="w-32"
+            onClick={async () => {
+              try {
+                await setTheme('dark');
+              } catch (error) {
+                console.error('Failed to set dark theme:', error);
+              }
+            }}
+            className={`w-32 ${theme === 'dark' ? 'bg-primary text-primary-foreground' : ''}`}
           >
-            Dark
+            🌙 Dark
           </Button>
         </div>
 
