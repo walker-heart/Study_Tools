@@ -18,7 +18,7 @@ interface SettingsContextType {
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
-export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export function SettingsProvider({ children }: { children: ReactNode }) {
   const [fontSize, setFontSize] = useState<number>(16);
   const [fontFamily, setFontFamily] = useState<string>('monospace');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -114,7 +114,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   );
 }
 
-export default function useSettings() {
+export function useSettings() {
   const context = useContext(SettingsContext);
   if (context === undefined) {
     throw new Error('useSettings must be used within a SettingsProvider');
