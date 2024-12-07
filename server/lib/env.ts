@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   DATABASE_URL: z.string(),
+  JWT_SECRET: z.string(),
   APP_URL: z.string().default(
     process.env.REPL_SLUG 
       ? `https://${process.env.REPL_SLUG.toLowerCase()}.repl.co`
