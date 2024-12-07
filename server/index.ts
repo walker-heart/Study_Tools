@@ -3,8 +3,7 @@ import { registerRoutes } from "./routes/index";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 import cors from "cors";
-import session from "express-session";
-import { sessionConfig } from "./config/session";
+// Session imports removed as we're using JWT
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
@@ -98,7 +97,7 @@ app.use(cors({
 app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(session(sessionConfig));
+// Session middleware removed as we're using JWT
 
 app.use((req, res, next) => {
   const start = Date.now();

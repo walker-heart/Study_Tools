@@ -1,18 +1,12 @@
 import { Request, Response } from "express";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { db } from "../db";
 import { users } from "../../db/schema/users";
 
-// Declare session type for TypeScript
-declare module 'express-session' {
-  interface SessionData {
-    user?: {
-      id: number;
-      email: string;
-    };
-    authenticated?: boolean;
-  }
+if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET must be set in environment variables");
 }
 
 export async function signUp(req: Request, res: Response) {
@@ -37,14 +31,15 @@ export async function signUp(req: Request, res: Response) {
       passwordHash,
     }).returning();
 
-    // Set user session
-    req.session.user = {
-      id: newUser.id,
-      email: newUser.email
-    };
-    req.session.authenticated = true;
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: newUser.id, email: newUser.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     res.status(201).json({ 
+      token,
       user: { 
         id: newUser.id, 
         email: newUser.email,
@@ -55,15 +50,6 @@ export async function signUp(req: Request, res: Response) {
   } catch (error) {
     console.error('Sign up error:', error);
     res.status(500).json({ message: "Error creating user" });
-  }
-}
-
-// Add session check endpoint
-export async function checkAuth(req: Request, res: Response) {
-  if (req.session.user?.id) {
-    res.json({ authenticated: true, user: { id: req.session.user.id, email: req.session.user.email } });
-  } else {
-    res.status(401).json({ authenticated: false });
   }
 }
 
@@ -83,14 +69,15 @@ export async function signIn(req: Request, res: Response) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Set user session
-    req.session.user = {
-      id: user.id,
-      email: user.email
-    };
-    req.session.authenticated = true;
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     res.json({ 
+      token,
       user: { 
         id: user.id, 
         email: user.email,
