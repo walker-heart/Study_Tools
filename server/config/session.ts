@@ -36,7 +36,7 @@ try {
 // Export session configuration
 export const sessionConfig = {
   store: sessionStore,
-  secret: process.env.JWT_SECRET,
+  secret: process.env.JWT_SECRET || 'development-session-secret',
   resave: true, // Required for rolling sessions
   saveUninitialized: false,
   rolling: true, // Refresh session with each request

@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
-  JWT_SECRET: z.string().optional().default('default-jwt-secret-key'),
+  // JWT_SECRET removed as it's handled in session config
   APP_URL: z.string().default(
     process.env.REPL_SLUG 
       ? `https://${process.env.REPL_SLUG.toLowerCase()}.repl.co`
