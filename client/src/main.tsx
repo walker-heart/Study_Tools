@@ -20,7 +20,7 @@ import Settings from "./pages/Settings";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 
-function Router() {
+const Router = () => {
   return (
     <Layout>
       <Switch>
