@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes/index";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
+import { type ErrorWithStatus } from "./types/express";
 import cors from "cors";
 import session from "express-session";
 import { sessionConfig } from "./config/session";
@@ -152,12 +153,16 @@ app.use((req, res, next) => {
     const server = createServer(app);
 
     // Error handling middleware
-    app.use((err: ErrorWithStatus, req: Request, res: Response, next: NextFunction): void => {
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
-      
-      log(`Error: ${message}`);
-      res.status(status).json({ message });
+    app.use(async (err: ErrorWithStatus, _req: Request, res: Response, next: NextFunction): Promise<void> => {
+      try {
+        const status = err.status || err.statusCode || 500;
+        const message = err.message || "Internal Server Error";
+        
+        log(`Error: ${message}`);
+        res.status(status).json({ message });
+      } catch (error) {
+        next(error);
+      }
     });
 
     // importantly only setup vite in development and after
