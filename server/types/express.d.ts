@@ -1,5 +1,6 @@
 import { User } from '@db/schema';
 import 'express-session';
+import 'express';
 
 declare module 'express-session' {
   interface SessionData {
@@ -14,5 +15,25 @@ declare module 'express-session' {
 declare module 'express' {
   interface Request {
     user?: User;
+  }
+  
+  interface Response {
+    locals: {
+      user?: User;
+    };
+  }
+}
+
+// Error type extension
+interface ErrorWithStatus extends Error {
+  status?: number;
+  statusCode?: number;
+}
+
+declare global {
+  namespace Express {
+    interface ErrorRequestHandler {
+      (err: ErrorWithStatus, req: Request, res: Response, next: NextFunction): void;
+    }
   }
 }
