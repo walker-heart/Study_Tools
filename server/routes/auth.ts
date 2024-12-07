@@ -89,3 +89,12 @@ export async function signIn(req: Request, res: Response) {
     res.status(500).json({ message: "Error signing in" });
   }
 }
+
+export async function checkAdmin(req: Request, res: Response) {
+  if (req.session.user?.id) {
+    const [user] = await db.select().from(users).where(eq(users.id, req.session.user.id));
+    res.json({ isAdmin: user?.isAdmin || false });
+  } else {
+    res.status(401).json({ message: "Not authenticated" });
+  }
+}
