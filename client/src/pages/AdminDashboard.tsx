@@ -10,10 +10,21 @@ import {
   Shield,
   BookOpen,
 } from "lucide-react";
+
+interface FormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  isAdmin: boolean;
+}
+
+interface ApiError {
+  message: string;
+}
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import useSettings from "@/contexts/SettingsContext";
+import { useSettings } from "@/contexts/SettingsContext";
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -64,13 +75,16 @@ export default function AdminDashboard() {
   });
 
   // Delete user mutation
-  const deleteUserMutation = useMutation<{ message: string }, Error, number>({
+  const deleteUserMutation = useMutation<{ message: string }, ApiError, number>({
     mutationFn: async (userId) => {
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
-      if (!response.ok) throw new Error('Failed to delete user');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete user');
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -100,9 +114,9 @@ export default function AdminDashboard() {
     if (!editingUser) return;
     
     const formData = new FormData(e.currentTarget);
-    const firstName = formData.get('firstName');
-    const lastName = formData.get('lastName');
-    const email = formData.get('email');
+    const firstName = formData.get('firstName') as string | null;
+    const lastName = formData.get('lastName') as string | null;
+    const email = formData.get('email') as string | null;
     
     if (!firstName || !lastName || !email) {
       toast({
