@@ -132,18 +132,23 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Verify database connection
-    try {
-      await db.execute(sql`SELECT 1`);
-      log('Database connection successful');
-    } catch (error) {
-      log('Error connecting to database: ' + error);
-      process.exit(1);
-    }
-
     // Check for required database connection
     if (!process.env.DATABASE_URL) {
       log('Error: DATABASE_URL is not set. Database connections will fail.');
+      process.exit(1);
+    }
+
+    // Verify database connection with detailed error logging
+    try {
+      log('Attempting to connect to database...');
+      await db.execute(sql`SELECT 1`);
+      log('Database connection successful');
+    } catch (error) {
+      log('Database connection error details:');
+      log(error instanceof Error ? error.message : String(error));
+      if (error instanceof Error && error.stack) {
+        log('Stack trace: ' + error.stack);
+      }
       process.exit(1);
     }
 
