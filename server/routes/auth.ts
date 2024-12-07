@@ -5,10 +5,8 @@ import jwt from "jsonwebtoken";
 import { db } from "../db";
 import { users } from "../../db/schema/users";
 
-const JWT_SECRET = process.env.JWT_SECRET || '';
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required');
-}
+import { env } from "../lib/env";
+const { JWT_SECRET } = env;
 
 export async function signUp(req: Request, res: Response) {
   try {

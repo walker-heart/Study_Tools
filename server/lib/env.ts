@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 const envSchema = z.object({
-  DATABASE_URL: z.string(),
-  JWT_SECRET: z.string(),
+  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+  JWT_SECRET: z.string().min(1, "JWT_SECRET is required"),
   APP_URL: z.string().default(
     process.env.REPL_SLUG 
       ? `https://${process.env.REPL_SLUG.toLowerCase()}.repl.co`
