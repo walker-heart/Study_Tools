@@ -119,8 +119,8 @@ export default function SignUp() {
             <div className="text-red-500 text-sm">{error}</div>
           )}
           
-          <Button type="submit" className="w-full">
-            Sign Up
+          <Button type="submit" className="w-full mb-4">
+            Sign Up with Email
           </Button>
 
           <div className="text-center">
