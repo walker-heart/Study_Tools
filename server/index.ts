@@ -23,51 +23,22 @@ function log(message: string) {
 const app = express();
 // Configure CORS middleware
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin) {
-      // Allow requests with no origin
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      /\.repl\.co$/,
+      /\.replit\.dev$/,
+      /localhost/,
+      /127\.0\.0\.1/
+    ];
+    
+    // Check if the origin matches any of the allowed patterns
+    if (allowedOrigins.some(pattern => pattern.test(origin))) {
       callback(null, true);
-      return;
-    }
-
-    try {
-      const url = new URL(origin);
-      const hostname = url.hostname.toLowerCase();
-      
-      log(`Processing request from origin: ${origin}`);
-      
-      // Define allowed domains
-      const allowedDomains = [
-        '.repl.co',
-        '.replit.dev',
-        '.preview.app.github.dev',
-        'accounts.google.com',
-        'oauth2.googleapis.com',
-        'www.googleapis.com',
-        'googleapis.com',
-        'google.com',
-        'localhost'
-      ];
-
-      // Check if the hostname matches or ends with any allowed domain
-      const isAllowed = allowedDomains.some(domain => 
-        hostname === domain || 
-        hostname.endsWith(domain) || 
-        hostname.endsWith('.repl.co') ||
-        hostname.endsWith('.id.repl.co')
-      );
-
-      if (isAllowed) {
-        log(`Allowing CORS for: ${hostname}`);
-        callback(null, true);
-        return;
-      }
-      
-      log(`CORS blocked for: ${hostname}`);
+    } else {
       callback(new Error('Not allowed by CORS'));
-    } catch (error) {
-      log(`Origin parsing error: ${error}`);
-      callback(new Error('Invalid origin'));
     }
   },
   credentials: true,
@@ -86,6 +57,9 @@ app.use(cors({
 
 // Add pre-flight OPTIONS handling
 app.options('*', cors());
+
+// Serve static files before the API routes
+app.use(express.static('dist/public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(session(sessionConfig));
