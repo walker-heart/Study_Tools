@@ -8,7 +8,7 @@ export default function Settings() {
   const { theme, setTheme } = useSettings();
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div className={`container mx-auto px-4 py-8 max-w-4xl ${theme === 'dark' ? 'dark bg-gray-900 text-white' : ''}`}>
       <h1 className="text-3xl font-bold text-center mb-8">
         Settings
       </h1>
@@ -26,7 +26,7 @@ export default function Settings() {
                 console.error('Failed to set light theme:', error);
               }
             }}
-            className="w-32"
+            className={`w-32 ${theme === 'light' ? 'bg-primary text-primary-foreground' : ''}`}
           >
             ☀️ Light
           </Button>
@@ -40,14 +40,14 @@ export default function Settings() {
                 console.error('Failed to set dark theme:', error);
               }
             }}
-            className="w-32"
+            className={`w-32 ${theme === 'dark' ? 'bg-primary text-primary-foreground' : ''}`}
           >
             🌙 Dark
           </Button>
         </div>
 
         {/* Account Settings at Bottom */}
-        <Card className="p-6">
+        <Card className={`p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
           <h2 className="text-xl font-semibold mb-4">Account Settings</h2>
           <div className="space-y-6">
             <div className="space-y-2">
