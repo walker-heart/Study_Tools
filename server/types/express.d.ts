@@ -41,5 +41,9 @@ declare global {
         user?: User;
       };
     }
+
+    interface ErrorRequestHandler {
+      (err: ErrorWithStatus, req: Request, res: Response, next: NextFunction): void;
+    }
   }
 }
