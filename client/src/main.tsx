@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { Switch, Route, Link } from "wouter";
+import { Switch, Route, Link, Router as WouterRouter } from "wouter";
 import "./index.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
@@ -69,11 +69,19 @@ function Router() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(
+const root = document.getElementById("root");
+
+if (!root) {
+  throw new Error("Root element not found");
+}
+
+createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
-        <Router />
+        <WouterRouter>
+          <Router />
+        </WouterRouter>
         <Toaster />
       </SettingsProvider>
     </QueryClientProvider>
