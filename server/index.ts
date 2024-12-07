@@ -21,6 +21,16 @@ function log(message: string) {
 }
 
 const app = express();
+
+// Log environment status
+log(`Environment: ${process.env.NODE_ENV}`);
+log(`App URL: ${env.APP_URL}`);
+
+// Enable trust proxy if we're in production
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Configure CORS middleware
 app.use(cors({
   origin: (origin, callback) => {
@@ -154,21 +164,25 @@ app.use((req, res, next) => {
       res.status(status).json({ message });
     });
 
-    // importantly only setup vite in development and after
-    // setting up all the other routes so the catch-all route
-    // doesn't interfere with the other routes
     // Configure server based on environment
-    if (app.get("env") === "development") {
+    if (process.env.NODE_ENV === "development") {
       await setupVite(app, server);
     } else {
       // Ensure static files are served in production
-      serveStatic(app);
-      
-      // Add catch-all route to serve index.html for client-side routing
-      app.get('*', (_req, res) => {
-        res.sendFile('index.html', { root: './dist' });
-      });
+      app.use(express.static('dist/public'));
     }
+    
+    // Add catch-all route to serve index.html for client-side routing
+    // This should be after API routes but before error handling
+    app.get('*', (_req, res) => {
+      if (process.env.NODE_ENV === "development") {
+        // In development, let Vite handle the request
+        res.sendStatus(404);
+      } else {
+        // In production, serve the static index.html
+        res.sendFile('index.html', { root: './dist/public' });
+      }
+    });
 
     // Get port from environment or default to 5000
     const PORT = parseInt(process.env.PORT || '5000', 10);

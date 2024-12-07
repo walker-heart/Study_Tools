@@ -4,6 +4,17 @@ import bcrypt from "bcryptjs";
 import { db } from "../db";
 import { users } from "../../db/schema/users";
 
+// Declare session type for TypeScript
+declare module 'express-session' {
+  interface SessionData {
+    user?: {
+      id: number;
+      email: string;
+    };
+    authenticated?: boolean;
+  }
+}
+
 export async function signUp(req: Request, res: Response) {
   try {
     const { firstName, lastName, email, password } = req.body;
