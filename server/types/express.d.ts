@@ -12,39 +12,24 @@ declare module 'express-session' {
   }
 }
 
-declare module 'express' {
-  interface Request {
-    user?: User;
-  }
-  
-  interface Response {
-    locals: {
-      user?: User;
-    };
-  }
-}
-
 // Error type extension
 export interface ErrorWithStatus extends Error {
   status?: number;
   statusCode?: number;
 }
 
-declare global {
-  namespace Express {
-    interface Request {
+declare module 'express' {
+  export interface Request {
+    user?: User;
+  }
+  
+  export interface Response {
+    locals: {
       user?: User;
-    }
-    
-    interface Response {
-      locals: {
-        user?: User;
-      };
-    }
+    };
+  }
 
-    // Updated error handler signature to properly handle void returns
-    interface ErrorRequestHandler {
-      (err: ErrorWithStatus, req: Request, res: Response, next: NextFunction): void | Promise<void>;
-    }
+  export interface ErrorRequestHandler {
+    (err: ErrorWithStatus, req: Request, res: Response, next: NextFunction): void;
   }
 }

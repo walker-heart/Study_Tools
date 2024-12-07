@@ -6,7 +6,7 @@ export function registerRoutes(): Router {
 
   // Wrap route handlers with proper error handling
   const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) => {
-    return (req: Request, res: Response, next: NextFunction): void | Promise<void> => {
+    return (req: Request, res: Response, next: NextFunction) => {
       Promise.resolve(fn(req, res, next)).catch(next);
     };
   };

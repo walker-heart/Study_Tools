@@ -153,7 +153,7 @@ app.use((req, res, next) => {
     const server = createServer(app);
 
     // Error handling middleware
-    app.use((err: ErrorWithStatus, _req: Request, res: Response, _next: NextFunction): void | Promise<void> => {
+    app.use((err: ErrorWithStatus, _req: Request, res: Response, _next: NextFunction) => {
       const status = err.status || err.statusCode || 500;
       const message = err.message || "Internal Server Error";
       
