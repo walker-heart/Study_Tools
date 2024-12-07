@@ -20,7 +20,7 @@ import Settings from "./pages/Settings";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 
-const Router = () => {
+function Router() {
   return (
     <Layout>
       <Switch>
@@ -77,6 +77,7 @@ const Router = () => {
     </Layout>
   );
 }
+export { Router };
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
