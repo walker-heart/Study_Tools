@@ -22,8 +22,8 @@ export default function AdminDashboard() {
       <div 
         className={`w-80 h-full fixed left-0 border-r ${
           theme === "dark" 
-            ? "bg-white text-gray-900 border-gray-200" 
-            : "bg-gray-900 text-white border-gray-700"
+            ? "bg-gray-900 text-white border-gray-700" 
+            : "bg-white text-gray-900 border-gray-200"
         }`}
       >
         <div className="p-6">
@@ -34,8 +34,8 @@ export default function AdminDashboard() {
               className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
                 activeTab === "overview"
                   ? theme === "dark"
-                    ? "bg-gray-100 text-gray-900"
-                    : "bg-gray-800 text-white"
+                    ? "bg-gray-800 text-white"
+                    : "bg-gray-100 text-gray-900"
                   : "hover:bg-opacity-10 hover:bg-gray-500"
               }`}
             >
@@ -47,8 +47,8 @@ export default function AdminDashboard() {
               className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
                 activeTab === "users"
                   ? theme === "dark"
-                    ? "bg-gray-100 text-gray-900"
-                    : "bg-gray-800 text-white"
+                    ? "bg-gray-800 text-white"
+                    : "bg-gray-100 text-gray-900"
                   : "hover:bg-opacity-10 hover:bg-gray-500"
               }`}
             >
@@ -60,8 +60,8 @@ export default function AdminDashboard() {
               className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
                 activeTab === "analytics"
                   ? theme === "dark"
-                    ? "bg-gray-100 text-gray-900"
-                    : "bg-gray-800 text-white"
+                    ? "bg-gray-800 text-white"
+                    : "bg-gray-100 text-gray-900"
                   : "hover:bg-opacity-10 hover:bg-gray-500"
               }`}
             >
@@ -73,8 +73,8 @@ export default function AdminDashboard() {
               className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
                 activeTab === "settings"
                   ? theme === "dark"
-                    ? "bg-gray-100 text-gray-900"
-                    : "bg-gray-800 text-white"
+                    ? "bg-gray-800 text-white"
+                    : "bg-gray-100 text-gray-900"
                   : "hover:bg-opacity-10 hover:bg-gray-500"
               }`}
             >
@@ -87,7 +87,11 @@ export default function AdminDashboard() {
           <Button
             variant="outline"
             onClick={() => setLocation("/dashboard")}
-            className="w-full justify-center"
+            className={`w-full justify-center ${
+              theme === "dark" 
+                ? "text-white hover:text-white" 
+                : "text-gray-900 hover:text-gray-900"
+            }`}
           >
             Return to App
           </Button>

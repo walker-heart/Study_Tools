@@ -179,10 +179,7 @@ app.use((req, res, next) => {
     }
 
     // Register routes before error handling
-    const router = registerRoutes(app);
-    if (router) {
-      app.use(router);
-    }
+    registerRoutes(app);
     
     const server = createServer(app);
 
