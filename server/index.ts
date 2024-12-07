@@ -20,12 +20,11 @@ function log(message: string) {
 }
 
 const app = express();
-// Allow both the Replit domain and localhost for development
+// Configure CORS middleware
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) {
-      log('Allowing request with no origin');
+      // Allow requests with no origin
       callback(null, true);
       return;
     }
@@ -34,41 +33,58 @@ app.use(cors({
       const url = new URL(origin);
       const hostname = url.hostname.toLowerCase();
       
-      // Log the incoming request origin for debugging
-      log(`Incoming request from origin: ${origin}`);
-      log(`Parsed hostname: ${hostname}`);
+      log(`Processing request from origin: ${origin}`);
       
-      // Allow Google authentication domains
+      // Define allowed domains
       const allowedDomains = [
         '.repl.co',
         '.replit.dev',
         '.preview.app.github.dev',
         'accounts.google.com',
         'oauth2.googleapis.com',
+        'www.googleapis.com',
         'googleapis.com',
         'google.com',
-        'localhost',
-        '0.0.0.0'
+        'localhost'
       ];
 
-      if (allowedDomains.some(domain => hostname === domain || hostname.endsWith(domain))) {
-        log(`CORS allowed for: ${hostname}`);
+      // Check if the hostname matches or ends with any allowed domain
+      const isAllowed = allowedDomains.some(domain => 
+        hostname === domain || 
+        hostname.endsWith(domain) || 
+        hostname.endsWith('.repl.co') ||
+        hostname.endsWith('.id.repl.co')
+      );
+
+      if (isAllowed) {
+        log(`Allowing CORS for: ${hostname}`);
         callback(null, true);
         return;
       }
       
-      log(`Blocked by CORS: ${origin}`);
+      log(`CORS blocked for: ${hostname}`);
       callback(new Error('Not allowed by CORS'));
     } catch (error) {
-      log(`Error parsing origin: ${error}`);
+      log(`Origin parsing error: ${error}`);
       callback(new Error('Invalid origin'));
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials'
+  ],
   exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials']
 }));
+
+// Add pre-flight OPTIONS handling
+app.options('*', cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(session(sessionConfig));
