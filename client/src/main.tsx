@@ -17,8 +17,6 @@ import MemorizationMedium from "./pages/MemorizationMedium";
 import Settings from "./pages/Settings";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
-import Privacy from "./pages/Privacy";
-import Terms from "./pages/Terms";
 
 function Router() {
   return (
@@ -57,8 +55,6 @@ function Router() {
         </Route>
         <Route path="/signin" component={SignIn} />
         <Route path="/signup" component={SignUp} />
-        <Route path="/privacy" component={Privacy} />
-        <Route path="/terms" component={Terms} />
         <Route>
           <div className="container mx-auto px-4 py-8 text-center">
             <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
