@@ -6,7 +6,11 @@ import MemoryStore from 'memorystore';
 
 const MemoryStoreSession = MemoryStore(session);
 
-// Check for database URL which is required for session storage
+// Verify required environment variables
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required for session security');
+}
+
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required for session storage');
 }
@@ -36,8 +40,8 @@ try {
 // Export session configuration
 export const sessionConfig = {
   store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'development-session-secret', // Uses SESSION_SECRET from env
-  resave: false,
+  secret: process.env.JWT_SECRET,
+  resave: true, // Required for rolling sessions
   saveUninitialized: false,
   rolling: true, // Refresh session with each request
   cookie: {
