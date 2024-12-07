@@ -1,4 +1,4 @@
-import { Router, type Request, type Response, type NextFunction } from "express";
+import { Router, type Request, type Response, type NextFunction, type RequestHandler } from "express";
 import passport from "../auth/passport";
 
 export function registerRoutes(): Router {
@@ -7,7 +7,7 @@ export function registerRoutes(): Router {
   // Wrap route handlers with proper error handling
   const asyncHandler = (
     fn: (req: Request, res: Response, next: NextFunction) => Promise<void>
-  ) => {
+  ): RequestHandler => {
     return (req: Request, res: Response, next: NextFunction) => {
       Promise.resolve(fn(req, res, next)).catch(next);
     };
@@ -15,12 +15,15 @@ export function registerRoutes(): Router {
 
   // Google OAuth routes
   router.get('/api/auth/google', 
-    passport.authenticate('google', { scope: ['profile', 'email'] })
+    passport.authenticate('google', { 
+      scope: ['profile', 'email'],
+      prompt: 'select_account'
+    })
   );
   
   router.get('/api/auth/google/callback', 
     passport.authenticate('google', { 
-      failureRedirect: '/login',
+      failureRedirect: '/signin',
       successRedirect: '/'
     })
   );
