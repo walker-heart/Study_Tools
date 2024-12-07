@@ -11,21 +11,24 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Try to get the session status from the server
         const response = await fetch('/api/auth/check', {
-          credentials: 'include'
+          credentials: 'include', // Important for cookies
+          headers: {
+            'Cache-Control': 'no-cache', // Prevent caching of auth state
+          },
         });
         
         if (!response.ok) {
-          setLocation('/signin');
-          return;
+          throw new Error('Not authenticated');
         }
-
+        
         const data = await response.json();
         if (!data.authenticated) {
-          setLocation('/signin');
+          throw new Error('Not authenticated');
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
+        // If there's any error or we're not authenticated, redirect to signin
         setLocation('/signin');
       }
     };
@@ -39,6 +42,9 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     // Cleanup interval on unmount
     return () => clearInterval(interval);
   }, [setLocation]);
+
+  // We'll show nothing until we verify the authentication
+  return <>{children}</>;
 
   return <>{children}</>;
 }
