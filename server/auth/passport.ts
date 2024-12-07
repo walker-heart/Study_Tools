@@ -4,9 +4,10 @@ import { db } from "../db";
 import { users } from "@db/schema";
 import { eq } from "drizzle-orm";
 import { type User } from "@db/schema";
+import { env } from "../lib/env";
 
 // Setup passport serialization
-passport.serializeUser((user: User, done) => {
+passport.serializeUser((user, done) => {
   done(null, user.id);
 });
 
@@ -25,12 +26,14 @@ passport.deserializeUser(async (id: number, done) => {
 
 // Configure Google Strategy
 const setupGoogleStrategy = () => {
+  const callbackURL = `${env.APP_URL}/api/auth/google/callback`;
+  
   passport.use(
     new GoogleStrategy(
       {
         clientID: process.env.GOOGLE_CLIENT_ID!,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-        callbackURL: "/api/auth/google/callback",
+        callbackURL,
         scope: ["email", "profile"],
       },
       async (accessToken, refreshToken, profile, done) => {
@@ -47,8 +50,10 @@ const setupGoogleStrategy = () => {
               .insert(users)
               .values({
                 email: profile.emails?.[0]?.value || "",
-                name: profile.displayName,
-                googleId: profile.id,
+                firstName: profile.name?.givenName || null,
+                lastName: profile.name?.familyName || null,
+                provider: "google",
+                providerId: profile.id,
               })
               .returning();
             user = newUser;
