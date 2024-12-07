@@ -6,11 +6,7 @@ import MemoryStore from 'memorystore';
 
 const MemoryStoreSession = MemoryStore(session);
 
-// Verify required environment variables
-if (!process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required for session security');
-}
-
+// Check for database URL which is required for session storage
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required for session storage');
 }

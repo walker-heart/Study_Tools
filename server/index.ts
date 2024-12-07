@@ -131,12 +131,7 @@ app.use((req, res, next) => {
       process.exit(1);
     }
 
-    // Check for required environment variables
-    if (!process.env.JWT_SECRET) {
-      log('Error: JWT_SECRET is not set. Authentication will not work properly.');
-      process.exit(1);
-    }
-
+    // Check for required database connection
     if (!process.env.DATABASE_URL) {
       log('Error: DATABASE_URL is not set. Database connections will fail.');
       process.exit(1);
