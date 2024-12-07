@@ -77,7 +77,8 @@ function Router() {
     </Layout>
   );
 }
-export { Router };
+const App = Router;
+export default App;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
