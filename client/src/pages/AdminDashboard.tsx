@@ -2,7 +2,7 @@ import { useState, FormEvent } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { User, UpdateUserData } from "@/types/user";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/use-toast.ts";
 import {
   Users,
   BarChart,
