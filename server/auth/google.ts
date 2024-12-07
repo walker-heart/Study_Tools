@@ -22,7 +22,7 @@ pool.query('SELECT NOW()', (err) => {
 router.get('/', (_req, res) => {
   try {
     // Redirect to signin page directly, Google Auth removed.
-    res.redirect(`${env.APP_URL}/signin`);
+    res.redirect('/signin');
   } catch (error) {
     console.error('Auth Error:', error);
     console.error('Auth Error Details:', {
