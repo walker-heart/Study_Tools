@@ -23,10 +23,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [fontFamily, setFontFamily] = useState<string>('monospace');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   
-  // Load theme preference on mount
+  // Load theme preference on mount and after sign in
   useEffect(() => {
     const loadTheme = async () => {
       try {
+        // First try to get theme from the server
         const response = await fetch('/api/user/theme', {
           credentials: 'include'
         });
@@ -35,6 +36,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           if (data.theme) {
             setTheme(data.theme as 'light' | 'dark');
           }
+        } else {
+          // If not authenticated, try to get from localStorage
+          const savedTheme = localStorage.getItem('theme');
+          if (savedTheme === 'light' || savedTheme === 'dark') {
+            setTheme(savedTheme);
+          }
         }
       } catch (error) {
         console.error('Failed to load theme preference:', error);
@@ -42,6 +49,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     };
     loadTheme();
   }, []);
+
+  // Save theme to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   // Save theme preference when it changes
   const handleThemeChange = async (newTheme: 'light' | 'dark') => {
