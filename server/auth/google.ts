@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import pkg from 'pg';
+import { env } from '../lib/env';
 const { Pool } = pkg;
 
 const router = Router();

@@ -9,3 +9,11 @@ declare module 'express-session' {
     authenticated?: boolean;
   }
 }
+
+declare module 'express' {
+  interface Request {
+    session: SessionData;
+  }
+}
+
+export {};
