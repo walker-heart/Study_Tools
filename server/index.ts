@@ -8,6 +8,12 @@ import { sessionConfig } from "./config/session";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -58,8 +64,13 @@ app.use(cors({
 // Add pre-flight OPTIONS handling
 app.options('*', cors());
 
-// Serve static files before the API routes
-app.use(express.static('dist/public'));
+// Serve static files from the Vite build output
+const publicPath = path.join(dirname(__dirname), 'dist', 'public');
+app.use(express.static(publicPath));
+app.use('/assets', express.static(path.join(publicPath, 'assets')));
+
+// Log the paths being used for debugging
+log(`Serving static files from: ${publicPath}`);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(session(sessionConfig));
@@ -145,7 +156,7 @@ app.use((req, res, next) => {
       
       // Add catch-all route to serve index.html for client-side routing
       app.get('*', (_req, res) => {
-        res.sendFile('index.html', { root: './dist' });
+        res.sendFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'));
       });
     }
 
