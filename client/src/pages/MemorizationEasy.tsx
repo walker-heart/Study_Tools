@@ -169,7 +169,7 @@ export default function MemorizationEasy() {
           </Card>
           <Button 
             onClick={() => setLocation('/memorization')}
-            className="w-32"
+            className={`w-32 ${theme === 'dark' ? 'bg-white text-gray-900 hover:bg-gray-100' : ''}`}
           >
             Back
           </Button>
