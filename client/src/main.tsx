@@ -57,7 +57,7 @@ function Router() {
         </Route>
         <Route path="/signin" component={SignIn} />
         <Route path="/signup" component={SignUp} />
-        <Route path="/admin">
+        <Route path="/admin/dashboard">
           <ProtectedRoute>
             <AdminProtectedRoute>
               <AdminDashboard />
