@@ -27,53 +27,115 @@ function log(message: string) {
 }
 
 const app = express();
-// Configure CORS middleware
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      /\.repl\.co$/,
-      /\.replit\.dev$/,
-      /localhost/,
-      /127\.0\.0\.1/
-    ];
-    
-    // Check if the origin matches any of the allowed patterns
-    if (allowedOrigins.some(pattern => pattern.test(origin))) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+// Configure CORS middleware with more permissive settings for development
+const corsOptions = {
+  origin: true, // Allow all origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'Accept',
-    'Origin',
-    'Access-Control-Allow-Origin',
-    'Access-Control-Allow-Credentials'
-  ],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Content-Length', 'X-Requested-With', 'Accept', 'Origin'],
   exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials']
-}));
+};
+
+app.use(cors(corsOptions));
+
+// Add CORS headers for all responses
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 
 // Add pre-flight OPTIONS handling
 app.options('*', cors());
 
 // Serve static files from the Vite build output
-const publicPath = path.join(dirname(__dirname), 'dist', 'public');
-app.use(express.static(publicPath));
-app.use('/assets', express.static(path.join(publicPath, 'assets')));
+const publicPath = path.join(__dirname, '..', 'dist', 'public');
+log(`Serving static files from: ${publicPath}`);
+
+// Configure static file serving with proper CORS and caching
+const staticOptions = {
+  maxAge: '1h',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res: Response, path: string) => {
+    // Set aggressive caching for assets
+    const cacheControl = path.includes('/assets/') 
+      ? 'public, max-age=31536000' // 1 year for assets
+      : 'public, max-age=3600';    // 1 hour for other static files
+
+    res.setHeader('Cache-Control', cacheControl);
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Range');
+  }
+};
+
+// Serve the main public directory
+app.use(express.static(publicPath, {
+  ...staticOptions,
+  index: false, // Let our router handle the index route
+  fallthrough: true // Continue to next middleware if file not found
+}));
+
+// Explicitly serve assets directory with additional caching
+app.use('/assets', express.static(path.join(publicPath, 'assets'), {
+  ...staticOptions,
+  immutable: true, // Never validate the cache for versioned assets
+  fallthrough: true
+}));
+
+// Handle 404s for static files
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.code === 'ENOENT') {
+    log(`Static file not found: ${req.url}`);
+    next();
+  } else {
+    log(`Static file error: ${err.message}`);
+    next(err);
+  }
+});
+
+// Handle 404s for static files
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.code === 'ENOENT') {
+    log(`Static file not found: ${req.url}`);
+    next();
+  } else {
+    log(`Static file error: ${err.message}`);
+    next(err);
+  }
+});
 
 // Log the paths being used for debugging
 log(`Serving static files from: ${publicPath}`);
+
+// Basic request handlers
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(session(sessionConfig));
+
+// Add static file error handling
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.code === 'ENOENT') {
+    log(`Static file not found: ${req.url}`);
+    next();
+  } else {
+    next(err);
+  }
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
