@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 interface SettingsContextType {
   fontSize: number;
@@ -23,6 +23,45 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [fontFamily, setFontFamily] = useState<string>('monospace');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   
+  // Load theme preference on mount
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const response = await fetch('/api/user/theme', {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.theme) {
+            setTheme(data.theme as 'light' | 'dark');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load theme preference:', error);
+      }
+    };
+    loadTheme();
+  }, []);
+
+  // Save theme preference when it changes
+  const handleThemeChange = async (newTheme: 'light' | 'dark') => {
+    try {
+      const response = await fetch('/api/user/theme', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ theme: newTheme }),
+      });
+      if (response.ok) {
+        setTheme(newTheme);
+      }
+    } catch (error) {
+      console.error('Failed to save theme preference:', error);
+    }
+  };
+  
   // Memorization tool settings
   const [showHints, setShowHints] = useState<boolean>(true);
   const [autoAdvance, setAutoAdvance] = useState<boolean>(false);
@@ -36,7 +75,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         fontFamily,
         setFontFamily,
         theme,
-        setTheme,
+        setTheme: handleThemeChange,
         showHints,
         setShowHints,
         autoAdvance,
