@@ -21,7 +21,7 @@ export default function Memorization() {
         Study Tools
       </h1>
 
-      <Card className="card-container bg-white">
+      <Card className={`card-container ${theme === 'dark' ? 'bg-white text-gray-900' : 'bg-white'}`}>
         <div className="space-y-6">
           <div className="text-center">
             <p className="text-lg text-gray-700">
