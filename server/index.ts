@@ -153,16 +153,12 @@ app.use((req, res, next) => {
     const server = createServer(app);
 
     // Error handling middleware
-    app.use(async (err: ErrorWithStatus, _req: Request, res: Response, next: NextFunction): Promise<void> => {
-      try {
-        const status = err.status || err.statusCode || 500;
-        const message = err.message || "Internal Server Error";
-        
-        log(`Error: ${message}`);
-        res.status(status).json({ message });
-      } catch (error) {
-        next(error);
-      }
+    app.use((err: ErrorWithStatus, _req: Request, res: Response, _next: NextFunction): void | Promise<void> => {
+      const status = err.status || err.statusCode || 500;
+      const message = err.message || "Internal Server Error";
+      
+      log(`Error: ${message}`);
+      res.status(status).json({ message });
     });
 
     // importantly only setup vite in development and after

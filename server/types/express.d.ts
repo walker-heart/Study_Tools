@@ -42,8 +42,9 @@ declare global {
       };
     }
 
+    // Updated error handler signature to properly handle void returns
     interface ErrorRequestHandler {
-      (err: ErrorWithStatus, req: Request, res: Response, next: NextFunction): void;
+      (err: ErrorWithStatus, req: Request, res: Response, next: NextFunction): void | Promise<void>;
     }
   }
 }
