@@ -102,23 +102,25 @@ router.get('/', (_req, res) => {
 router.get('/callback', async (req, res) => {
   try {
     // Set CORS headers explicitly for the callback route
-    const origin = req.headers.origin;
-    if (origin) {
-      res.header('Access-Control-Allow-Origin', origin);
-      res.header('Access-Control-Allow-Credentials', 'true');
-      res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
-      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Access-Control-Allow-Origin, Access-Control-Allow-Credentials');
-      res.header('Vary', 'Origin');
-    }
+    const origin = req.headers.origin || env.APP_URL;
     
-    console.log('Callback Debug:', {
+    // Set comprehensive CORS headers
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Access-Control-Allow-Origin, Access-Control-Allow-Credentials');
+    res.header('Access-Control-Max-Age', '86400'); // 24 hours
+    res.header('Vary', 'Origin');
+
+    // Log detailed debug information
+    console.log('OAuth Callback Debug:', {
       query: req.query,
       headers: req.headers,
       originalUrl: req.originalUrl,
       method: req.method,
-      origin: req.headers.origin,
-      referer: req.headers.referer,
-      host: req.headers.host
+      origin: origin,
+      appUrl: env.APP_URL,
+      referer: req.headers.referer
     });
     
     const { code } = req.query;
