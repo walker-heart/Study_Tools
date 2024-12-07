@@ -15,12 +15,15 @@ export async function updateTheme(req: Request, res: Response) {
     }
 
     // Update user's theme preference using SQL
-    const result = await db.select().from(users).where(eq(users.id, req.session.user.id));
-    if (result.length === 0) {
+    const result = await db
+      .update(users)
+      .set({ theme })
+      .where(eq(users.id, req.session.user.id))
+      .returning();
+
+    if (!result || result.length === 0) {
       return res.status(404).json({ message: "User not found" });
     }
-
-    await db.update(users).set({ theme }).where(eq(users.id, req.session.user.id)).execute();
     res.json({ theme });
   } catch (error) {
     console.error('Update theme error:', error);

@@ -45,9 +45,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   // Save theme preference when it changes
   const handleThemeChange = async (newTheme: 'light' | 'dark') => {
+    const prevTheme = theme;
     try {
-      // Update theme immediately for better UX
-      setTheme(newTheme);
+      setTheme(newTheme); // Optimistic update
       
       const response = await fetch('/api/user/theme', {
         method: 'PUT',
@@ -59,13 +59,19 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       });
       
       if (!response.ok) {
-        // Revert if save failed
-        setTheme(theme);
-        throw new Error('Failed to save theme preference');
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to save theme preference');
+      }
+
+      // Successfully saved
+      const data = await response.json();
+      if (data.theme !== newTheme) {
+        throw new Error('Theme mismatch');
       }
     } catch (error) {
-      console.error('Failed to save theme preference:', error);
-      throw error; // Propagate error to component
+      console.error('Theme update failed:', error);
+      setTheme(prevTheme); // Revert to previous theme
+      throw error;
     }
   };
   
