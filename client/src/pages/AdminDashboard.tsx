@@ -2,7 +2,7 @@ import { useState, FormEvent } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { User, UpdateUserData } from "@/types/user";
-import { useToast } from "@/components/ui/use-toast.ts";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Users,
   BarChart,
@@ -13,7 +13,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSettings } from "@/contexts/SettingsContext";
+import useSettings from "@/contexts/SettingsContext";
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -34,7 +34,7 @@ export default function AdminDashboard() {
   });
 
   // Fetch users
-  const { data: users, isLoading, error } = useQuery({
+  const { data: users, isLoading, error } = useQuery<User[]>({
     queryKey: ['admin-users'],
     queryFn: async () => {
       const response = await fetch('/api/admin/users', {
@@ -301,7 +301,7 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {users?.map((user) => (
+                      {users?.map((user: User) => (
                         <tr
                           key={user.id}
                           className={`border-b ${theme === "dark" ? "border-gray-700" : "border-gray-200"} hover:bg-gray-50 dark:hover:bg-gray-700`}
