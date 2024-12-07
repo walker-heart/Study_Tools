@@ -1,14 +1,15 @@
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import passport from "../auth/passport";
-import { type Request, type Response, type NextFunction } from "express";
 
 export function registerRoutes(): Router {
   const router = Router();
 
   // Wrap route handlers with proper error handling
-  const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) => {
+  const asyncHandler = (
+    fn: (req: Request, res: Response, next: NextFunction) => Promise<void>
+  ) => {
     return (req: Request, res: Response, next: NextFunction) => {
-      return Promise.resolve(fn(req, res, next)).catch(next);
+      Promise.resolve(fn(req, res, next)).catch(next);
     };
   };
 

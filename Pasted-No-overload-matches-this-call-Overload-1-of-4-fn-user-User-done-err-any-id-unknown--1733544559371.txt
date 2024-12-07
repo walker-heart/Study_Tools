@@ -1,0 +1,87 @@
+No overload matches this call.
+  Overload 1 of 4, '(fn: (user: User, done: (err: any, id?: unknown) => void) => void): void', gave the following error.
+    Argument of type '(user: { id: number; email: string; firstName: string | null; lastName: string | null; passwordHash: string | null; provider: string | null; providerId: string | null; createdAt: Date | null; updatedAt: Date | null; }, done: (err: any, id?: unknown) => void) => void' is not assignable to parameter of type '(user: User, done: (err: any, id?: unknown) => void) => void'.
+      Types of parameters 'user' and 'user' are incompatible.
+        Type 'User' is missing the following properties from type '{ id: number; email: string; firstName: string | null; lastName: string | null; passwordHash: string | null; provider: string | null; providerId: string | null; createdAt: Date | null; updatedAt: Date | null; }': id, email, firstName, lastName, and 5 more.
+  Overload 2 of 4, '(fn: (req: IncomingMessage, user: User, done: (err: any, id?: unknown) => void) => void): void', gave the following error.
+    Argument of type '(user: { id: number; email: string; firstName: string | null; lastName: string | null; passwordHash: string | null; provider: string | null; providerId: string | null; createdAt: Date | null; updatedAt: Date | null; }, done: (err: any, id?: unknown) => void) => void' is not assignable to parameter of type '(req: IncomingMessage, user: User, done: (err: any, id?: unknown) => void) => void'.
+      Types of parameters 'user' and 'req' are incompatible.
+        Type 'IncomingMessage' is missing the following properties from type '{ id: number; email: string; firstName: string | null; lastName: string | null; passwordHash: string | null; provider: string | null; providerId: string | null; createdAt: Date | null; updatedAt: Date | null; }': id, email, firstName, lastName, and 5 more.
+ FILE  /home/runner/Study-Tools/server/auth/passport.ts:9:24
+
+     7 |
+     8 | // Setup passport serialization
+  >  9 | passport.serializeUser((user: User, done) => {
+       |                        ^^^^^^^^^^^^^^^^^^^^^^^
+    10 |   done(null, user.id);
+    11 | });
+    12 |
+
+ ERROR(TypeScript)  No overload matches this call.
+  Overload 1 of 2, '(value: { email: string | SQL<unknown> | Placeholder<string, any>; firstName?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; lastName?: string | ... 3 more ... | undefined; ... 4 more ...; updatedAt?: SQL<...> | ... 3 more ... | undefined; }): PgInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, and 'name' does not exist in type '{ email: string | SQL<unknown> | Placeholder<string, any>; firstName?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; lastName?: string | SQL<...> | Placeholder<...> | null | undefined; ... 4 more ...; updatedAt?: SQL<...> | ... 3 more ... | undefined; }'.
+  Overload 2 of 2, '(values: { email: string | SQL<unknown> | Placeholder<string, any>; firstName?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; lastName?: string | ... 3 more ... | undefined; ... 4 more ...; updatedAt?: SQL<...> | ... 3 more ... | undefined; }[]): PgInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, and 'email' does not exist in type '{ email: string | SQL<unknown> | Placeholder<string, any>; firstName?: string | SQL<unknown> | Placeholder<string, any> | null | undefined; lastName?: string | SQL<...> | Placeholder<...> | null | undefined; ... 4 more ...; updatedAt?: SQL<...> | ... 3 more ... | undefined; }[]'.
+ FILE  /home/runner/Study-Tools/server/auth/passport.ts:48:16
+
+    46 |             const [newUser] = await db
+    47 |               .insert(users)
+  > 48 |               .values({
+       |                ^^^^^^
+    49 |                 email: profile.emails?.[0]?.value || "",
+    50 |                 name: profile.displayName,
+    51 |                 googleId: profile.id,
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: Request, res: Response, next: NextFunction) => void' is not assignable to parameter of type 'PathParams'.
+ FILE  /home/runner/Study-Tools/server/index.ts:42:9
+
+    40 |
+    41 | // Request logging middleware
+  > 42 | app.use((req: Request, res: Response, next: NextFunction) => {
+       |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    43 |   const start = Date.now();
+    44 |   res.on("finish", () => {
+    45 |     const duration = Date.now() - start;
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(err: ErrorWithStatus, req: Request, res: Response, next: NextFunction) => void' is not assignable to parameter of type 'PathParams'.
+ FILE  /home/runner/Study-Tools/server/index.ts:64:13
+
+    62 |
+    63 |     // Error handling middleware
+  > 64 |     app.use((err: ErrorWithStatus, req: Request, res: Response, next: NextFunction) => {
+       |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    65 |       const status = err.status || err.statusCode || 500;
+    66 |       const message = err.message || "Internal Server Error";
+    67 |       log(`Error: ${message}`);
+
+ ERROR(TypeScript)  No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: Request, res: Response, next: NextFunction) => Promise<void>' is not assignable to parameter of type 'Application<Record<string, any>>'.
+      Type '(req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>, res: Response<any, Record<string, any>>, next: NextFunction) => Promise<...>' is missing the following properties from type 'Application<Record<string, any>>': init, defaultConfiguration, engine, set, and 63 more.
+ FILE  /home/runner/Study-Tools/server/routes/index.ts:28:32
+
+    26 |
+    27 |   // User info route
+  > 28 |   router.get('/api/auth/user', asyncHandler(async (req: Request, res: Response) => {
+       |                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 29 |     if (req.isAuthenticated()) {
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 30 |       res.json(req.user);
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 31 |     } else {
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 32 |       res.status(401).json({ message: 'Not authenticated' });
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 33 |     }
+       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  > 34 |   }));
+       | ^^^^^
+    35 |
+    36 |   return router;
+    37 | }
+
+[TypeScript] Found 5 errors. Watching for file changes.
