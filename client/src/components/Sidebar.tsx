@@ -21,8 +21,9 @@ export default function Sidebar() {
       </Button>
 
       {/* Sidebar content */}
-      <div className={`h-full w-48 p-4 shadow-xl border-r ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white border-gray-200'}`}>
-        <div className="space-y-4">
+      <div className={`h-full w-48 flex flex-col shadow-xl border-r ${theme === 'dark' ? 'bg-gray-800 text-white border-gray-700' : 'bg-white border-gray-200'}`}>
+        {/* Main navigation */}
+        <div className="flex-1 p-4 space-y-4">
           <Link href="/dashboard">
             <Button
               variant="ghost"
@@ -61,7 +62,10 @@ export default function Sidebar() {
               </div>
             )}
           </div>
+        </div>
 
+        {/* Settings button at bottom */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <Link href="/settings">
             <Button
               variant="ghost"
