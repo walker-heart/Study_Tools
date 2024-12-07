@@ -44,8 +44,8 @@ export async function signUp(req: Request, res: Response) {
 
 // Add session check endpoint
 export async function checkAuth(req: Request, res: Response) {
-  if (req.session.userId) {
-    res.json({ authenticated: true, user: { id: req.session.userId, email: req.session.email } });
+  if (req.session.user?.id) {
+    res.json({ authenticated: true, user: { id: req.session.user.id, email: req.session.user.email } });
   } else {
     res.status(401).json({ authenticated: false });
   }
@@ -68,8 +68,11 @@ export async function signIn(req: Request, res: Response) {
     }
 
     // Set user session
-    req.session.userId = user.id;
-    req.session.email = user.email;
+    req.session.user = {
+      id: user.id,
+      email: user.email
+    };
+    req.session.authenticated = true;
     
     // Also send JWT token for API authentication
     const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
