@@ -1,24 +1,14 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { db } from "../db";
-import { users } from "@db/schema";
+import { users } from "../../db/schema/users";
+
 import { env } from "../lib/env";
-
-declare module 'express-session' {
-  interface SessionData {
-    user?: {
-      id: number;
-      email: string;
-    };
-    authenticated?: boolean;
-  }
-}
-
 const { JWT_SECRET } = env;
 
-export async function signUp(req: Request, res: Response, next: NextFunction) {
+export async function signUp(req: Request, res: Response) {
   try {
     const { firstName, lastName, email, password } = req.body;
 
@@ -38,46 +28,34 @@ export async function signUp(req: Request, res: Response, next: NextFunction) {
       lastName,
       email,
       passwordHash,
-      provider: 'local'
     }).returning();
 
     // Generate JWT token
     const token = jwt.sign({ userId: newUser.id }, JWT_SECRET, { expiresIn: '24h' });
 
-    // Set user session
-    req.session.user = {
-      id: newUser.id,
-      email: newUser.email
-    };
-    req.session.authenticated = true;
-
-    res.status(201).json({ token, user: { id: newUser.id, email: newUser.email } });
+    res.status(201).json({ token });
   } catch (error) {
-    next(error);
+    console.error('Sign up error:', error);
+    res.status(500).json({ message: "Error creating user" });
   }
 }
 
+// Add session check endpoint
 export async function checkAuth(req: Request, res: Response) {
-  if (req.session.authenticated && req.session.user?.id) {
-    res.json({ 
-      authenticated: true, 
-      user: { 
-        id: req.session.user.id, 
-        email: req.session.user.email 
-      } 
-    });
+  if (req.session.user?.id) {
+    res.json({ authenticated: true, user: { id: req.session.user.id, email: req.session.user.email } });
   } else {
     res.status(401).json({ authenticated: false });
   }
 }
 
-export async function signIn(req: Request, res: Response, next: NextFunction) {
+export async function signIn(req: Request, res: Response) {
   try {
     const { email, password } = req.body;
 
     // Find user
     const [user] = await db.select().from(users).where(eq(users.email, email));
-    if (!user || !user.passwordHash) {
+    if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
@@ -95,23 +73,11 @@ export async function signIn(req: Request, res: Response, next: NextFunction) {
     req.session.authenticated = true;
     
     // Also send JWT token for API authentication
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '24h' });
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
 
     res.json({ token, user: { id: user.id, email: user.email } });
   } catch (error) {
-    next(error);
-  }
-}
-
-export async function signOut(req: Request, res: Response, next: NextFunction) {
-  try {
-    req.session.destroy((err: Error | null) => {
-      if (err) {
-        throw err;
-      }
-      res.json({ message: "Logged out successfully" });
-    });
-  } catch (error) {
-    next(error);
+    console.error('Sign in error:', error);
+    res.status(500).json({ message: "Error signing in" });
   }
 }

@@ -120,7 +120,7 @@ export default function SignUp() {
           )}
           
           <Button type="submit" className="w-full mb-4">
-            Sign Up
+            Sign Up with Email
           </Button>
 
           <div className="text-center">

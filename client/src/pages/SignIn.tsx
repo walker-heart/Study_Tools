@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSettings } from '@/contexts/SettingsContext';
 
+
 export default function SignIn() {
   const [, setLocation] = useLocation();
   const { theme } = useSettings();
