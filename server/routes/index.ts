@@ -1,5 +1,6 @@
-import { Router, Request, Response, NextFunction } from "express";
-import { signUp, signIn, signOut, checkAuth } from "./auth";
+import { Router } from "express";
+import passport from "../auth/passport";
+import { type Request, type Response, type NextFunction } from "express";
 
 export function registerRoutes(): Router {
   const router = Router();
@@ -7,15 +8,30 @@ export function registerRoutes(): Router {
   // Wrap route handlers with proper error handling
   const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) => {
     return (req: Request, res: Response, next: NextFunction) => {
-      Promise.resolve(fn(req, res, next)).catch(next);
+      return Promise.resolve(fn(req, res, next)).catch(next);
     };
   };
 
-  // Auth routes - Email/Password only
-  router.post('/api/auth/signup', asyncHandler(signUp));
-  router.post('/api/auth/signin', asyncHandler(signIn));
-  router.post('/api/auth/signout', asyncHandler(signOut));
-  router.get('/api/auth/check', asyncHandler(checkAuth));
+  // Google OAuth routes
+  router.get('/api/auth/google', 
+    passport.authenticate('google', { scope: ['profile', 'email'] })
+  );
+  
+  router.get('/api/auth/google/callback', 
+    passport.authenticate('google', { 
+      failureRedirect: '/login',
+      successRedirect: '/'
+    })
+  );
+
+  // User info route
+  router.get('/api/auth/user', asyncHandler(async (req: Request, res: Response) => {
+    if (req.isAuthenticated()) {
+      res.json(req.user);
+    } else {
+      res.status(401).json({ message: 'Not authenticated' });
+    }
+  }));
 
   return router;
 }
