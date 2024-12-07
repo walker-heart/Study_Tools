@@ -25,15 +25,21 @@ declare module 'express' {
 }
 
 // Error type extension
-interface ErrorWithStatus extends Error {
+export interface ErrorWithStatus extends Error {
   status?: number;
   statusCode?: number;
 }
 
 declare global {
   namespace Express {
-    interface ErrorRequestHandler {
-      (err: ErrorWithStatus, req: Request, res: Response, next: NextFunction): void;
+    interface Request {
+      user?: User;
+    }
+    
+    interface Response {
+      locals: {
+        user?: User;
+      };
     }
   }
 }
