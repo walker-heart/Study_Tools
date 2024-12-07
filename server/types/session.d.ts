@@ -5,9 +5,6 @@ declare module 'express-session' {
     user?: {
       id: number;
       email: string;
-      name: string;
-      picture?: string;
-      google_id: string;
     };
     authenticated?: boolean;
   }
