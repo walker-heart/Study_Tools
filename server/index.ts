@@ -45,6 +45,8 @@ app.use(cors({
         '.preview.app.github.dev',
         'accounts.google.com',
         'oauth2.googleapis.com',
+        'googleapis.com',
+        'google.com',
         'localhost',
         '0.0.0.0'
       ];
