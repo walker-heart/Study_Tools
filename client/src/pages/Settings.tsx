@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
 export default function Settings() {
-  const { theme } = useSettings();
+  const { theme, setTheme } = useSettings();
 
   return (
     <div className={`container mx-auto px-4 py-8 max-w-4xl ${theme === 'dark' ? 'dark bg-gray-900 text-white' : ''}`}>
@@ -13,8 +13,28 @@ export default function Settings() {
         Settings
       </h1>
 
-      <div className="space-y-6">
+      <div className="space-y-8">
+        {/* Theme Toggle at Top */}
+        <div className="flex justify-center gap-4 items-center">
+          <Button
+            variant={theme === 'light' ? 'default' : 'outline'}
+            size="lg"
+            onClick={() => setTheme('light')}
+            className="w-32"
+          >
+            Light
+          </Button>
+          <Button
+            variant={theme === 'dark' ? 'default' : 'outline'}
+            size="lg"
+            onClick={() => setTheme('dark')}
+            className="w-32"
+          >
+            Dark
+          </Button>
+        </div>
 
+        {/* Account Settings at Bottom */}
         <Card className={`p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
           <h2 className="text-xl font-semibold mb-4">Account Settings</h2>
           <div className="space-y-6">
