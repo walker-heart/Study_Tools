@@ -27,7 +27,7 @@ export default function Settings() {
             }}
             className={`w-32 ${
               theme === 'light' 
-                ? 'bg-gray-900 text-white hover:bg-gray-800' 
+                ? 'bg-white text-gray-900 border-2 border-gray-300 hover:bg-gray-100' 
                 : 'bg-transparent border-2 border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
             }`}
           >
@@ -44,7 +44,7 @@ export default function Settings() {
             }}
             className={`w-32 ${
               theme === 'dark'
-                ? 'bg-gray-100 text-gray-900 hover:bg-white'
+                ? 'bg-gray-900 text-white hover:bg-gray-800'
                 : 'bg-transparent border-2 border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800'
             }`}
           >
