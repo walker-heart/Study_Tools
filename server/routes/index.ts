@@ -1,5 +1,5 @@
 import { Router, type Express } from "express";
-import { signUp, signIn, checkAuth, checkAdmin, requireAdmin, getUsers, updateUser, updateUserPassword } from "./auth";
+import { signUp, signIn, signOut, checkAuth, checkAdmin, requireAdmin, getUsers, updateUser, updateUserPassword } from "./auth";
 import { updateTheme, getTheme } from "./user";
 import analyticsRoutes from "./analytics";
 
@@ -9,6 +9,7 @@ export function registerRoutes(app: Express): void {
   // Auth routes - Email/Password only
   router.post('/api/auth/signup', signUp);
   router.post('/api/auth/signin', signIn);
+  router.post('/api/auth/signout', signOut);
   router.get('/api/auth/check', checkAuth);
   router.get('/api/auth/check-admin', checkAdmin);
 

@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { db } from "../db";
 import { users } from "../../db/schema/users";
-
+import { sql } from "drizzle-orm";
 import { env } from "../lib/env";
 const { JWT_SECRET } = env;
 
@@ -100,24 +100,42 @@ export async function signIn(req: Request, res: Response) {
 }
 export async function signOut(req: Request, res: Response) {
   try {
-    // Clear user session from database
-    if (req.session.user?.id) {
-      await sql`
-        UPDATE user_sessions 
-        SET ended_at = NOW() 
-        WHERE user_id = ${req.session.user.id} 
-        AND ended_at IS NULL
-      `;
-    }
-    
-    // Clear session
-    req.session.destroy((err) => {
-      if (err) {
-        console.error('Error destroying session:', err);
-        return res.status(500).json({ message: "Error signing out" });
+    // Clear user session from database if user exists
+    if (req.session?.user?.id) {
+      try {
+        await db.execute(sql`
+          UPDATE user_sessions 
+          SET ended_at = NOW() 
+          WHERE user_id = ${req.session.user.id} 
+          AND ended_at IS NULL
+        `);
+      } catch (dbError) {
+        console.error('Database error during sign out:', dbError);
+        // Continue with session destruction even if DB update fails
       }
-      res.clearCookie('connect.sid');
-      res.json({ message: "Signed out successfully" });
+    }
+
+    // Clear authentication flag
+    req.session.authenticated = false;
+    req.session.user = undefined;
+
+    // Destroy session and clear cookie
+    return new Promise<void>((resolve) => {
+      req.session.destroy((err: Error | null) => {
+        if (err) {
+          console.error('Error destroying session:', err);
+          res.status(500).json({ message: "Error signing out" });
+        } else {
+          res.clearCookie('sid', {
+            path: '/',
+            httpOnly: true,
+            secure: env.NODE_ENV === 'production',
+            sameSite: 'lax'
+          });
+          res.json({ message: "Signed out successfully" });
+        }
+        resolve();
+      });
     });
   } catch (error) {
     console.error('Sign out error:', error);
