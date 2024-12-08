@@ -9,9 +9,22 @@ import { useSettings } from "@/contexts/SettingsContext";
 interface UserDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (userData: { firstName: string; lastName: string; email: string; password?: string; isAdmin?: boolean; theme?: string }) => Promise<void>;
+  onSubmit: (userData: { 
+    firstName: string; 
+    lastName: string; 
+    email: string; 
+    password?: string; 
+    isAdmin?: boolean;
+    theme?: string;
+  }) => Promise<void>;
   title: string;
-  initialData?: { firstName: string; lastName: string; email: string; isAdmin?: boolean; theme?: string };
+  initialData?: { 
+    firstName: string; 
+    lastName: string; 
+    email: string; 
+    isAdmin?: boolean; 
+    theme?: string;
+  };
 }
 
 export function UserDialog({ isOpen, onClose, onSubmit, title, initialData }: UserDialogProps) {
@@ -22,6 +35,7 @@ export function UserDialog({ isOpen, onClose, onSubmit, title, initialData }: Us
     email: "",
     password: "",
     isAdmin: false,
+    theme: "system"
   });
 
   // Update form data when initialData changes or dialog opens
@@ -33,6 +47,7 @@ export function UserDialog({ isOpen, onClose, onSubmit, title, initialData }: Us
         email: initialData.email,
         password: "",
         isAdmin: initialData.isAdmin || false,
+        theme: initialData.theme || "system"
       });
     } else {
       setFormData({
@@ -41,6 +56,7 @@ export function UserDialog({ isOpen, onClose, onSubmit, title, initialData }: Us
         email: "",
         password: "",
         isAdmin: false,
+        theme: "system"
       });
     }
   }, [initialData, isOpen]);
