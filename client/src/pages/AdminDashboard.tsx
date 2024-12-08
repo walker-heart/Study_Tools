@@ -34,7 +34,7 @@ export default function AdminDashboard() {
   const { showNotification } = useNotification();
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeTab, setActiveTab] = useState<"users" | "analytics" | "settings">("users");
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "analytics" | "settings">("overview");
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -258,62 +258,79 @@ export default function AdminDashboard() {
               <>
                 <h1 className="text-3xl font-bold mb-8">Overview</h1>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <Card className="bg-card hover:bg-accent/5 transition-colors">
-                    <CardHeader>
-                      <div className="flex items-center space-x-4">
-                        <div className="p-3 rounded-lg bg-[#1E40AF] dark:bg-blue-900/20">
-                          <Users2 className="h-6 w-6 text-white" />
+                  <div className="flex flex-col h-full">
+                    <Card className="flex-1">
+                      <CardHeader>
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 rounded-lg bg-blue-600 dark:bg-blue-500/20">
+                            <Users2 className="h-6 w-6 text-white" />
+                          </div>
+                          <div>
+                            <CardTitle>User Management</CardTitle>
+                            <CardDescription>Manage user accounts and permissions</CardDescription>
+                          </div>
                         </div>
-                        <div>
-                          <CardTitle>User Management</CardTitle>
-                          <CardDescription>Manage user accounts and permissions</CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Button variant="secondary" className="w-full" onClick={() => setActiveTab("users")}>
-                        Manage Users
-                      </Button>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card className="bg-card hover:bg-accent/5 transition-colors">
-                    <CardHeader>
-                      <div className="flex items-center space-x-4">
-                        <div className="p-3 rounded-lg bg-[#059669] dark:bg-green-900/20">
-                          <BarChart3 className="h-6 w-6 text-white" />
-                        </div>
-                        <div>
-                          <CardTitle>Analytics</CardTitle>
-                          <CardDescription>View usage statistics and trends</CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Button variant="secondary" className="w-full" onClick={() => setActiveTab("analytics")}>
-                        View Analytics
-                      </Button>
-                    </CardContent>
-                  </Card>
+                      </CardHeader>
+                      <CardContent>
+                        <Button 
+                          variant="secondary" 
+                          className="w-full bg-secondary hover:bg-secondary/80"
+                          onClick={() => setActiveTab("users")}
+                        >
+                          Manage Users
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
 
-                  <Card className="bg-card hover:bg-accent/5 transition-colors">
-                    <CardHeader>
-                      <div className="flex items-center space-x-4">
-                        <div className="p-3 rounded-lg bg-[#7C3AED] dark:bg-purple-900/20">
-                          <BookOpen className="h-6 w-6 text-white" />
+                  <div className="flex flex-col h-full">
+                    <Card className="flex-1">
+                      <CardHeader>
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 rounded-lg bg-emerald-600 dark:bg-emerald-500/20">
+                            <BarChart3 className="h-6 w-6 text-white" />
+                          </div>
+                          <div>
+                            <CardTitle>Analytics</CardTitle>
+                            <CardDescription>View usage statistics and trends</CardDescription>
+                          </div>
                         </div>
-                        <div>
-                          <CardTitle>Study Content</CardTitle>
-                          <CardDescription>Manage flashcards and study materials</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <Button 
+                          variant="secondary" 
+                          className="w-full bg-secondary hover:bg-secondary/80"
+                          onClick={() => setActiveTab("analytics")}
+                        >
+                          View Analytics
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="flex flex-col h-full">
+                    <Card className="flex-1">
+                      <CardHeader>
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 rounded-lg bg-purple-600 dark:bg-purple-500/20">
+                            <BookOpen className="h-6 w-6 text-white" />
+                          </div>
+                          <div>
+                            <CardTitle>Study Content</CardTitle>
+                            <CardDescription>Manage flashcards and study materials</CardDescription>
+                          </div>
                         </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <Button variant="secondary" className="w-full">
-                        Manage Content
-                      </Button>
-                    </CardContent>
-                  </Card>
+                      </CardHeader>
+                      <CardContent>
+                        <Button 
+                          variant="secondary" 
+                          className="w-full bg-secondary hover:bg-secondary/80"
+                        >
+                          Manage Content
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </div>
               </>
             )}
