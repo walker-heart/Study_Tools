@@ -204,9 +204,9 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <div className="flex h-screen bg-background">
+      <div className="flex h-screen bg-background dark:bg-[#0B0E14]">
         {/* Sidebar */}
-        <div className="w-64 bg-card border-r border-border p-6">
+        <div className="w-64 bg-white dark:bg-[#141820] border-r border-border p-6 flex flex-col">
           <h2 className="text-xl font-semibold mb-6">Admin Dashboard</h2>
           <nav className="space-y-2">
             <Button
@@ -255,57 +255,63 @@ export default function AdminDashboard() {
         <div className="flex-1 p-8 overflow-auto">
           <div className="space-y-8">
             {activeTab === "overview" && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Link href="#users">
-                  <Card className="hover:bg-accent transition-colors">
-                    <CardHeader>
-                      <CardTitle className="flex items-center">
-                        <Users2 className="mr-2 h-5 w-5" />
-                        User Management
-                      </CardTitle>
-                      <CardDescription>Manage user accounts and permissions</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Button variant="secondary" className="w-full">
-                        Manage Users
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Link>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <Card className="bg-white dark:bg-[#141820] hover:bg-accent/5 transition-colors">
+                  <CardHeader>
+                    <div className="flex items-center space-x-4">
+                      <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/20">
+                        <Users2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <CardTitle>User Management</CardTitle>
+                        <CardDescription>Manage user accounts and permissions</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Button variant="secondary" className="w-full" onClick={() => setActiveTab("users")}>
+                      Manage Users
+                    </Button>
+                  </CardContent>
+                </Card>
                 
-                <Link href="#analytics">
-                  <Card className="hover:bg-accent transition-colors">
-                    <CardHeader>
-                      <CardTitle className="flex items-center">
-                        <BarChart3 className="mr-2 h-5 w-5" />
-                        Analytics
-                      </CardTitle>
-                      <CardDescription>View usage statistics and trends</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Button variant="secondary" className="w-full">
-                        View Analytics
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Link>
+                <Card className="bg-white dark:bg-[#141820] hover:bg-accent/5 transition-colors">
+                  <CardHeader>
+                    <div className="flex items-center space-x-4">
+                      <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/20">
+                        <BarChart3 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div>
+                        <CardTitle>Analytics</CardTitle>
+                        <CardDescription>View usage statistics and trends</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Button variant="secondary" className="w-full" onClick={() => setActiveTab("analytics")}>
+                      View Analytics
+                    </Button>
+                  </CardContent>
+                </Card>
 
-                <Link href="#content">
-                  <Card className="hover:bg-accent transition-colors">
-                    <CardHeader>
-                      <CardTitle className="flex items-center">
-                        <BookOpen className="mr-2 h-5 w-5" />
-                        Study Content
-                      </CardTitle>
-                      <CardDescription>Manage flashcards and study materials</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Button variant="secondary" className="w-full">
-                        Manage Content
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Link>
+                <Card className="bg-white dark:bg-[#141820] hover:bg-accent/5 transition-colors">
+                  <CardHeader>
+                    <div className="flex items-center space-x-4">
+                      <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/20">
+                        <BookOpen className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div>
+                        <CardTitle>Study Content</CardTitle>
+                        <CardDescription>Manage flashcards and study materials</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Button variant="secondary" className="w-full">
+                      Manage Content
+                    </Button>
+                  </CardContent>
+                </Card>
               </div>
             )}
 
