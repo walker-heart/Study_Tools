@@ -1,6 +1,7 @@
 import { Router, type Express } from "express";
 import { signUp, signIn, checkAuth, checkAdmin, requireAdmin, getUsers, updateUser, updateUserPassword } from "./auth";
 import { updateTheme, getTheme } from "./user";
+import analyticsRoutes from "./analytics";
 
 export function registerRoutes(app: Express): void {
   const router = Router();
@@ -19,6 +20,9 @@ export function registerRoutes(app: Express): void {
   router.get('/api/admin/users', requireAdmin, getUsers);
   router.put('/api/admin/users/:id', requireAdmin, updateUser);
   router.put('/api/admin/users/:id/password', requireAdmin, updateUserPassword);
+
+  // Analytics routes
+  router.use('/api/analytics', analyticsRoutes);
 
   // Use the router middleware
   app.use(router);
