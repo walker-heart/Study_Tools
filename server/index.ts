@@ -119,7 +119,10 @@ app.use(express.urlencoded({ extended: false }));
 // Configure session middleware with proper error handling
 app.use(session({
   store: new pgSession({
-    pool: db,
+    conObject: {
+      connectionString: env.DATABASE_URL,
+      ssl: true
+    },
     createTableIfMissing: true,
     pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
     errorLog: console.error // Log session store errors
