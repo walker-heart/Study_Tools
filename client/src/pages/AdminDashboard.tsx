@@ -428,7 +428,6 @@ export default function AdminDashboard() {
                                       setSelectedUser(user);
                                       setIsUserDialogOpen(true);
                                     }}
-                                    disabled={user.id === currentUserId}
                                   >
                                     <Pencil className="h-4 w-4" />
                                   </Button>
