@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Plus, Pencil, Trash2 } from "lucide-react";
+import { Link } from "wouter";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useNotification } from "@/components/ui/notification";
 import { UserDialog } from "@/components/UserDialog";
@@ -65,7 +66,11 @@ export default function AdminDashboard() {
       if (!response.ok) {
         throw new Error("Failed to fetch users");
       }
-      return response.json();
+      const data = await response.json();
+      return {
+        users: data.users || [],
+        pagination: data.pagination || { total: 0, totalPages: 1, page: 1, limit: ITEMS_PER_PAGE }
+      };
     },
   });
 
@@ -199,33 +204,45 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <div className="flex space-x-4">
+      <div className="flex h-screen bg-background">
+        {/* Sidebar */}
+        <div className="w-64 bg-black/10 border-r border-border p-6">
+          <div className="mb-8">
+            <Link href="/dashboard">
+              <Button className="w-full mb-4" variant="outline">
+                Return to App
+              </Button>
+            </Link>
+          </div>
+          <nav>
             <Button
-              variant={activeTab === "users" ? "default" : "outline"}
+              variant={activeTab === "users" ? "default" : "ghost"}
               onClick={() => setActiveTab("users")}
+              className="w-full justify-start mb-2"
             >
               Users
             </Button>
             <Button
-              variant={activeTab === "analytics" ? "default" : "outline"}
+              variant={activeTab === "analytics" ? "default" : "ghost"}
               onClick={() => setActiveTab("analytics")}
+              className="w-full justify-start mb-2"
             >
               Analytics
             </Button>
             <Button
-              variant={activeTab === "settings" ? "default" : "outline"}
+              variant={activeTab === "settings" ? "default" : "ghost"}
               onClick={() => setActiveTab("settings")}
+              className="w-full justify-start"
             >
               Settings
             </Button>
-          </div>
+          </nav>
         </div>
 
-        <div className="space-y-8">
-          {activeTab === "users" && (
-            <div>
+        {/* Main Content */}
+        <div className="flex-1 p-8 overflow-auto">
+          <div className="space-y-8">
+            {activeTab === "users" && (
               <Card>
                 <CardHeader>
                   <CardTitle>User Management</CardTitle>
@@ -364,32 +381,36 @@ export default function AdminDashboard() {
                   )}
                 </CardContent>
               </Card>
-            </div>
-          )}
+            )}
 
-          {activeTab === "analytics" && (
-            <div>
-              <h1 className="text-3xl font-bold mb-8">Analytics Dashboard</h1>
-              <Card className={`p-6 ${theme === "dark" ? "bg-gray-800 text-white" : "bg-white"}`}>
-                <h2 className="text-2xl font-semibold mb-4">Analytics Dashboard</h2>
-                <p className="text-gray-500 dark:text-gray-400">
-                  Analytics dashboard coming soon...
-                </p>
-              </Card>
-            </div>
-          )}
+            {activeTab === "analytics" && (
+              <div>
+                <h1 className="text-3xl font-bold mb-8">Analytics Dashboard</h1>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Analytics Dashboard</CardTitle>
+                    <CardDescription>
+                      Analytics dashboard coming soon...
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </div>
+            )}
 
-          {activeTab === "settings" && (
-            <div>
-              <h1 className="text-3xl font-bold mb-8">Admin Settings</h1>
-              <Card className={`p-6 ${theme === "dark" ? "bg-gray-800 text-white" : "bg-white"}`}>
-                <h2 className="text-2xl font-semibold mb-4">Admin Settings</h2>
-                <p className="text-gray-500 dark:text-gray-400">
-                  Admin settings interface coming soon...
-                </p>
-              </Card>
-            </div>
-          )}
+            {activeTab === "settings" && (
+              <div>
+                <h1 className="text-3xl font-bold mb-8">Admin Settings</h1>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Admin Settings</CardTitle>
+                    <CardDescription>
+                      Admin settings interface coming soon...
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
