@@ -278,8 +278,8 @@ export default function AdminDashboard() {
               <>
                 <h1 className="text-3xl font-bold mb-8">Overview</h1>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="flex flex-col h-full min-h-[200px]">
-                    <Card className="bg-white dark:bg-[#111827] h-full">
+                  <div className="flex flex-col">
+                    <Card className="bg-white dark:bg-[#111827] h-[200px] flex flex-col justify-between">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
                           <div className="p-3 rounded-lg bg-[#2563EB] dark:bg-blue-500/20">
@@ -303,8 +303,8 @@ export default function AdminDashboard() {
                     </Card>
                   </div>
 
-                  <div className="flex flex-col h-full">
-                    <Card className="bg-card dark:bg-[#111827]">
+                  <div className="flex flex-col">
+                    <Card className="bg-white dark:bg-[#111827] h-[200px] flex flex-col justify-between">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
                           <div className="p-3 rounded-lg bg-[#10B981] dark:bg-emerald-500/20">
@@ -328,8 +328,8 @@ export default function AdminDashboard() {
                     </Card>
                   </div>
 
-                  <div className="flex flex-col h-full">
-                    <Card className="bg-card dark:bg-[#111827]">
+                  <div className="flex flex-col">
+                    <Card className="bg-white dark:bg-[#111827] h-[200px] flex flex-col justify-between">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
                           <div className="p-3 rounded-lg bg-[#9333EA] dark:bg-purple-500/20">
