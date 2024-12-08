@@ -61,31 +61,31 @@ export default function AdminDashboard() {
     fetchCurrentUser();
   }, []);
 
-  // Fetch users
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const response = await fetch(
-          `/api/admin/users?page=${currentPage}&limit=10&search=${searchQuery}`,
-          { credentials: 'include' }
-        );
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch users');
-        }
-
-        const data = await response.json();
-        setUsers(data.users);
-        setTotalPages(data.pagination.totalPages);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        setIsLoading(false);
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await fetch(
+        `/api/admin/users?page=${currentPage}&limit=10&search=${searchQuery}`,
+        { credentials: 'include' }
+      );
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
       }
-    };
 
+      const data = await response.json();
+      setUsers(data.users);
+      setTotalPages(data.pagination.totalPages);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch users when tab, page or search changes
+  useEffect(() => {
     if (activeTab === 'users') {
       fetchUsers();
     }
