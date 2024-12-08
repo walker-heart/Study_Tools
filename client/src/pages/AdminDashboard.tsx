@@ -501,6 +501,29 @@ export default function AdminDashboard() {
             {activeTab === "analytics" && (
               <div>
                 <h1 className="text-3xl font-bold mb-8">Analytics Dashboard</h1>
+                
+                {/* Time Settings */}
+                <Card className={`mb-8 ${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                  <CardHeader>
+                    <CardTitle>Time Range</CardTitle>
+                    <div className="flex gap-4 mt-2">
+                      <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
+                        Last 24 Hours
+                      </Button>
+                      <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
+                        Last 7 Days
+                      </Button>
+                      <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
+                        Last 30 Days
+                      </Button>
+                      <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
+                        Custom Range
+                      </Button>
+                    </div>
+                  </CardHeader>
+                </Card>
+
+                {/* Key Metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
                     <CardHeader>
@@ -508,9 +531,9 @@ export default function AdminDashboard() {
                         <Users2 className="h-5 w-5 text-blue-500" />
                         Total Users
                       </CardTitle>
-                      <div className="text-3xl font-bold mt-2">128</div>
+                      <div className="text-3xl font-bold mt-2">-</div>
                       <CardDescription className="flex items-center mt-2 text-green-500">
-                        <span className="text-sm">↑ 12% from last month</span>
+                        <span className="text-sm">↑ -% from previous period</span>
                       </CardDescription>
                     </CardHeader>
                   </Card>
@@ -518,12 +541,12 @@ export default function AdminDashboard() {
                   <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
-                        <BookOpen className="h-5 w-5 text-purple-500" />
-                        Study Sessions
+                        <Users2 className="h-5 w-5 text-purple-500" />
+                        Active Users
                       </CardTitle>
-                      <div className="text-3xl font-bold mt-2">1,234</div>
+                      <div className="text-3xl font-bold mt-2">-</div>
                       <CardDescription className="flex items-center mt-2 text-green-500">
-                        <span className="text-sm">↑ 8% from last week</span>
+                        <span className="text-sm">↑ -% from previous period</span>
                       </CardDescription>
                     </CardHeader>
                   </Card>
@@ -532,21 +555,22 @@ export default function AdminDashboard() {
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <BarChart3 className="h-5 w-5 text-yellow-500" />
-                        Average Score
+                        Unique IP Addresses
                       </CardTitle>
-                      <div className="text-3xl font-bold mt-2">85%</div>
+                      <div className="text-3xl font-bold mt-2">-</div>
                       <CardDescription className="flex items-center mt-2 text-green-500">
-                        <span className="text-sm">↑ 5% improvement</span>
+                        <span className="text-sm">↑ -% from previous period</span>
                       </CardDescription>
                     </CardHeader>
                   </Card>
                 </div>
 
+                {/* Detailed Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
                     <CardHeader>
-                      <CardTitle>User Activity</CardTitle>
-                      <CardDescription>Weekly active users</CardDescription>
+                      <CardTitle>Usage Over Time</CardTitle>
+                      <CardDescription>Number of active users by hour</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="h-[300px] flex items-center justify-center text-gray-500">
@@ -557,22 +581,48 @@ export default function AdminDashboard() {
 
                   <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
                     <CardHeader>
-                      <CardTitle>Popular Content</CardTitle>
-                      <CardDescription>Most studied materials</CardDescription>
+                      <CardTitle>Top 5 Active Users</CardTitle>
+                      <CardDescription>Most active users in the selected period</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>Basic Vocabulary</div>
-                          <div className="text-green-500">89% completion</div>
+                        {/* Placeholder for top users list */}
+                        <div className="text-gray-500 text-center">
+                          No data available
                         </div>
-                        <div className="flex items-center justify-between">
-                          <div>Advanced Grammar</div>
-                          <div className="text-yellow-500">76% completion</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle>Countries</CardTitle>
+                      <CardDescription>User distribution by country</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {/* Placeholder for countries list */}
+                        <div className="text-gray-500 text-center">
+                          No data available
                         </div>
-                        <div className="flex items-center justify-between">
-                          <div>Common Phrases</div>
-                          <div className="text-blue-500">65% completion</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle>Content Statistics</CardTitle>
+                      <CardDescription>Flashcards and Memorization Stats</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span>Total Flashcard Sets</span>
+                          <span>-</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span>Total Memorizations</span>
+                          <span>-</span>
                         </div>
                       </div>
                     </CardContent>
