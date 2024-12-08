@@ -56,7 +56,7 @@ export default function AdminDashboard() {
       });
   }, []);
 
-  const { data: users = [], isLoading, error } = useQuery({
+  const { data: usersData, isLoading, error } = useQuery({
     queryKey: ["users", currentPage, searchQuery],
     queryFn: async () => {
       const response = await fetch(`/api/admin/users?page=${currentPage}&search=${searchQuery}`, {
@@ -65,9 +65,12 @@ export default function AdminDashboard() {
       if (!response.ok) {
         throw new Error("Failed to fetch users");
       }
-      return response.json();
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
     },
   });
+
+  const users = usersData || [];
 
   const totalPages = Math.ceil(users.length / ITEMS_PER_PAGE);
 
