@@ -8,12 +8,6 @@ const router = Router();
 router.get('/data', requireAdmin, async (req, res) => {
   try {
     const period = req.query.period as string || '24h';
-    
-    // Set current user in analytics store
-    if (req.user) {
-      analyticsStore.setCurrentUser({ id: req.user.id });
-    }
-
     const [overview, usageData, topUsers, contentStats] = await Promise.all([
       analyticsStore.getOverview(period),
       analyticsStore.getUsageData(period),
