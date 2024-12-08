@@ -6,12 +6,17 @@ import {
   Settings as SettingsIcon,
   Shield,
   BookOpen,
+  Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useNotification } from "@/components/ui/notification";
+import { UserDialog } from "@/components/UserDialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface User {
   id: number;
@@ -34,6 +39,9 @@ export default function AdminDashboard() {
   const [totalPages, setTotalPages] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   // Fetch current user ID
   useEffect(() => {
@@ -85,6 +93,105 @@ export default function AdminDashboard() {
 
   const handleSearch = () => {
     setCurrentPage(1); // Reset to first page when searching
+  };
+
+  const handleCreateUser = async (userData: { firstName: string; lastName: string; email: string; password: string }) => {
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create user');
+      }
+
+      showNotification({
+        message: "User created successfully",
+        type: "success"
+      });
+      
+      // Refresh user list
+      if (activeTab === 'users') {
+        fetchUsers();
+      }
+    } catch (err) {
+      showNotification({
+        message: err instanceof Error ? err.message : 'Failed to create user',
+        type: "error"
+      });
+    }
+  };
+
+  const handleEditUser = async (userData: { firstName: string; lastName: string; email: string }) => {
+    if (!selectedUser) return;
+    
+    try {
+      const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update user');
+      }
+
+      showNotification({
+        message: "User updated successfully",
+        type: "success"
+      });
+      
+      // Refresh user list
+      if (activeTab === 'users') {
+        fetchUsers();
+      }
+    } catch (err) {
+      showNotification({
+        message: err instanceof Error ? err.message : 'Failed to update user',
+        type: "error"
+      });
+    }
+    setSelectedUser(null);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete user');
+      }
+
+      showNotification({
+        message: "User deleted successfully",
+        type: "success"
+      });
+      
+      // Refresh user list
+      if (activeTab === 'users') {
+        fetchUsers();
+      }
+    } catch (err) {
+      showNotification({
+        message: err instanceof Error ? err.message : 'Failed to delete user',
+        type: "error"
+      });
+    }
+    setSelectedUser(null);
+    setIsDeleteDialogOpen(false);
   };
 
   const handleToggleAdmin = async (user: User) => {
@@ -289,6 +396,21 @@ export default function AdminDashboard() {
                     </Button>
                   </div>
 
+                  {/* Add User Button */}
+                  <div className="mb-4">
+                    <Button
+                      onClick={() => {
+                        setSelectedUser(null);
+                        setIsUserDialogOpen(true);
+                      }}
+                      variant={theme === "dark" ? "default" : "outline"}
+                      className="flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add User
+                    </Button>
+                  </div>
+
                   {/* Users Table */}
                   <div className="relative overflow-x-auto">
                     <table className="w-full text-sm text-left">
@@ -330,15 +452,39 @@ export default function AdminDashboard() {
                                 {user.isAdmin ? "Admin" : "User"}
                               </td>
                               <td className="px-6 py-4">
-                                <Button
-                                  variant={theme === "dark" ? "default" : "outline"}
-                                  size="sm"
-                                  onClick={() => handleToggleAdmin(user)}
-                                  disabled={user.id === currentUserId}
-                                  className={user.id === currentUserId ? "opacity-50 cursor-not-allowed" : ""}
-                                >
-                                  {user.isAdmin ? "Remove Admin" : "Make Admin"}
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant={theme === "dark" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => handleToggleAdmin(user)}
+                                    disabled={user.id === currentUserId}
+                                    className={user.id === currentUserId ? "opacity-50 cursor-not-allowed" : ""}
+                                  >
+                                    {user.isAdmin ? "Remove Admin" : "Make Admin"}
+                                  </Button>
+                                  <Button
+                                    variant={theme === "dark" ? "default" : "outline"}
+                                    size="icon"
+                                    onClick={() => {
+                                      setSelectedUser(user);
+                                      setIsUserDialogOpen(true);
+                                    }}
+                                    disabled={user.id === currentUserId}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="icon"
+                                    onClick={() => {
+                                      setSelectedUser(user);
+                                      setIsDeleteDialogOpen(true);
+                                    }}
+                                    disabled={user.id === currentUserId}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </td>
                             </tr>
                           ))
@@ -346,6 +492,46 @@ export default function AdminDashboard() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* User Dialog */}
+                  <UserDialog
+                    isOpen={isUserDialogOpen}
+                    onClose={() => {
+                      setIsUserDialogOpen(false);
+                      setSelectedUser(null);
+                    }}
+                    onSubmit={selectedUser ? handleEditUser : handleCreateUser}
+                    title={selectedUser ? "Edit User" : "Create User"}
+                    initialData={selectedUser || undefined}
+                  />
+
+                  {/* Delete Confirmation Dialog */}
+                  <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete User</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete this user? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel 
+                          onClick={() => {
+                            setIsDeleteDialogOpen(false);
+                            setSelectedUser(null);
+                          }}
+                        >
+                          Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDeleteUser}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
 
                   {/* Pagination */}
                   {!isLoading && !error && users.length > 0 && (
