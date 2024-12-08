@@ -73,6 +73,13 @@ export async function signIn(req: Request, res: Response) {
     };
     req.session.authenticated = true;
     
+    // Create a session record in the database
+    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    await db.query(
+      'INSERT INTO user_sessions (user_id, ip_address) VALUES ($1, $2)',
+      [user.id, ipAddress]
+    );
+    
     // Also send JWT token for API authentication
     const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
 
