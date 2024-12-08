@@ -204,9 +204,9 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <div className="flex h-screen bg-background">
+      <div className="flex h-screen bg-background dark:bg-[#0B0E14]">
         {/* Sidebar */}
-        <div className="w-64 bg-background border-r border-border p-6 flex flex-col">
+        <div className="w-64 bg-background dark:bg-[#141820] border-r border-border p-6 flex flex-col">
           <h2 className="text-xl font-semibold mb-6">Admin Dashboard</h2>
           <nav className="space-y-2">
             <Button
@@ -262,8 +262,8 @@ export default function AdminDashboard() {
                     <Card className="flex-1">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
-                          <div className="p-3 rounded-lg bg-blue-600 dark:bg-blue-500/20">
-                            <Users2 className="h-6 w-6 text-white" />
+                          <div className="p-3 rounded-lg bg-[#2563EB] dark:bg-blue-500/20">
+                            <Users2 className="h-6 w-6 text-white dark:text-blue-400" />
                           </div>
                           <div>
                             <CardTitle>User Management</CardTitle>
@@ -287,8 +287,8 @@ export default function AdminDashboard() {
                     <Card className="flex-1">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
-                          <div className="p-3 rounded-lg bg-emerald-600 dark:bg-emerald-500/20">
-                            <BarChart3 className="h-6 w-6 text-white" />
+                          <div className="p-3 rounded-lg bg-[#10B981] dark:bg-emerald-500/20">
+                            <BarChart3 className="h-6 w-6 text-white dark:text-emerald-400" />
                           </div>
                           <div>
                             <CardTitle>Analytics</CardTitle>
@@ -312,8 +312,8 @@ export default function AdminDashboard() {
                     <Card className="flex-1">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
-                          <div className="p-3 rounded-lg bg-purple-600 dark:bg-purple-500/20">
-                            <BookOpen className="h-6 w-6 text-white" />
+                          <div className="p-3 rounded-lg bg-[#9333EA] dark:bg-purple-500/20">
+                            <BookOpen className="h-6 w-6 text-white dark:text-purple-400" />
                           </div>
                           <div>
                             <CardTitle>Study Content</CardTitle>
