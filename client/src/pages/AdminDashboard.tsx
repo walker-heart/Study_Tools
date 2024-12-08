@@ -392,7 +392,6 @@ export default function AdminDashboard() {
                           <th className="text-left p-2 font-medium">Name</th>
                           <th className="text-left p-2 font-medium">Email</th>
                           <th className="text-left p-2 font-medium">Role</th>
-                          <th className="text-left p-2 font-medium">Theme</th>
                           <th className="text-right p-2 font-medium">Actions</th>
                         </tr>
                       </thead>
@@ -425,7 +424,6 @@ export default function AdminDashboard() {
                               <td className="p-2">
                                 {user.isAdmin ? "Admin" : "User"}
                               </td>
-                              <td className="p-2">{user.theme}</td>
                               <td className="p-2 text-right">
                                 <div className="flex justify-end space-x-2">
                                   <Button
