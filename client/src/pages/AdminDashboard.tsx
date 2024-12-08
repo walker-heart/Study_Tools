@@ -379,6 +379,8 @@ export default function AdminDashboard() {
                         setSelectedUser(null);
                         setIsUserDialogOpen(true);
                       }}
+                      variant="outline"
+                      className="bg-white text-gray-900 hover:bg-gray-100"
                     >
                       <Plus className="h-4 w-4 mr-2" />
                       Add User
