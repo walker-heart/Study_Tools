@@ -52,28 +52,31 @@ class AnalyticsStore {
   }
 
   private initializeSampleData(): void {
-    // Initialize metrics
-    this.metrics.set('total_users', 150);
-    this.metrics.set('active_users', 75);
-    this.metrics.set('unique_ips', 95);
-    this.metrics.set('flashcard_sets', 45);
-    this.metrics.set('memorizations', 280);
+    // Initialize metrics with more realistic values
+    this.metrics.set('total_users', 45);  // Base metric
+    this.metrics.set('active_users', 28);  // ~60% of total users
+    this.metrics.set('unique_ips', 35);    // Slightly more than active users (some users access from multiple IPs)
+    this.metrics.set('flashcard_sets', 15); // Average 1 set per 3 users
+    this.metrics.set('memorizations', 120); // Average 8 memorizations per flashcard set
 
-    // Initialize country data
+    // Initialize country data with proportional distribution
     this.countries = [
-      { country: 'United States', count: 45 },
-      { country: 'United Kingdom', count: 25 },
-      { country: 'Canada', count: 18 },
-      { country: 'Australia', count: 12 }
+      { country: 'United States', count: 20 },
+      { country: 'United Kingdom', count: 10 },
+      { country: 'Canada', count: 8 },
+      { country: 'Australia', count: 7 }
     ];
 
-    // Generate usage data for the last 24 hours
+    // Generate usage data for the last 24 hours with more realistic numbers
     const now = new Date();
     this.usageData = Array.from({ length: 24 }, (_, i) => {
       const date = new Date(now.getTime() - (24 - i) * 60 * 60 * 1000);
+      // During work hours (9am-5pm) have higher activity
+      const hour = new Date(date).getHours();
+      const isWorkHours = hour >= 9 && hour <= 17;
       return {
         hour: date.toISOString(),
-        active_users: randomInt(10, 60)
+        active_users: randomInt(isWorkHours ? 15 : 5, isWorkHours ? 28 : 12)
       };
     });
 
