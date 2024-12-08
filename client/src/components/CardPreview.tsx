@@ -1,4 +1,4 @@
-import { Card } from "@/components/ui/card";
+import { Card } from "../ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface VocabCard {
