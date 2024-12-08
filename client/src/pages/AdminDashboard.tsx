@@ -40,6 +40,22 @@ export default function AdminDashboard() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("24h");
+
+  // Analytics data query
+  const { data: analyticsData, isLoading: isLoadingAnalytics } = useQuery({
+    queryKey: ["analytics", selectedPeriod],
+    queryFn: async () => {
+      const response = await fetch(`/api/analytics/data?period=${selectedPeriod}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch analytics data');
+      }
+      return response.json();
+    },
+    enabled: activeTab === "analytics"
+  });
 
   // Fetch current user ID
   useEffect(() => {
@@ -531,10 +547,18 @@ export default function AdminDashboard() {
                         <Users2 className="h-5 w-5 text-blue-500" />
                         Total Users
                       </CardTitle>
-                      <div className="text-3xl font-bold mt-2">-</div>
-                      <CardDescription className="flex items-center mt-2 text-green-500">
-                        <span className="text-sm">↑ -% from previous period</span>
-                      </CardDescription>
+                      {isLoadingAnalytics ? (
+                        <div className="text-3xl font-bold mt-2">Loading...</div>
+                      ) : (
+                        <>
+                          <div className="text-3xl font-bold mt-2">
+                            {analyticsData?.overview?.total_users || 0}
+                          </div>
+                          <CardDescription className="flex items-center mt-2 text-green-500">
+                            <span className="text-sm">Active and registered users</span>
+                          </CardDescription>
+                        </>
+                      )}
                     </CardHeader>
                   </Card>
 
@@ -544,10 +568,18 @@ export default function AdminDashboard() {
                         <Users2 className="h-5 w-5 text-purple-500" />
                         Active Users
                       </CardTitle>
-                      <div className="text-3xl font-bold mt-2">-</div>
-                      <CardDescription className="flex items-center mt-2 text-green-500">
-                        <span className="text-sm">↑ -% from previous period</span>
-                      </CardDescription>
+                      {isLoadingAnalytics ? (
+                        <div className="text-3xl font-bold mt-2">Loading...</div>
+                      ) : (
+                        <>
+                          <div className="text-3xl font-bold mt-2">
+                            {analyticsData?.overview?.active_users?.count || 0}
+                          </div>
+                          <CardDescription className="flex items-center mt-2 text-green-500">
+                            <span className="text-sm">↑ {analyticsData?.overview?.active_users?.percent_change || 0}% from previous period</span>
+                          </CardDescription>
+                        </>
+                      )}
                     </CardHeader>
                   </Card>
 
@@ -557,10 +589,18 @@ export default function AdminDashboard() {
                         <BarChart3 className="h-5 w-5 text-yellow-500" />
                         Unique IP Addresses
                       </CardTitle>
-                      <div className="text-3xl font-bold mt-2">-</div>
-                      <CardDescription className="flex items-center mt-2 text-green-500">
-                        <span className="text-sm">↑ -% from previous period</span>
-                      </CardDescription>
+                      {isLoadingAnalytics ? (
+                        <div className="text-3xl font-bold mt-2">Loading...</div>
+                      ) : (
+                        <>
+                          <div className="text-3xl font-bold mt-2">
+                            {analyticsData?.overview?.unique_ips?.count || 0}
+                          </div>
+                          <CardDescription className="flex items-center mt-2 text-green-500">
+                            <span className="text-sm">Distinct IP addresses</span>
+                          </CardDescription>
+                        </>
+                      )}
                     </CardHeader>
                   </Card>
                 </div>
@@ -615,16 +655,20 @@ export default function AdminDashboard() {
                       <CardDescription>Flashcards and Memorization Stats</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span>Total Flashcard Sets</span>
-                          <span>-</span>
+                      {isLoadingAnalytics ? (
+                        <div className="text-center">Loading...</div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <span>Total Flashcard Sets</span>
+                            <span>{analyticsData?.contentStats?.total_flashcard_sets || 0}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span>Total Memorizations</span>
+                            <span>{analyticsData?.contentStats?.total_memorizations || 0}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span>Total Memorizations</span>
-                          <span>-</span>
-                        </div>
-                      </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
