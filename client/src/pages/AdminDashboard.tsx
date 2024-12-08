@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Plus, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Shield, Users2, BarChart3, Settings, BookOpen } from "lucide-react";
 import { Link } from "wouter";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useNotification } from "@/components/ui/notification";
@@ -206,42 +206,109 @@ export default function AdminDashboard() {
     <>
       <div className="flex h-screen bg-background">
         {/* Sidebar */}
-        <div className="w-64 bg-black/10 border-r border-border p-6">
-          <div className="mb-8">
+        <div className="w-64 bg-card border-r border-border p-6">
+          <h2 className="text-xl font-semibold mb-6">Admin Dashboard</h2>
+          <nav className="space-y-2">
+            <Button
+              variant={activeTab === "overview" ? "secondary" : "ghost"}
+              onClick={() => setActiveTab("overview")}
+              className="w-full justify-start"
+            >
+              <Shield className="mr-2 h-4 w-4" />
+              Overview
+            </Button>
+            <Button
+              variant={activeTab === "users" ? "secondary" : "ghost"}
+              onClick={() => setActiveTab("users")}
+              className="w-full justify-start"
+            >
+              <Users2 className="mr-2 h-4 w-4" />
+              Users
+            </Button>
+            <Button
+              variant={activeTab === "analytics" ? "secondary" : "ghost"}
+              onClick={() => setActiveTab("analytics")}
+              className="w-full justify-start"
+            >
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Analytics
+            </Button>
+            <Button
+              variant={activeTab === "settings" ? "secondary" : "ghost"}
+              onClick={() => setActiveTab("settings")}
+              className="w-full justify-start"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </Button>
+          </nav>
+          <div className="mt-auto pt-6">
             <Link href="/dashboard">
-              <Button className="w-full mb-4" variant="outline">
+              <Button className="w-full" variant="outline">
                 Return to App
               </Button>
             </Link>
           </div>
-          <nav>
-            <Button
-              variant={activeTab === "users" ? "default" : "ghost"}
-              onClick={() => setActiveTab("users")}
-              className="w-full justify-start mb-2"
-            >
-              Users
-            </Button>
-            <Button
-              variant={activeTab === "analytics" ? "default" : "ghost"}
-              onClick={() => setActiveTab("analytics")}
-              className="w-full justify-start mb-2"
-            >
-              Analytics
-            </Button>
-            <Button
-              variant={activeTab === "settings" ? "default" : "ghost"}
-              onClick={() => setActiveTab("settings")}
-              className="w-full justify-start"
-            >
-              Settings
-            </Button>
-          </nav>
         </div>
 
         {/* Main Content */}
         <div className="flex-1 p-8 overflow-auto">
           <div className="space-y-8">
+            {activeTab === "overview" && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Link href="#users">
+                  <Card className="hover:bg-accent transition-colors">
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <Users2 className="mr-2 h-5 w-5" />
+                        User Management
+                      </CardTitle>
+                      <CardDescription>Manage user accounts and permissions</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button variant="secondary" className="w-full">
+                        Manage Users
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Link>
+                
+                <Link href="#analytics">
+                  <Card className="hover:bg-accent transition-colors">
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <BarChart3 className="mr-2 h-5 w-5" />
+                        Analytics
+                      </CardTitle>
+                      <CardDescription>View usage statistics and trends</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button variant="secondary" className="w-full">
+                        View Analytics
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Link>
+
+                <Link href="#content">
+                  <Card className="hover:bg-accent transition-colors">
+                    <CardHeader>
+                      <CardTitle className="flex items-center">
+                        <BookOpen className="mr-2 h-5 w-5" />
+                        Study Content
+                      </CardTitle>
+                      <CardDescription>Manage flashcards and study materials</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button variant="secondary" className="w-full">
+                        Manage Content
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </div>
+            )}
+
             {activeTab === "users" && (
               <Card>
                 <CardHeader>
