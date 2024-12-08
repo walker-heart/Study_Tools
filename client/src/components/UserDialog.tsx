@@ -1,26 +1,49 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useSettings } from "@/contexts/SettingsContext";
 
 interface UserDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (userData: { firstName: string; lastName: string; email: string; password: string }) => void;
+  onSubmit: (userData: { firstName: string; lastName: string; email: string; password: string; isAdmin?: boolean }) => void;
   title: string;
-  initialData?: { firstName: string; lastName: string; email: string };
+  initialData?: { firstName: string; lastName: string; email: string; isAdmin?: boolean };
 }
 
 export function UserDialog({ isOpen, onClose, onSubmit, title, initialData }: UserDialogProps) {
   const { theme } = useSettings();
   const [formData, setFormData] = useState({
-    firstName: initialData?.firstName || "",
-    lastName: initialData?.lastName || "",
-    email: initialData?.email || "",
+    firstName: "",
+    lastName: "",
+    email: "",
     password: "",
+    isAdmin: false,
   });
+
+  // Update form data when initialData changes or dialog opens
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        firstName: initialData.firstName,
+        lastName: initialData.lastName,
+        email: initialData.email,
+        password: "",
+        isAdmin: initialData.isAdmin || false,
+      });
+    } else {
+      setFormData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        password: "",
+        isAdmin: false,
+      });
+    }
+  }, [initialData, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,6 +98,23 @@ export function UserDialog({ isOpen, onClose, onSubmit, title, initialData }: Us
               />
             </div>
           )}
+          <div className="space-y-2">
+            <Label>Admin Status</Label>
+            <RadioGroup
+              value={formData.isAdmin ? "yes" : "no"}
+              onValueChange={(value) => setFormData({ ...formData, isAdmin: value === "yes" })}
+              className="flex flex-row space-x-4"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="yes" id="admin-yes" />
+                <Label htmlFor="admin-yes">Yes</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="no" id="admin-no" />
+                <Label htmlFor="admin-no">No</Label>
+              </div>
+            </RadioGroup>
+          </div>
           <DialogFooter>
             <Button 
               type="button" 

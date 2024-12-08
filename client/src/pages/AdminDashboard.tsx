@@ -95,7 +95,7 @@ export default function AdminDashboard() {
     setCurrentPage(1); // Reset to first page when searching
   };
 
-  const handleCreateUser = async (userData: { firstName: string; lastName: string; email: string; password: string }) => {
+  const handleCreateUser = async (userData: { firstName: string; lastName: string; email: string; password: string; isAdmin?: boolean }) => {
     try {
       const response = await fetch('/api/admin/users', {
         method: 'POST',
@@ -127,7 +127,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleEditUser = async (userData: { firstName: string; lastName: string; email: string }) => {
+  const handleEditUser = async (userData: { firstName: string; lastName: string; email: string; isAdmin?: boolean }) => {
     if (!selectedUser) return;
     
     try {
