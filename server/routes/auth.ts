@@ -149,6 +149,8 @@ export async function getUsers(req: Request, res: Response) {
     const search = (req.query.search as string) || '';
     const offset = (page - 1) * limit;
 
+    type UserSelect = typeof users.$inferSelect;
+    
     let query = db.select({
       id: users.id,
       firstName: users.firstName,
@@ -161,9 +163,9 @@ export async function getUsers(req: Request, res: Response) {
     // Add search condition if search query exists
     if (search) {
       query = query.where(
-        sql`LOWER(first_name) LIKE LOWER(${'%' + search + '%'}) OR 
-            LOWER(last_name) LIKE LOWER(${'%' + search + '%'}) OR 
-            LOWER(email) LIKE LOWER(${'%' + search + '%'})`
+        sql`LOWER(${users.firstName}) LIKE LOWER(${'%' + search + '%'}) OR 
+            LOWER(${users.lastName}) LIKE LOWER(${'%' + search + '%'}) OR 
+            LOWER(${users.email}) LIKE LOWER(${'%' + search + '%'})`
       );
     }
 
