@@ -42,7 +42,7 @@ export default function Memorization() {
               className="mode-button"
               disabled={!text.trim()}
               onClick={() => startMode('easy')}
-              variant="secondary"
+              variant={theme === 'dark' ? 'outline' : 'default'}
             >
               Start Easy Mode
             </Button>
@@ -51,7 +51,7 @@ export default function Memorization() {
               className="mode-button"
               disabled={!text.trim()}
               onClick={() => startMode('medium')}
-              variant="secondary"
+              variant={theme === 'dark' ? 'outline' : 'default'}
             >
               Start Medium Mode
             </Button>

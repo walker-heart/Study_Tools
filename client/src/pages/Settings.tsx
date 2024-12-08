@@ -25,7 +25,8 @@ export default function Settings() {
                 console.error('Failed to set light theme:', error);
               }
             }}
-            className={`w-32 bg-white text-gray-900 border-2 border-gray-300 hover:bg-gray-100 ${
+            variant={theme === 'dark' ? 'outline' : 'default'}
+            className={`w-32 ${
               theme === 'light' ? 'ring-2 ring-blue-500' : ''
             }`}
           >
@@ -40,7 +41,8 @@ export default function Settings() {
                 console.error('Failed to set dark theme:', error);
               }
             }}
-            className={`w-32 bg-gray-900 text-white hover:bg-gray-800 ${
+            variant={theme === 'dark' ? 'outline' : 'default'}
+            className={`w-32 ${
               theme === 'dark' ? 'ring-2 ring-blue-500' : ''
             }`}
           >
@@ -79,13 +81,19 @@ export default function Settings() {
                   placeholder="Confirm new password"
                 />
               </div>
-              <Button className="w-full">
+              <Button 
+                variant={theme === 'dark' ? 'outline' : 'default'}
+                className="w-full"
+              >
                 Update Password
               </Button>
             </div>
 
             <div className="pt-4 border-t">
-              <Button variant="destructive" className="w-full">
+              <Button 
+                variant="destructive" 
+                className={`w-full ${theme === 'dark' ? 'hover:bg-red-900' : ''}`}
+              >
                 Delete Account
               </Button>
             </div>
