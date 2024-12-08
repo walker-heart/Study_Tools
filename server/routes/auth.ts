@@ -98,6 +98,32 @@ export async function signIn(req: Request, res: Response) {
     res.status(500).json({ message: "Error signing in" });
   }
 }
+export async function signOut(req: Request, res: Response) {
+  try {
+    // Clear user session from database
+    if (req.session.user?.id) {
+      await sql`
+        UPDATE user_sessions 
+        SET ended_at = NOW() 
+        WHERE user_id = ${req.session.user.id} 
+        AND ended_at IS NULL
+      `;
+    }
+    
+    // Clear session
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Error destroying session:', err);
+        return res.status(500).json({ message: "Error signing out" });
+      }
+      res.clearCookie('connect.sid');
+      res.json({ message: "Signed out successfully" });
+    });
+  } catch (error) {
+    console.error('Sign out error:', error);
+    res.status(500).json({ message: "Error signing out" });
+  }
+}
 
 export async function checkAdmin(req: Request, res: Response) {
   try {
