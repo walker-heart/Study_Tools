@@ -25,7 +25,7 @@ export default function AdminDashboard() {
   const [, setLocation] = useLocation();
   const { theme } = useSettings();
   const notificationSystem = useNotification();
-const { showNotification } = notificationSystem;
+  const { showNotification } = notificationSystem;
   const [activeTab, setActiveTab] = useState("overview");
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -192,7 +192,7 @@ const { showNotification } = notificationSystem;
           </div>
           <div className="absolute bottom-0 w-full p-4 border-t border-gray-200 dark:border-gray-700">
             <Button
-              variant={theme === "dark" ? "outline" : "default"}
+              variant={theme === "dark" ? "secondary" : "default"}
               onClick={() => setLocation("/dashboard")}
               className="w-full justify-center"
             >
@@ -219,7 +219,7 @@ const { showNotification } = notificationSystem;
                   </div>
                   <Button 
                     onClick={() => setActiveTab("users")} 
-                    variant={theme === "dark" ? "outline" : "default"}
+                    variant={theme === "dark" ? "secondary" : "default"}
                     className="w-full mt-4"
                   >
                     Manage Users
@@ -238,7 +238,7 @@ const { showNotification } = notificationSystem;
                   </div>
                   <Button 
                     onClick={() => setActiveTab("analytics")} 
-                    variant={theme === "dark" ? "outline" : "default"}
+                    variant={theme === "dark" ? "secondary" : "default"}
                     className="w-full mt-4"
                   >
                     View Analytics
@@ -257,7 +257,7 @@ const { showNotification } = notificationSystem;
                   </div>
                   <Button 
                     onClick={() => setLocation("/admin/content")} 
-                    variant={theme === "dark" ? "outline" : "default"}
+                    variant={theme === "dark" ? "secondary" : "default"}
                     className="w-full mt-4"
                   >
                     Manage Content
@@ -283,7 +283,7 @@ const { showNotification } = notificationSystem;
                     />
                     <Button 
                       onClick={handleSearch}
-                      variant={theme === "dark" ? "outline" : "default"}
+                      variant={theme === "dark" ? "secondary" : "default"}
                     >
                       Search
                     </Button>
@@ -331,7 +331,7 @@ const { showNotification } = notificationSystem;
                               </td>
                               <td className="px-6 py-4">
                                 <Button
-                                  variant={theme === "dark" ? "outline" : "default"}
+                                  variant={theme === "dark" ? "secondary" : "default"}
                                   size="sm"
                                   onClick={() => handleToggleAdmin(user)}
                                   disabled={user.id === currentUserId}
@@ -355,7 +355,7 @@ const { showNotification } = notificationSystem;
                       </div>
                       <div className="flex gap-2">
                         <Button
-                          variant={theme === "dark" ? "outline" : "default"}
+                          variant={theme === "dark" ? "secondary" : "default"}
                           size="sm"
                           onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                           disabled={currentPage === 1}
@@ -363,7 +363,7 @@ const { showNotification } = notificationSystem;
                           Previous
                         </Button>
                         <Button
-                          variant={theme === "dark" ? "outline" : "default"}
+                          variant={theme === "dark" ? "secondary" : "default"}
                           size="sm"
                           onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                           disabled={currentPage === totalPages}
