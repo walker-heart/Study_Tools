@@ -137,22 +137,35 @@ export default function AdminDashboard() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify({
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          email: userData.email,
+          isAdmin: userData.isAdmin
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update user');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update user');
       }
+
+      const updatedUser = await response.json();
+      
+      // Update the local state immediately
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user.id === selectedUser.id ? updatedUser : user
+        )
+      );
 
       showNotification({
         message: "User updated successfully",
         type: "success"
       });
       
-      // Refresh user list
-      if (activeTab === 'users') {
-        fetchUsers();
-      }
+      // Refresh the full list to ensure consistency
+      fetchUsers();
     } catch (err) {
       showNotification({
         message: err instanceof Error ? err.message : 'Failed to update user',
