@@ -9,9 +9,9 @@ import { useSettings } from "@/contexts/SettingsContext";
 interface UserDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (userData: { firstName: string; lastName: string; email: string; password: string; isAdmin?: boolean }) => void;
+  onSubmit: (userData: { firstName: string; lastName: string; email: string; password?: string; isAdmin?: boolean; theme?: string }) => Promise<void>;
   title: string;
-  initialData?: { firstName: string; lastName: string; email: string; isAdmin?: boolean };
+  initialData?: { firstName: string; lastName: string; email: string; isAdmin?: boolean; theme?: string };
 }
 
 export function UserDialog({ isOpen, onClose, onSubmit, title, initialData }: UserDialogProps) {

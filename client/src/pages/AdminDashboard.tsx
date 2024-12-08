@@ -77,7 +77,7 @@ export default function AdminDashboard() {
   const users = usersData?.users || [];
   const totalPages = usersData?.pagination?.totalPages || 1;
 
-  const handleCreateUser = async (data: Omit<User, "id">) => {
+  const handleCreateUser = async (data: { firstName: string; lastName: string; email: string; password?: string; isAdmin?: boolean; theme: string }) => {
     try {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
@@ -85,7 +85,10 @@ export default function AdminDashboard() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          theme: "system", // Set default theme
+        }),
       });
 
       if (!response.ok) {
@@ -107,7 +110,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleEditUser = async (data: Partial<User>) => {
+  const handleEditUser = async (data: { firstName: string; lastName: string; email: string; isAdmin?: boolean; theme: string }) => {
     if (!selectedUser) return;
 
     try {
@@ -117,7 +120,10 @@ export default function AdminDashboard() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          theme: selectedUser.theme, // Preserve existing theme
+        }),
       });
 
       if (!response.ok) {
@@ -206,45 +212,66 @@ export default function AdminDashboard() {
     <>
       <div className="flex h-screen bg-background dark:bg-[#0B0E14]">
         {/* Sidebar */}
-        <div className="w-64 bg-background dark:bg-[#0F111A] border-r border-border p-6 flex flex-col">
-          <h2 className="text-xl font-semibold mb-6">Admin Dashboard</h2>
-          <nav className="space-y-2">
-            <Button
-              variant={activeTab === "overview" ? "secondary" : "ghost"}
-              onClick={() => setActiveTab("overview")}
-              className="w-full justify-start"
-            >
-              <Shield className="mr-2 h-4 w-4" />
-              Overview
-            </Button>
-            <Button
-              variant={activeTab === "users" ? "secondary" : "ghost"}
-              onClick={() => setActiveTab("users")}
-              className="w-full justify-start"
-            >
-              <Users2 className="mr-2 h-4 w-4" />
-              Users
-            </Button>
-            <Button
-              variant={activeTab === "analytics" ? "secondary" : "ghost"}
-              onClick={() => setActiveTab("analytics")}
-              className="w-full justify-start"
-            >
-              <BarChart3 className="mr-2 h-4 w-4" />
-              Analytics
-            </Button>
-            <Button
-              variant={activeTab === "settings" ? "secondary" : "ghost"}
-              onClick={() => setActiveTab("settings")}
-              className="w-full justify-start"
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              Settings
-            </Button>
-          </nav>
-          <div className="mt-auto pt-6">
+        <div className="w-80 h-full fixed left-0 border-r bg-gray-900 text-white border-gray-700">
+          <div className="p-6">
+            <h2 className="text-xl font-semibold mb-6">Admin Dashboard</h2>
+            <nav className="space-y-2">
+              <Button
+                variant="ghost"
+                onClick={() => setActiveTab("overview")}
+                className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === "overview"
+                    ? "bg-gray-800 text-white"
+                    : "hover:bg-opacity-10 hover:bg-gray-500"
+                }`}
+              >
+                <Shield className="h-5 w-5" />
+                Overview
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setActiveTab("users")}
+                className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === "users"
+                    ? "bg-gray-800 text-white"
+                    : "hover:bg-opacity-10 hover:bg-gray-500"
+                }`}
+              >
+                <Users2 className="h-5 w-5" />
+                Users
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setActiveTab("analytics")}
+                className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === "analytics"
+                    ? "bg-gray-800 text-white"
+                    : "hover:bg-opacity-10 hover:bg-gray-500"
+                }`}
+              >
+                <BarChart3 className="h-5 w-5" />
+                Analytics
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setActiveTab("settings")}
+                className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === "settings"
+                    ? "bg-gray-800 text-white"
+                    : "hover:bg-opacity-10 hover:bg-gray-500"
+                }`}
+              >
+                <Settings className="h-5 w-5" />
+                Settings
+              </Button>
+            </nav>
+          </div>
+          <div className="absolute bottom-0 w-full p-4 border-t border-gray-200 dark:border-gray-700">
             <Link href="/dashboard">
-              <Button className="w-full" variant="outline">
+              <Button 
+                className="w-full justify-center text-white hover:bg-gray-500 hover:bg-opacity-10" 
+                variant="ghost"
+              >
                 Return to App
               </Button>
             </Link>
@@ -252,14 +279,14 @@ export default function AdminDashboard() {
         </div>
 
         {/* Main Content */}
-        <div className="flex-1 p-8 overflow-auto">
+        <div className="flex-1 p-8 overflow-auto ml-80">
           <div className="space-y-8">
             {activeTab === "overview" && (
               <>
                 <h1 className="text-3xl font-bold mb-8">Overview</h1>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="flex flex-col h-full">
-                    <Card className="bg-card dark:bg-[#1A1D27] h-full">
+                    <Card className="bg-card dark:bg-[#111827] h-full">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
                           <div className="p-3 rounded-lg bg-[#2563EB] dark:bg-blue-500/20">
@@ -267,14 +294,14 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <CardTitle>User Management</CardTitle>
-                            <CardDescription>Manage user accounts and permissions</CardDescription>
+                            <CardDescription className="text-gray-500 dark:text-gray-400">Manage user accounts and permissions</CardDescription>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent>
                         <Button 
                           variant="secondary" 
-                          className="w-full bg-secondary/10 hover:bg-secondary/20 dark:text-white"
+                          className="w-full bg-[#1F2937] hover:bg-[#374151] text-white"
                           onClick={() => setActiveTab("users")}
                         >
                           Manage Users
@@ -284,7 +311,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="flex flex-col h-full">
-                    <Card className="bg-card dark:bg-[#1A1D27]">
+                    <Card className="bg-card dark:bg-[#111827]">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
                           <div className="p-3 rounded-lg bg-[#10B981] dark:bg-emerald-500/20">
@@ -292,14 +319,14 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <CardTitle>Analytics</CardTitle>
-                            <CardDescription>View usage statistics and trends</CardDescription>
+                            <CardDescription className="text-gray-500 dark:text-gray-400">View usage statistics and trends</CardDescription>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent>
                         <Button 
                           variant="secondary" 
-                          className="w-full bg-secondary/10 hover:bg-secondary/20 dark:text-white"
+                          className="w-full bg-[#1F2937] hover:bg-[#374151] text-white"
                           onClick={() => setActiveTab("analytics")}
                         >
                           View Analytics
@@ -309,7 +336,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="flex flex-col h-full">
-                    <Card className="bg-card dark:bg-[#1A1D27]">
+                    <Card className="bg-card dark:bg-[#111827]">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
                           <div className="p-3 rounded-lg bg-[#9333EA] dark:bg-purple-500/20">
@@ -317,14 +344,14 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <CardTitle>Study Content</CardTitle>
-                            <CardDescription>Manage flashcards and study materials</CardDescription>
+                            <CardDescription className="text-gray-500 dark:text-gray-400">Manage flashcards and study materials</CardDescription>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent>
                         <Button 
                           variant="secondary" 
-                          className="w-full bg-secondary/10 hover:bg-secondary/20 dark:text-white"
+                          className="w-full bg-[#1F2937] hover:bg-[#374151] text-white"
                         >
                           Manage Content
                         </Button>
