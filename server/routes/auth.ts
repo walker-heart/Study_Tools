@@ -235,3 +235,32 @@ export async function updateUser(req: Request, res: Response) {
     res.status(500).json({ message: "Error updating user" });
   }
 }
+
+// Update user password (admin only)
+export async function updateUserPassword(req: Request, res: Response) {
+  try {
+    const userId = parseInt(req.params.id);
+    const { password } = req.body;
+
+    if (!password || typeof password !== 'string') {
+      return res.status(400).json({ message: "Invalid password" });
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    // Update user's password
+    const [updatedUser] = await db
+      .update(users)
+      .set({ passwordHash })
+      .where(eq(users.id, userId))
+      .returning();
+
+    console.log('Updated user password:', userId);
+    res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    console.error('Error updating user password:', error);
+    res.status(500).json({ message: "Error updating user password" });
+  }
+}
