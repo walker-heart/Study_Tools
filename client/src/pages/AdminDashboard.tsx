@@ -192,7 +192,7 @@ const { showNotification } = notificationSystem;
           </div>
           <div className="absolute bottom-0 w-full p-4 border-t border-gray-200 dark:border-gray-700">
             <Button
-              variant={theme === "dark" ? "default" : "secondary"}
+              variant={theme === "dark" ? "secondary" : "default"}
               onClick={() => setLocation("/dashboard")}
               className="w-full justify-center"
             >
@@ -217,7 +217,11 @@ const { showNotification } = notificationSystem;
                     </div>
                     <Users className="w-8 h-8 text-blue-500" />
                   </div>
-                  <Button onClick={() => setActiveTab("users")} className="w-full mt-4">
+                  <Button 
+                    onClick={() => setActiveTab("users")} 
+                    variant={theme === "dark" ? "secondary" : "default"}
+                    className="w-full mt-4"
+                  >
                     Manage Users
                   </Button>
                 </Card>
@@ -232,7 +236,11 @@ const { showNotification } = notificationSystem;
                     </div>
                     <BarChart className="w-8 h-8 text-green-500" />
                   </div>
-                  <Button onClick={() => setActiveTab("analytics")} className="w-full mt-4">
+                  <Button 
+                    onClick={() => setActiveTab("analytics")} 
+                    variant={theme === "dark" ? "secondary" : "default"}
+                    className="w-full mt-4"
+                  >
                     View Analytics
                   </Button>
                 </Card>
@@ -247,7 +255,11 @@ const { showNotification } = notificationSystem;
                     </div>
                     <BookOpen className="w-8 h-8 text-purple-500" />
                   </div>
-                  <Button onClick={() => setLocation("/admin/content")} className="w-full mt-4">
+                  <Button 
+                    onClick={() => setLocation("/admin/content")} 
+                    variant={theme === "dark" ? "secondary" : "default"}
+                    className="w-full mt-4"
+                  >
                     Manage Content
                   </Button>
                 </Card>
@@ -269,7 +281,12 @@ const { showNotification } = notificationSystem;
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                     />
-                    <Button onClick={handleSearch}>Search</Button>
+                    <Button 
+                      onClick={handleSearch}
+                      variant={theme === "dark" ? "secondary" : "default"}
+                    >
+                      Search
+                    </Button>
                   </div>
 
                   {/* Users Table */}
@@ -314,7 +331,7 @@ const { showNotification } = notificationSystem;
                               </td>
                               <td className="px-6 py-4">
                                 <Button
-                                  variant="outline"
+                                  variant={theme === "dark" ? "secondary" : "default"}
                                   size="sm"
                                   onClick={() => handleToggleAdmin(user)}
                                   disabled={user.id === currentUserId}
@@ -338,7 +355,7 @@ const { showNotification } = notificationSystem;
                       </div>
                       <div className="flex gap-2">
                         <Button
-                          variant="outline"
+                          variant={theme === "dark" ? "secondary" : "default"}
                           size="sm"
                           onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                           disabled={currentPage === 1}
@@ -346,7 +363,7 @@ const { showNotification } = notificationSystem;
                           Previous
                         </Button>
                         <Button
-                          variant="outline"
+                          variant={theme === "dark" ? "secondary" : "default"}
                           size="sm"
                           onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                           disabled={currentPage === totalPages}
