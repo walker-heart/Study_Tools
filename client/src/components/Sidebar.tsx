@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Button } from "../components/ui/button";
-import { useSettings } from "../contexts/SettingsContext";
+import { Button } from "@/components/ui/button";
+import { useSettings } from "@/contexts/SettingsContext";
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(true);
