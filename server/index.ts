@@ -4,13 +4,15 @@ import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 import cors from "cors";
 import session from "express-session";
-import { sessionConfig } from "./config/session";
+import connectPgSimple from "connect-pg-simple";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+
+const pgSession = connectPgSimple(session);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -114,7 +116,26 @@ log(`Serving static files from: ${publicPath}`);
 // Basic request handlers
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(session(sessionConfig));
+// Configure session middleware with proper error handling
+app.use(session({
+  store: new pgSession({
+    pool: db,
+    createTableIfMissing: true,
+    pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
+    errorLog: console.error // Log session store errors
+  }),
+  name: 'sid', // Session ID cookie name
+  secret: env.JWT_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: 'lax',
+    path: '/'
+  }
+}));
 
 // Add static file error handling
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {

@@ -58,16 +58,33 @@ export default function Settings() {
                   try {
                     const response = await fetch('/api/auth/signout', {
                       method: 'POST',
-                      credentials: 'include'
+                      credentials: 'include',
+                      headers: {
+                        'Content-Type': 'application/json'
+                      }
                     });
                     
                     if (response.ok) {
+                      // Clear all client-side storage
+                      localStorage.clear();
+                      sessionStorage.clear();
+                      
+                      // Clear cookies by setting them to expire
+                      document.cookie.split(";").forEach((c) => {
+                        document.cookie = c
+                          .replace(/^ +/, "")
+                          .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
+                      });
+                      
+                      // Force reload to clear React Query cache and reset app state
                       window.location.href = '/';
                     } else {
-                      throw new Error('Failed to sign out');
+                      const data = await response.json();
+                      throw new Error(data.message || 'Failed to sign out');
                     }
                   } catch (error) {
                     console.error('Sign out error:', error);
+                    alert('Failed to sign out. Please try again.');
                   }
                 }}
                 variant="outline"
