@@ -1,4 +1,6 @@
 import { randomInt } from 'crypto';
+import pkg from 'pg';
+const { Pool } = pkg;
 
 // Type definitions
 interface AnalyticsMetric {
@@ -38,82 +40,131 @@ interface AnalyticsOverview {
 }
 
 class AnalyticsStore {
-  private metrics: Map<string, number>;
-  private countries: CountryData[];
-  private usageData: UsageDataPoint[];
-  private topUsers: TopUser[];
+  private pool: any;
 
   constructor() {
-    this.metrics = new Map();
-    this.countries = [];
-    this.usageData = [];
-    this.topUsers = [];
-    this.initializeSampleData();
-  }
-
-  private initializeSampleData(): void {
-    // Initialize metrics based on actual system usage
-    this.metrics.set('total_users', 3);    // Actual number of users
-    this.metrics.set('active_users', 3);    // All users are active today
-    this.metrics.set('unique_ips', 4);      // Assuming some users might connect from different IPs
-    this.metrics.set('flashcard_sets', 5);  // Current flashcard sets
-    this.metrics.set('memorizations', 25);  // Current memorization attempts
-
-    // Initialize country data for current users
-    this.countries = [
-      { country: 'United States', count: 2 },
-      { country: 'Canada', count: 1 }
-    ];
-
-    // Generate usage data for the last 24 hours with more realistic numbers
-    const now = new Date();
-    this.usageData = Array.from({ length: 24 }, (_, i) => {
-      const date = new Date(now.getTime() - (24 - i) * 60 * 60 * 1000);
-      // During work hours (9am-5pm) have higher activity
-      const hour = new Date(date).getHours();
-      const isWorkHours = hour >= 9 && hour <= 17;
-      return {
-        hour: date.toISOString(),
-        active_users: randomInt(isWorkHours ? 15 : 5, isWorkHours ? 28 : 12)
-      };
+    this.pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
     });
-
-    // Generate top users
-    this.topUsers = Array.from({ length: 5 }, (_, i) => ({
-      id: i + 1,
-      first_name: `User`,
-      last_name: `${i + 1}`,
-      email: `user${i + 1}@example.com`,
-      session_count: randomInt(50, 150)
-    })).sort((a, b) => b.session_count - a.session_count);
   }
 
-  getOverview(_period: string = '24h'): AnalyticsOverview {
+  private async fetchMetrics(period: string = '24h'): Promise<Map<string, number>> {
+    const metrics = new Map<string, number>();
+    try {
+      // Get total users
+      const totalUsersResult = await this.pool.query('SELECT COUNT(*) FROM users');
+      metrics.set('total_users', parseInt(totalUsersResult.rows[0].count));
+
+      // Get active users (users who logged in within the period)
+      const activeUsersResult = await this.pool.query(`
+        SELECT COUNT(DISTINCT user_id) 
+        FROM user_sessions 
+        WHERE created_at >= NOW() - INTERVAL '1 day'
+      `);
+      metrics.set('active_users', parseInt(activeUsersResult.rows[0].count));
+
+      // Get unique IPs
+      const uniqueIpsResult = await this.pool.query(`
+        SELECT COUNT(DISTINCT ip_address) 
+        FROM user_sessions 
+        WHERE created_at >= NOW() - INTERVAL '1 day'
+      `);
+      metrics.set('unique_ips', parseInt(uniqueIpsResult.rows[0].count));
+
+      // Get flashcard sets count
+      const flashcardSetsResult = await this.pool.query('SELECT COUNT(*) FROM flashcard_sets');
+      metrics.set('flashcard_sets', parseInt(flashcardSetsResult.rows[0].count));
+
+      // Get memorizations count
+      const memorizationsResult = await this.pool.query('SELECT COUNT(*) FROM memorizations');
+      metrics.set('memorizations', parseInt(memorizationsResult.rows[0].count));
+
+      return metrics;
+    } catch (error) {
+      console.error('Error fetching metrics:', error);
+      return new Map();
+    }
+  }
+
+  private async fetchUsageData(period: string = '24h'): Promise<UsageDataPoint[]> {
+    try {
+      const result = await this.pool.query(`
+        SELECT 
+          date_trunc('hour', created_at) as hour,
+          COUNT(DISTINCT user_id) as active_users
+        FROM user_sessions
+        WHERE created_at >= NOW() - INTERVAL '1 day'
+        GROUP BY hour
+        ORDER BY hour
+      `);
+      
+      return result.rows.map(row => ({
+        hour: row.hour.toISOString(),
+        active_users: parseInt(row.active_users)
+      }));
+    } catch (error) {
+      console.error('Error fetching usage data:', error);
+      return [];
+    }
+  }
+
+  private async fetchTopUsers(): Promise<TopUser[]> {
+    try {
+      const result = await this.pool.query(`
+        SELECT 
+          u.id,
+          u.first_name,
+          u.last_name,
+          u.email,
+          COUNT(s.id) as session_count
+        FROM users u
+        LEFT JOIN user_sessions s ON s.user_id = u.id
+        GROUP BY u.id, u.first_name, u.last_name, u.email
+        ORDER BY session_count DESC
+        LIMIT 5
+      `);
+      
+      return result.rows.map(row => ({
+        id: row.id,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        email: row.email,
+        session_count: parseInt(row.session_count)
+      }));
+    } catch (error) {
+      console.error('Error fetching top users:', error);
+      return [];
+    }
+  }
+
+  async getOverview(period: string = '24h'): Promise<AnalyticsOverview> {
+    const metrics = await this.fetchMetrics(period);
     return {
-      total_users: this.metrics.get('total_users') || 0,
+      total_users: metrics.get('total_users') || 0,
       active_users: {
-        count: this.metrics.get('active_users') || 0,
-        percent_change: 15 // Sample percent change
+        count: metrics.get('active_users') || 0,
+        percent_change: 0 // To be calculated based on previous period
       },
       unique_ips: {
-        count: this.metrics.get('unique_ips') || 0,
+        count: metrics.get('unique_ips') || 0,
       },
-      countries: this.countries
+      countries: [] // To be implemented with actual country data
     };
   }
 
-  getUsageData(_period: string = '24h'): UsageDataPoint[] {
-    return this.usageData;
+  async getUsageData(period: string = '24h'): Promise<UsageDataPoint[]> {
+    return this.fetchUsageData(period);
   }
 
-  getTopUsers(): TopUser[] {
-    return this.topUsers;
+  async getTopUsers(): Promise<TopUser[]> {
+    return this.fetchTopUsers();
   }
 
-  getContentStats(): { total_flashcard_sets: number; total_memorizations: number } {
+  async getContentStats(): Promise<{ total_flashcard_sets: number; total_memorizations: number }> {
+    const metrics = await this.fetchMetrics();
     return {
-      total_flashcard_sets: this.metrics.get('flashcard_sets') || 0,
-      total_memorizations: this.metrics.get('memorizations') || 0
+      total_flashcard_sets: metrics.get('flashcard_sets') || 0,
+      total_memorizations: metrics.get('memorizations') || 0
     };
   }
 }
