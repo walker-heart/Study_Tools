@@ -1,125 +1,118 @@
-import { EventEmitter } from 'events';
+import { randomInt } from 'crypto';
 
-interface AnalyticsData {
-  totalUsers: number;
-  activeUsers: Map<string, Set<number>>;  // period -> set of user IDs
-  countries: Map<string, number>;  // country -> count
-  ipAddresses: Set<string>;
-  userSessions: Map<number, number>;  // userId -> session count
-  flashcardSets: number;
-  memorizations: number;
+// Type definitions
+interface AnalyticsMetric {
+  metric_name: string;
+  metric_value: number;
+  period: string;
 }
 
-class AnalyticsStore extends EventEmitter {
-  private data: AnalyticsData;
-  
+interface CountryData {
+  country: string;
+  count: number;
+}
+
+interface TopUser {
+  id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  session_count: number;
+}
+
+interface UsageDataPoint {
+  hour: string;
+  active_users: number;
+}
+
+interface AnalyticsOverview {
+  total_users: number;
+  active_users: {
+    count: number;
+    percent_change: number;
+  };
+  unique_ips: {
+    count: number;
+  };
+  countries: CountryData[];
+}
+
+class AnalyticsStore {
+  private metrics: Map<string, number>;
+  private countries: CountryData[];
+  private usageData: UsageDataPoint[];
+  private topUsers: TopUser[];
+
   constructor() {
-    super();
-    this.data = {
-      totalUsers: 0,
-      activeUsers: new Map(),
-      countries: new Map(),
-      ipAddresses: new Set(),
-      userSessions: new Map(),
-      flashcardSets: 0,
-      memorizations: 0
-    };
-    
-    // Initialize with some sample data
+    this.metrics = new Map();
+    this.countries = [];
+    this.usageData = [];
+    this.topUsers = [];
     this.initializeSampleData();
   }
 
-  private initializeSampleData() {
-    // Set total users
-    this.data.totalUsers = 50;
+  private initializeSampleData(): void {
+    // Initialize metrics
+    this.metrics.set('total_users', 150);
+    this.metrics.set('active_users', 75);
+    this.metrics.set('unique_ips', 95);
+    this.metrics.set('flashcard_sets', 45);
+    this.metrics.set('memorizations', 280);
 
-    // Set active users for different periods
-    const periods = ['24h', '7d', '30d'];
-    periods.forEach(period => {
-      const userSet = new Set<number>();
-      // Add some random user IDs
-      for (let i = 1; i <= 20; i++) {
-        userSet.add(i);
-      }
-      this.data.activeUsers.set(period, userSet);
+    // Initialize country data
+    this.countries = [
+      { country: 'United States', count: 45 },
+      { country: 'United Kingdom', count: 25 },
+      { country: 'Canada', count: 18 },
+      { country: 'Australia', count: 12 }
+    ];
+
+    // Generate usage data for the last 24 hours
+    const now = new Date();
+    this.usageData = Array.from({ length: 24 }, (_, i) => {
+      const date = new Date(now.getTime() - (24 - i) * 60 * 60 * 1000);
+      return {
+        hour: date.toISOString(),
+        active_users: randomInt(10, 60)
+      };
     });
 
-    // Set country data
-    this.data.countries.set('United States', 25);
-    this.data.countries.set('United Kingdom', 10);
-    this.data.countries.set('Canada', 8);
-    this.data.countries.set('Australia', 7);
-
-    // Set IP addresses
-    for (let i = 1; i <= 30; i++) {
-      this.data.ipAddresses.add(`192.168.1.${i}`);
-    }
-
-    // Set user sessions
-    for (let i = 1; i <= 5; i++) {
-      this.data.userSessions.set(i, Math.floor(Math.random() * 50) + 1);
-    }
-
-    // Set content stats
-    this.data.flashcardSets = 25;
-    this.data.memorizations = 150;
+    // Generate top users
+    this.topUsers = Array.from({ length: 5 }, (_, i) => ({
+      id: i + 1,
+      first_name: `User`,
+      last_name: `${i + 1}`,
+      email: `user${i + 1}@example.com`,
+      session_count: randomInt(50, 150)
+    })).sort((a, b) => b.session_count - a.session_count);
   }
 
-  getOverview(period: string = '24h') {
-    const activeUsers = this.data.activeUsers.get(period)?.size || 0;
-    const prevPeriodActive = Math.floor(activeUsers * 0.8); // Simulate previous period
-    const percentChange = ((activeUsers - prevPeriodActive) / prevPeriodActive) * 100;
-
+  getOverview(_period: string = '24h'): AnalyticsOverview {
     return {
-      total_users: this.data.totalUsers,
+      total_users: this.metrics.get('total_users') || 0,
       active_users: {
-        count: activeUsers,
-        percent_change: Math.round(percentChange * 10) / 10
+        count: this.metrics.get('active_users') || 0,
+        percent_change: 15 // Sample percent change
       },
       unique_ips: {
-        count: this.data.ipAddresses.size,
+        count: this.metrics.get('unique_ips') || 0,
       },
-      countries: Array.from(this.data.countries.entries()).map(([country, count]) => ({
-        country,
-        count
-      }))
+      countries: this.countries
     };
   }
 
-  getUsageData(period: string = '24h') {
-    // Generate mock usage data for the chart
-    const hours = period === '24h' ? 24 : period === '7d' ? 168 : 720;
-    const data = [];
-    
-    for (let i = 0; i < hours; i++) {
-      const date = new Date();
-      date.setHours(date.getHours() - (hours - i));
-      data.push({
-        hour: date.toISOString(),
-        active_users: Math.floor(Math.random() * 20) + 1
-      });
-    }
-    
-    return data;
+  getUsageData(_period: string = '24h'): UsageDataPoint[] {
+    return this.usageData;
   }
 
-  getTopUsers() {
-    return Array.from(this.data.userSessions.entries())
-      .map(([userId, count]) => ({
-        id: userId,
-        first_name: `User`,
-        last_name: `${userId}`,
-        email: `user${userId}@example.com`,
-        session_count: count
-      }))
-      .sort((a, b) => b.session_count - a.session_count)
-      .slice(0, 5);
+  getTopUsers(): TopUser[] {
+    return this.topUsers;
   }
 
-  getContentStats() {
+  getContentStats(): { total_flashcard_sets: number; total_memorizations: number } {
     return {
-      total_flashcard_sets: this.data.flashcardSets,
-      total_memorizations: this.data.memorizations
+      total_flashcard_sets: this.metrics.get('flashcard_sets') || 0,
+      total_memorizations: this.metrics.get('memorizations') || 0
     };
   }
 }
