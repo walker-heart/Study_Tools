@@ -52,6 +52,31 @@ export default function Settings() {
         <Card className={`p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
           <h2 className="text-xl font-semibold mb-4">Account Settings</h2>
           <div className="space-y-6">
+            <div className="space-y-2 pb-4 border-b">
+              <Button 
+                onClick={async () => {
+                  try {
+                    const response = await fetch('/api/auth/signout', {
+                      method: 'POST',
+                      credentials: 'include'
+                    });
+                    
+                    if (response.ok) {
+                      window.location.href = '/';
+                    } else {
+                      throw new Error('Failed to sign out');
+                    }
+                  } catch (error) {
+                    console.error('Sign out error:', error);
+                  }
+                }}
+                variant="outline"
+                className="w-full"
+              >
+                Sign Out
+              </Button>
+            </div>
+            
             <div className="space-y-2">
               <Label>Email</Label>
               <Input
