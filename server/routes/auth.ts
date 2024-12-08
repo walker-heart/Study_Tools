@@ -190,30 +190,48 @@ export async function getUsers(req: Request, res: Response) {
   }
 }
 
-// Update user role (admin only)
-export async function updateUserRole(req: Request, res: Response) {
+// Update user (admin only)
+export async function updateUser(req: Request, res: Response) {
   try {
     const userId = parseInt(req.params.id);
-    const { isAdmin } = req.body;
+    const { firstName, lastName, email, isAdmin } = req.body;
 
-    if (typeof isAdmin !== 'boolean') {
-      return res.status(400).json({ message: "Invalid role value" });
+    // Validate inputs
+    if (!firstName || !lastName || !email) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // Check if email is taken by another user
+    const existingUser = await db
+      .select()
+      .from(users)
+      .where(sql`${users.email} = ${email} AND ${users.id} != ${userId}`);
+
+    if (existingUser.length > 0) {
+      return res.status(400).json({ message: "Email already taken" });
     }
 
     // Prevent admin from removing their own admin status
-    if (req.session.user?.id === userId && !isAdmin) {
+    if (req.session.user?.id === userId && isAdmin === false) {
       return res.status(400).json({ message: "Cannot remove your own admin status" });
     }
 
+    // Update user
     const [updatedUser] = await db
       .update(users)
-      .set({ isAdmin })
+      .set({
+        firstName,
+        lastName,
+        email,
+        ...(typeof isAdmin === 'boolean' ? { isAdmin } : {})
+      })
       .where(eq(users.id, userId))
       .returning();
 
+    console.log('Updated user:', updatedUser);
     res.json(updatedUser);
   } catch (error) {
-    console.error('Error updating user role:', error);
-    res.status(500).json({ message: "Error updating user role" });
+    console.error('Error updating user:', error);
+    res.status(500).json({ message: "Error updating user" });
   }
 }
