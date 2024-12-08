@@ -501,14 +501,83 @@ export default function AdminDashboard() {
             {activeTab === "analytics" && (
               <div>
                 <h1 className="text-3xl font-bold mb-8">Analytics Dashboard</h1>
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Analytics Dashboard</CardTitle>
-                    <CardDescription>
-                      Analytics dashboard coming soon...
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users2 className="h-5 w-5 text-blue-500" />
+                        Total Users
+                      </CardTitle>
+                      <div className="text-3xl font-bold mt-2">128</div>
+                      <CardDescription className="flex items-center mt-2 text-green-500">
+                        <span className="text-sm">↑ 12% from last month</span>
+                      </CardDescription>
+                    </CardHeader>
+                  </Card>
+
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BookOpen className="h-5 w-5 text-purple-500" />
+                        Study Sessions
+                      </CardTitle>
+                      <div className="text-3xl font-bold mt-2">1,234</div>
+                      <CardDescription className="flex items-center mt-2 text-green-500">
+                        <span className="text-sm">↑ 8% from last week</span>
+                      </CardDescription>
+                    </CardHeader>
+                  </Card>
+
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5 text-yellow-500" />
+                        Average Score
+                      </CardTitle>
+                      <div className="text-3xl font-bold mt-2">85%</div>
+                      <CardDescription className="flex items-center mt-2 text-green-500">
+                        <span className="text-sm">↑ 5% improvement</span>
+                      </CardDescription>
+                    </CardHeader>
+                  </Card>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle>User Activity</CardTitle>
+                      <CardDescription>Weekly active users</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[300px] flex items-center justify-center text-gray-500">
+                        Chart coming soon...
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle>Popular Content</CardTitle>
+                      <CardDescription>Most studied materials</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>Basic Vocabulary</div>
+                          <div className="text-green-500">89% completion</div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>Advanced Grammar</div>
+                          <div className="text-yellow-500">76% completion</div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>Common Phrases</div>
+                          <div className="text-blue-500">65% completion</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             )}
 
