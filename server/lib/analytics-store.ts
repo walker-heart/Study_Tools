@@ -55,19 +55,41 @@ class AnalyticsStore {
       const totalUsersResult = await this.pool.query('SELECT COUNT(*) FROM users');
       metrics.set('total_users', parseInt(totalUsersResult.rows[0].count));
 
-      // Get active users (users who logged in within the period)
+      // Get active users based on recent sessions and period
+      const periodInterval = period === '24h' ? '1 day' : 
+                           period === '7d' ? '7 days' : 
+                           period === '30d' ? '30 days' : '1 day';
+      
       const activeUsersResult = await this.pool.query(`
-        SELECT COUNT(DISTINCT user_id) 
-        FROM user_sessions 
-        WHERE created_at >= NOW() - INTERVAL '1 day'
+        WITH current_period AS (
+          SELECT COUNT(DISTINCT user_id) as current_count
+          FROM user_sessions
+          WHERE created_at >= NOW() - INTERVAL '${periodInterval}'
+            AND created_at <= NOW()
+        ),
+        previous_period AS (
+          SELECT COUNT(DISTINCT user_id) as previous_count
+          FROM user_sessions
+          WHERE created_at >= NOW() - INTERVAL '${periodInterval}' * 2
+            AND created_at < NOW() - INTERVAL '${periodInterval}'
+        )
+        SELECT 
+          current_count as count,
+          CASE 
+            WHEN previous_count = 0 THEN 0
+            ELSE ROUND(((current_count::float - previous_count::float) / previous_count::float) * 100)
+          END as percent_change
+        FROM current_period, previous_period
       `);
+      
       metrics.set('active_users', parseInt(activeUsersResult.rows[0].count));
+      metrics.set('active_users_percent_change', parseFloat(activeUsersResult.rows[0].percent_change) || 0);
 
-      // Get unique IPs
+      // Get unique IPs for the selected period
       const uniqueIpsResult = await this.pool.query(`
         SELECT COUNT(DISTINCT ip_address) 
         FROM user_sessions 
-        WHERE created_at >= NOW() - INTERVAL '1 day'
+        WHERE created_at >= NOW() - INTERVAL '${periodInterval}'
       `);
       metrics.set('unique_ips', parseInt(uniqueIpsResult.rows[0].count));
 
@@ -143,7 +165,7 @@ class AnalyticsStore {
       total_users: metrics.get('total_users') || 0,
       active_users: {
         count: metrics.get('active_users') || 0,
-        percent_change: 0 // To be calculated based on previous period
+        percent_change: metrics.get('active_users_percent_change') || 0
       },
       unique_ips: {
         count: metrics.get('unique_ips') || 0,
