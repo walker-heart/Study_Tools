@@ -194,39 +194,7 @@ export default function AdminDashboard() {
     setIsDeleteDialogOpen(false);
   };
 
-  const handleToggleAdmin = async (user: User) => {
-    try {
-      const response = await fetch(`/api/admin/users/${user.id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          isAdmin: !user.isAdmin,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update user role');
-      }
-
-      // Update the local state
-      setUsers(users.map(u => 
-        u.id === user.id ? { ...u, isAdmin: !u.isAdmin } : u
-      ));
-
-      showNotification({
-        message: "User role updated successfully",
-        type: "success"
-      });
-    } catch (err) {
-      showNotification({
-        message: err instanceof Error ? err.message : 'Failed to update user role',
-        type: "error"
-      });
-    }
-  };
+  
 
   return (
     <>
@@ -453,15 +421,6 @@ export default function AdminDashboard() {
                               </td>
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-2">
-                                  <Button
-                                    variant={theme === "dark" ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={() => handleToggleAdmin(user)}
-                                    disabled={user.id === currentUserId}
-                                    className={user.id === currentUserId ? "opacity-50 cursor-not-allowed" : ""}
-                                  >
-                                    {user.isAdmin ? "Remove Admin" : "Make Admin"}
-                                  </Button>
                                   <Button
                                     variant={theme === "dark" ? "default" : "outline"}
                                     size="icon"
