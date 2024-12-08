@@ -39,12 +39,17 @@ interface AnalyticsOverview {
   countries: CountryData[];
 }
 
+interface DbQueryResult<T> {
+  rows: T[];
+}
+
 class AnalyticsStore {
-  private pool: any;
+  private pool: pkg.Pool;
 
   constructor() {
     this.pool = new Pool({
       connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
     });
   }
 
@@ -52,7 +57,7 @@ class AnalyticsStore {
     const metrics = new Map<string, number>();
     try {
       // Get total users
-      const totalUsersResult = await this.pool.query('SELECT COUNT(*) FROM users');
+      const totalUsersResult = await this.pool.query<{ count: string }>('SELECT COUNT(*) FROM users');
       metrics.set('total_users', parseInt(totalUsersResult.rows[0].count));
 
       // Get active users based on recent sessions and period
@@ -60,7 +65,12 @@ class AnalyticsStore {
                            period === '7d' ? '7 days' : 
                            period === '30d' ? '30 days' : '1 day';
       
-      const activeUsersResult = await this.pool.query(`
+      interface ActiveUsersResult {
+        count: string;
+        percent_change: string;
+      }
+      
+      const activeUsersResult = await this.pool.query<ActiveUsersResult>(`
         WITH current_period AS (
           SELECT COUNT(DISTINCT user_id) as current_count
           FROM user_sessions
@@ -86,19 +96,23 @@ class AnalyticsStore {
       metrics.set('active_users_percent_change', parseFloat(activeUsersResult.rows[0].percent_change) || 0);
 
       // Get unique IPs for the selected period
-      const uniqueIpsResult = await this.pool.query(`
-        SELECT COUNT(DISTINCT ip_address) 
+      interface UniqueIpsResult {
+        count: string;
+      }
+      
+      const uniqueIpsResult = await this.pool.query<UniqueIpsResult>(`
+        SELECT COUNT(DISTINCT ip_address) as count
         FROM user_sessions 
         WHERE created_at >= NOW() - INTERVAL '${periodInterval}'
       `);
       metrics.set('unique_ips', parseInt(uniqueIpsResult.rows[0].count));
 
       // Get flashcard sets count
-      const flashcardSetsResult = await this.pool.query('SELECT COUNT(*) FROM flashcard_sets');
+      const flashcardSetsResult = await this.pool.query<{ count: string }>('SELECT COUNT(*) FROM flashcard_sets');
       metrics.set('flashcard_sets', parseInt(flashcardSetsResult.rows[0].count));
 
       // Get memorizations count
-      const memorizationsResult = await this.pool.query('SELECT COUNT(*) FROM memorizations');
+      const memorizationsResult = await this.pool.query<{ count: string }>('SELECT COUNT(*) FROM memorizations');
       metrics.set('memorizations', parseInt(memorizationsResult.rows[0].count));
 
       return metrics;
@@ -110,12 +124,21 @@ class AnalyticsStore {
 
   private async fetchUsageData(period: string = '24h'): Promise<UsageDataPoint[]> {
     try {
-      const result = await this.pool.query(`
+      interface UsageQueryResult {
+        hour: Date;
+        active_users: string;
+      }
+
+      const periodInterval = period === '24h' ? '1 day' : 
+                           period === '7d' ? '7 days' : 
+                           period === '30d' ? '30 days' : '1 day';
+
+      const result = await this.pool.query<UsageQueryResult>(`
         SELECT 
           date_trunc('hour', created_at) as hour,
           COUNT(DISTINCT user_id) as active_users
         FROM user_sessions
-        WHERE created_at >= NOW() - INTERVAL '1 day'
+        WHERE created_at >= NOW() - INTERVAL '${periodInterval}'
         GROUP BY hour
         ORDER BY hour
       `);
@@ -132,7 +155,15 @@ class AnalyticsStore {
 
   private async fetchTopUsers(): Promise<TopUser[]> {
     try {
-      const result = await this.pool.query(`
+      interface TopUserQueryResult {
+        id: number;
+        first_name: string;
+        last_name: string;
+        email: string;
+        session_count: string;
+      }
+
+      const result = await this.pool.query<TopUserQueryResult>(`
         SELECT 
           u.id,
           u.first_name,

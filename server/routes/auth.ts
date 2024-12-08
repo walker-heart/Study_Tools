@@ -202,7 +202,7 @@ export async function getUsers(req: Request, res: Response) {
 
     type UserSelect = typeof users.$inferSelect;
     
-    let query = db.select({
+    const baseQuery = db.select({
       id: users.id,
       firstName: users.firstName,
       lastName: users.lastName,
@@ -212,13 +212,13 @@ export async function getUsers(req: Request, res: Response) {
     }).from(users);
 
     // Add search condition if search query exists
-    if (search) {
-      query = query.where(
-        sql`LOWER(${users.firstName}) LIKE LOWER(${'%' + search + '%'}) OR 
-            LOWER(${users.lastName}) LIKE LOWER(${'%' + search + '%'}) OR 
-            LOWER(${users.email}) LIKE LOWER(${'%' + search + '%'})`
-      );
-    }
+    const query = search 
+      ? baseQuery.where(
+          sql`LOWER(${users.firstName}) LIKE LOWER(${'%' + search + '%'}) OR 
+              LOWER(${users.lastName}) LIKE LOWER(${'%' + search + '%'}) OR 
+              LOWER(${users.email}) LIKE LOWER(${'%' + search + '%'})`
+        )
+      : baseQuery;
 
     // Get total count for pagination
     const [{ count }] = await db.select({
