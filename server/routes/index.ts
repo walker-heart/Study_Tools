@@ -1,5 +1,5 @@
 import { Router, type Express } from "express";
-import { signUp, signIn, checkAuth, checkAdmin } from "./auth";
+import { signUp, signIn, checkAuth, checkAdmin, requireAdmin, getUsers, updateUserRole } from "./auth";
 import { updateTheme, getTheme } from "./user";
 
 export function registerRoutes(app: Express): void {
@@ -14,6 +14,10 @@ export function registerRoutes(app: Express): void {
   // User routes
   router.get('/api/user/theme', getTheme);
   router.put('/api/user/theme', updateTheme);
+
+  // Admin routes
+  router.get('/api/admin/users', requireAdmin, getUsers);
+  router.put('/api/admin/users/:id', requireAdmin, updateUserRole);
 
   // Use the router middleware
   app.use(router);
