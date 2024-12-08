@@ -206,7 +206,7 @@ export default function AdminDashboard() {
     <>
       <div className="flex h-screen bg-background dark:bg-[#0B0E14]">
         {/* Sidebar */}
-        <div className="w-64 bg-background dark:bg-[#141820] border-r border-border p-6 flex flex-col">
+        <div className="w-64 bg-background dark:bg-[#0F111A] border-r border-border p-6 flex flex-col">
           <h2 className="text-xl font-semibold mb-6">Admin Dashboard</h2>
           <nav className="space-y-2">
             <Button
@@ -257,9 +257,9 @@ export default function AdminDashboard() {
             {activeTab === "overview" && (
               <>
                 <h1 className="text-3xl font-bold mb-8">Overview</h1>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="flex flex-col h-full">
-                    <Card className="flex-1">
+                    <Card className="bg-card dark:bg-[#1A1D27] h-full">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
                           <div className="p-3 rounded-lg bg-[#2563EB] dark:bg-blue-500/20">
@@ -274,7 +274,7 @@ export default function AdminDashboard() {
                       <CardContent>
                         <Button 
                           variant="secondary" 
-                          className="w-full bg-secondary hover:bg-secondary/80"
+                          className="w-full bg-secondary/10 hover:bg-secondary/20 dark:text-white"
                           onClick={() => setActiveTab("users")}
                         >
                           Manage Users
@@ -284,7 +284,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="flex flex-col h-full">
-                    <Card className="flex-1">
+                    <Card className="bg-card dark:bg-[#1A1D27]">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
                           <div className="p-3 rounded-lg bg-[#10B981] dark:bg-emerald-500/20">
@@ -299,7 +299,7 @@ export default function AdminDashboard() {
                       <CardContent>
                         <Button 
                           variant="secondary" 
-                          className="w-full bg-secondary hover:bg-secondary/80"
+                          className="w-full bg-secondary/10 hover:bg-secondary/20 dark:text-white"
                           onClick={() => setActiveTab("analytics")}
                         >
                           View Analytics
@@ -309,7 +309,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="flex flex-col h-full">
-                    <Card className="flex-1">
+                    <Card className="bg-card dark:bg-[#1A1D27]">
                       <CardHeader>
                         <div className="flex items-center space-x-4">
                           <div className="p-3 rounded-lg bg-[#9333EA] dark:bg-purple-500/20">
@@ -324,7 +324,7 @@ export default function AdminDashboard() {
                       <CardContent>
                         <Button 
                           variant="secondary" 
-                          className="w-full bg-secondary hover:bg-secondary/80"
+                          className="w-full bg-secondary/10 hover:bg-secondary/20 dark:text-white"
                         >
                           Manage Content
                         </Button>
