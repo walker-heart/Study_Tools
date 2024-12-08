@@ -59,20 +59,18 @@ export default function AdminDashboard() {
   const { data: usersData, isLoading, error } = useQuery({
     queryKey: ["users", currentPage, searchQuery],
     queryFn: async () => {
-      const response = await fetch(`/api/admin/users?page=${currentPage}&search=${searchQuery}`, {
+      const response = await fetch(`/api/admin/users?page=${currentPage}&limit=${ITEMS_PER_PAGE}&search=${searchQuery}`, {
         credentials: "include",
       });
       if (!response.ok) {
         throw new Error("Failed to fetch users");
       }
-      const data = await response.json();
-      return Array.isArray(data) ? data : [];
+      return response.json();
     },
   });
 
-  const users = usersData || [];
-
-  const totalPages = Math.ceil(users.length / ITEMS_PER_PAGE);
+  const users = usersData?.users || [];
+  const totalPages = usersData?.pagination?.totalPages || 1;
 
   const handleCreateUser = async (data: Omit<User, "id">) => {
     try {
