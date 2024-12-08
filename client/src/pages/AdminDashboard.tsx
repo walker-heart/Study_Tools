@@ -192,13 +192,9 @@ const { showNotification } = notificationSystem;
           </div>
           <div className="absolute bottom-0 w-full p-4 border-t border-gray-200 dark:border-gray-700">
             <Button
-              variant="outline"
+              variant={theme === "dark" ? "default" : "secondary"}
               onClick={() => setLocation("/dashboard")}
-              className={`w-full justify-center ${
-                theme === "dark" 
-                  ? "text-white hover:text-white" 
-                  : "text-gray-900 hover:text-gray-900"
-              }`}
+              className="w-full justify-center"
             >
               Return to App
             </Button>
