@@ -358,12 +358,12 @@ export default function AdminDashboard() {
             )}
 
             {activeTab === "users" && (
-              <Card>
+              <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
                 <CardHeader>
-                  <CardTitle>User Management</CardTitle>
-                  <CardDescription>Manage system users and their roles</CardDescription>
+                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>User Management</CardTitle>
+                  <CardDescription className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>Manage system users and their roles</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>
                   <div className="flex justify-between mb-6">
                     <div className="flex items-center space-x-2">
                       <Search className="text-gray-400" />
@@ -388,12 +388,12 @@ export default function AdminDashboard() {
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
-                        <tr>
-                          <th className="text-left p-2">Name</th>
-                          <th className="text-left p-2">Email</th>
-                          <th className="text-left p-2">Role</th>
-                          <th className="text-left p-2">Theme</th>
-                          <th className="text-right p-2">Actions</th>
+                        <tr className={theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}>
+                          <th className="text-left p-2 font-medium">Name</th>
+                          <th className="text-left p-2 font-medium">Email</th>
+                          <th className="text-left p-2 font-medium">Role</th>
+                          <th className="text-left p-2 font-medium">Theme</th>
+                          <th className="text-right p-2 font-medium">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
