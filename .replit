@@ -24,11 +24,25 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Development Server"
+args = "Build Client"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Build Client"
+args = "Development Server"
+
+[[workflows.workflow]]
+name = "Build Client"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
 
 [[workflows.workflow]]
 name = "Development Server"
@@ -44,17 +58,3 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "cd client && npm run dev -- --host 0.0.0.0"
 waitForPort = 5173
-
-[[workflows.workflow]]
-name = "Build Client"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run build"

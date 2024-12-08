@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { Switch, Route, Link } from "wouter";
+import { Switch, Route } from "wouter";
 import "./index.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
@@ -68,17 +68,14 @@ function Router() {
           <div className="container mx-auto px-4 py-8 text-center">
             <h1 className="text-4xl font-bold mb-4">404 - Page Not Found</h1>
             <p className="mb-4">The page you're looking for doesn't exist.</p>
-            <Link href="/">
-              <a className="text-blue-500 hover:underline">Return to Home</a>
-            </Link>
+            <a href="/" className="text-blue-500 hover:underline">
+              Return to Home
+            </a>
           </div>
         </Route>
       </Switch>
     </Layout>
   );
-}
-function App() {
-  return <Router />;
 }
 
 createRoot(document.getElementById("root")!).render(
@@ -89,5 +86,5 @@ createRoot(document.getElementById("root")!).render(
         <Toaster />
       </SettingsProvider>
     </QueryClientProvider>
-  </StrictMode>,
+  </StrictMode>
 );
