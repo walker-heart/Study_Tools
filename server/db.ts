@@ -11,10 +11,15 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Create the database pool
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Configure database pool with SSL and connection options
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: true,
+  connectionTimeoutMillis: 5000,
+  max: 20
+});
 
-// Initialize drizzle with the schema
+// Initialize drizzle with the schema and connection pool
 export const db = drizzle(pool, {
   schema: {
     users,

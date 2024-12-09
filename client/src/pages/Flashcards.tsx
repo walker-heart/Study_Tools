@@ -95,8 +95,10 @@ export default function Flashcards() {
     }
   };
 
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
   const handleGeneratePDF = async () => {
-    if (previewCards.length === 0) {
+    if (previewCards.length === 0 || !selectedFile) {
       toast({
         title: "Error",
         description: "Please upload a CSV file first",
@@ -108,7 +110,7 @@ export default function Flashcards() {
     setIsProcessing(true);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', selectedFile);
       
       const response = await fetch('/api/flashcards/sets/upload', {
         method: 'POST',
@@ -207,6 +209,7 @@ export default function Flashcards() {
             <FileUpload 
               onFileSelect={handleFileSelect}
               isProcessing={isProcessing}
+              setSelectedFile={setSelectedFile}
             />
 
             <div className="text-sm text-gray-600 mt-4">

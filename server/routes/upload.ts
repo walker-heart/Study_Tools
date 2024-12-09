@@ -4,6 +4,17 @@ import { storageService } from '../services/storage';
 import { db } from '../db';
 import { flashcardSets } from '../../db/schema/flashcards';
 import { eq } from 'drizzle-orm';
+import { Request } from 'express';
+
+import { Session } from 'express-session';
+
+interface AuthenticatedRequest extends Request {
+  session: Session & {
+    user?: {
+      id: number;
+    };
+  };
+}
 
 const router = Router();
 
@@ -16,21 +27,23 @@ const upload = multer({
 });
 
 // Handle file upload and create flashcard set
-router.post('/', upload.single('file'), async (req, res) => {
+router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) => {
+  let storedFileName: string | undefined;
+  
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
     const { title, description } = req.body;
-    if (!req.session?.userId) {
+    if (!req.session?.user?.id) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
     // Generate a unique filename with user ID and timestamp
     const timestamp = Date.now();
     const fileExtension = req.file.originalname.split('.').pop();
-    const storedFileName = `user_${req.session.userId}_${timestamp}.${fileExtension}`;
+    storedFileName = `user_${req.session.user.id}_${timestamp}.${fileExtension}`;
 
     // Upload file to Object Storage
     await storageService.uploadFile(
@@ -42,7 +55,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     const [flashcardSet] = await db
       .insert(flashcardSets)
       .values({
-        userId: req.session.userId,
+        userId: req.session.user.id,
         title: title || req.file.originalname,
         description,
         filePath: storedFileName,
@@ -60,7 +73,7 @@ router.post('/', upload.single('file'), async (req, res) => {
     console.error('Upload error:', error);
     
     // Clean up any uploaded file if database operation failed
-    if (error && storedFileName) {
+    if (storedFileName) {
       try {
         await storageService.deleteFile(storedFileName);
       } catch (cleanupError) {
@@ -76,12 +89,10 @@ router.post('/', upload.single('file'), async (req, res) => {
 });
 
 // Get file URL for a flashcard set
-router.get('/:setId/file', async (req, res) => {
+router.get('/:setId/file', async (req: AuthenticatedRequest, res) => {
   try {
     const setId = parseInt(req.params.setId);
-    const userId = req.session.userId;
-
-    if (!userId) {
+    if (!req.session?.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
