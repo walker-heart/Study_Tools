@@ -107,8 +107,8 @@ export default function Flashcards() {
 
       const { flashcardSet } = await response.json();
       
-      // Redirect to preview page
-      setLocation(`/preview/${flashcardSet.id}`);
+      // Redirect to preview page using new URL structure
+      setLocation(`/flashcards/${flashcardSet.urlPath}`);
     } catch (error) {
       console.error('Error handling file:', error);
       toast({
