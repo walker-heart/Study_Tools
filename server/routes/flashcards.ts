@@ -202,8 +202,9 @@ router.get('/sets/files', async (req: AuthenticatedRequest, res) => {
     const userPrefix = `flashcards/${userId}/`;
     const filesResult = await storage.list(userPrefix);
     
-    if (filesResult.error) {
-      throw new Error(filesResult.error);
+    if (!filesResult.success) {
+      console.error('Failed to list files:', filesResult.error);
+      // Continue without files, we can still return sets from database
     }
 
     // Get all flashcard sets for the user

@@ -12,7 +12,7 @@ interface StorageService {
   saveFlashcardSet(setId: number, filePath: string, fileData: Buffer): Promise<string>;
   getFlashcardSet(setId: number, filePath: string): Promise<Buffer>;
   deleteFlashcardSet(setId: number, filePath: string): Promise<void>;
-  listFlashcardSets(userId: number): Promise<string[]>;
+  listFlashcardSets(userId: number): Promise<{ files: string[]; success: boolean; error?: string; }>;
 }
 
 class ReplitStorageService implements StorageService {
@@ -80,22 +80,33 @@ class ReplitStorageService implements StorageService {
     }
   }
 
-  async listFlashcardSets(userId: number): Promise<string[]> {
+  async listFlashcardSets(userId: number): Promise<{ files: string[]; success: boolean; error?: string; }> {
     try {
       const prefix = `flashcards/${userId}/`;
       const result = await storage.list(prefix);
       
       if (!result.success) {
-        throw new Error(`Failed to list files: ${result.error}`);
+        return {
+          files: [],
+          success: false,
+          error: result.error || 'Failed to list files'
+        };
       }
       
-      return result.files || [];
+      return {
+        files: result.files || [],
+        success: true
+      };
     } catch (error) {
       console.error('Error listing flashcard sets:', {
         error: error instanceof Error ? error.message : String(error),
         context: { userId }
       });
-      throw new Error('Failed to list flashcard sets');
+      return {
+        files: [],
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to list flashcard sets'
+      };
     }
   }
 }
