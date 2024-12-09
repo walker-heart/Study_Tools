@@ -59,8 +59,9 @@ async function verifyDatabaseConnection() {
   }
 }
 
-// Initialize session store with SSL support
+// Initialize session store with SSL support and logging
 const pgSession = connectPgSimple(session);
+console.log('Session store initialized');
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -111,21 +112,33 @@ app.options('*', cors());
 import { sessionConfig } from './config/session';
 
 // Session configuration with enhanced error handling and logging
+// Configure session middleware with detailed error logging
+const sessionStore = new pgSession({
+  pool: sessionPool,
+  tableName: 'session',
+  createTableIfMissing: true,
+  pruneSessionInterval: 60 * 15, // Prune every 15 minutes
+  errorLog: (err) => {
+    console.error('Session store error:', {
+      error: err instanceof Error ? err.message : String(err),
+      timestamp: new Date().toISOString(),
+      stack: err instanceof Error ? err.stack : undefined
+    });
+  }
+});
+
+// Test session store
+sessionStore.get('test', (err, _session) => {
+  if (err) {
+    console.error('Session store test failed:', err);
+  } else {
+    console.log('Session store test successful');
+  }
+});
+
 app.use(session({
   ...sessionConfig,
-  store: new pgSession({
-    pool: sessionPool,
-    tableName: 'session',
-    createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15, // Prune every 15 minutes
-    errorLog: (err) => {
-      console.error('Session store error:', {
-        error: err instanceof Error ? err.message : String(err),
-        timestamp: new Date().toISOString(),
-        stack: err instanceof Error ? err.stack : undefined
-      });
-    }
-  }),
+  store: sessionStore,
   cookie: {
     ...sessionConfig.cookie,
     secure: process.env.NODE_ENV === 'production', // Only use secure in production

@@ -60,19 +60,18 @@ try {
 // Export session configuration
 export const sessionConfig = {
   secret: process.env.JWT_SECRET,
-  resave: true, // Changed to true to ensure session is saved
-  saveUninitialized: true, // Changed to true to create session for all requests
-  rolling: true,
+  resave: false,  // Don't save session if unmodified
+  saveUninitialized: false, // Don't create session until something stored
+  rolling: true, // Refresh session with each request
   cookie: {
-    secure: false, // Set to false for development
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     sameSite: 'lax' as const,
     path: '/',
-    domain: undefined, // Allow the browser to handle domain
   },
-  name: 'connect.sid', // Changed to default Express session name
-  proxy: false, // Set to false for development
+  name: 'connect.sid',
+  proxy: process.env.NODE_ENV === 'production'
 };
 
 // Export store separately
