@@ -15,10 +15,43 @@ interface VocabCard {
   lineNumber: number;
 }
 
+interface FlashcardSet {
+  id: number;
+  title: string;
+  filePath: string | null;
+  createdAt: string;
+  downloadUrl: string | null;
+}
+
 export default function Flashcards() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewCards, setPreviewCards] = useState<VocabCard[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<FlashcardSet[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetchUploadedFiles();
+  }, []);
+
+  const fetchUploadedFiles = async () => {
+    try {
+      const response = await fetch('/api/flashcards/sets/files', {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch files');
+      }
+      const files = await response.json();
+      setUploadedFiles(files);
+    } catch (error) {
+      console.error('Error fetching files:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch uploaded files",
+        variant: "destructive",
+      });
+    }
+  };
 
   const parseCSV = (file: File): Promise<VocabCard[]> => {
     return new Promise((resolve, reject) => {
@@ -89,6 +122,54 @@ export default function Flashcards() {
       });
     } finally {
       setIsProcessing(false);
+            {uploadedFiles.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold mb-3">Uploaded Files</h3>
+                <div className="space-y-2">
+                  {uploadedFiles.map((file) => (
+                    <div key={file.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <div>
+                        <p className="font-medium">{file.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(file.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleDownload(file.id)}
+                        disabled={!file.filePath}
+                      >
+                        Download
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+    }
+  };
+
+  const handleDownload = async (setId: number) => {
+    try {
+      const response = await fetch(`/api/flashcards/sets/${setId}/download`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to get download URL');
+      }
+      
+      const { downloadUrl } = await response.json();
+      
+      // Open download URL in new tab
+      window.open(downloadUrl, '_blank');
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast({
+        title: "Error",
+        description: "Failed to download file",
+        variant: "destructive",
+      });
     }
   };
 
