@@ -105,15 +105,17 @@ export default function Flashcards() {
         throw new Error(errorData.error || 'Failed to upload file');
       }
 
-      const { flashcardSet } = await response.json();
+      const data = await response.json();
+      console.log('Upload response:', data); // Add logging
       
-      // Redirect to preview page using new URL structure
-      if (!flashcardSet || !flashcardSet.urlPath) {
+      if (!data.flashcardSet?.urlPath) {
+        console.error('Missing URL path in response:', data);
         throw new Error('Invalid response from server');
       }
       
-      // Redirect immediately after successful upload
-      setLocation(`/flashcards/${flashcardSet.urlPath}`);
+      const redirectUrl = `/flashcards/${data.flashcardSet.urlPath}`;
+      console.log('Redirecting to:', redirectUrl);
+      setLocation(redirectUrl);
       toast({
         title: "Success",
         description: "File uploaded successfully. Redirecting...",
