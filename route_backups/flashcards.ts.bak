@@ -1,4 +1,3 @@
-import { asyncHandler } from "../middleware/errorHandling";
 import { Router, Request } from 'express';
 import { eq } from 'drizzle-orm';
 import multer from 'multer';
@@ -25,6 +24,7 @@ const upload = multer();
 
 // Handle file upload for flashcard sets
 router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequest, res) => {
+  try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -57,6 +57,7 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       filePath: null // Will be updated after successful upload
     }).returning();
 
+    try {
       // Create a unique file path for storage
       const fileName = `flashcards/${userId}/${flashcardSet.id}/${req.file.originalname}`;
       
@@ -80,11 +81,25 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
         message: 'File uploaded successfully',
         flashcardSet: updatedSet
       });
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      
+      // Cleanup the created set if upload fails
+      if (flashcardSet?.id) {
+        await db.delete(flashcardSets)
+          .where(eq(flashcardSets.id, flashcardSet.id))
+          .catch(err => console.error('Cleanup error:', err));
+      }
       
       res.status(500).json({ 
         error: error instanceof Error ? error.message : 'Failed to upload file'
       });
     }
+  } catch (error) {
+    console.error('Error handling upload:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to process upload'
+    });
   }
 });
 
@@ -95,6 +110,7 @@ router.post('/sets',
   body('isPublic').optional().isBoolean(),
   body('tags').optional().isArray(),
   async (req: AuthenticatedRequest, res) => {
+    try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -118,6 +134,9 @@ router.post('/sets',
       }).returning();
 
       res.status(201).json(newSet);
+    } catch (error) {
+      console.error('Error creating flashcard set:', error);
+      res.status(500).json({ error: 'Failed to create flashcard set' });
     }
 });
 
@@ -129,6 +148,7 @@ router.post('/sets/:setId/cards',
   body('cards.*.definition').notEmpty().trim(),
   body('cards.*.exampleSentence').optional().trim(),
   async (req: AuthenticatedRequest, res) => {
+    try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
@@ -166,11 +186,15 @@ router.post('/sets/:setId/cards',
 
       const newCards = await db.insert(flashcards).values(cardValues).returning();
       res.status(201).json(newCards);
+    } catch (error) {
+      console.error('Error adding flashcards:', error);
+      res.status(500).json({ error: 'Failed to add flashcards' });
     }
 });
 
 // Get user's uploaded files
 router.get('/sets/files', async (req: AuthenticatedRequest, res) => {
+  try {
     const userId = req.session.user?.id;
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -206,11 +230,15 @@ router.get('/sets/files', async (req: AuthenticatedRequest, res) => {
     }
 
     res.json(filesWithMetadata);
+  } catch (error) {
+    console.error('Error listing files:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to list files' });
   }
 });
 
 // Download a specific file
 router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
+  try {
     const { setId } = req.params;
     const userId = req.session.user?.id;
     
@@ -258,12 +286,16 @@ router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
       downloadUrl: downloadResult.presignedUrl,
       contentType
     });
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to download file' });
   }
 });
 
 // Get preview data for a set
 // Get preview data for a set
 router.get('/sets/:setId/preview', async (req: AuthenticatedRequest, res) => {
+  try {
     const { setId } = req.params;
     const userId = req.session.user?.id;
     
@@ -292,6 +324,7 @@ router.get('/sets/:setId/preview', async (req: AuthenticatedRequest, res) => {
     // Get download URL if there's a file
     let downloadUrl = null;
     if (set.filePath) {
+      try {
         const downloadResult = await storage.download(set.filePath);
         if (downloadResult.success && downloadResult.presignedUrl) {
           downloadUrl = downloadResult.presignedUrl;
@@ -315,11 +348,15 @@ router.get('/sets/:setId/preview', async (req: AuthenticatedRequest, res) => {
       },
       cards: set.cards 
     });
+  } catch (error) {
+    console.error('Error getting preview:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to get preview' });
   }
 });
 
 // Handle file downloads
 router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
+  try {
     const { setId } = req.params;
     const userId = req.session.user?.id;
     
@@ -357,6 +394,9 @@ router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
       downloadUrl: downloadResult.presignedUrl,
       contentType
     });
+  } catch (error) {
+    console.error('Download error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to process download' });
   }
 });
 
