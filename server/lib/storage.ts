@@ -44,6 +44,10 @@ class ObjectStorage {
       }
 
       const data = await uploadResponse.json() as ReplitStorageResponse;
+      if (!data.urls?.length) {
+        throw new Error('No upload URL received');
+      }
+
       const uploadUrl = data.urls[0];
 
       // Upload file
@@ -87,6 +91,10 @@ class ObjectStorage {
       }
 
       const data = await response.json() as ReplitStorageResponse;
+      if (!data.urls?.length) {
+        throw new Error('No download URL received');
+      }
+
       return { presignedUrl: data.urls[0] };
     } catch (error) {
       console.error('Storage error:', error);
