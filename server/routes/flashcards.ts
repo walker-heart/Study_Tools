@@ -2,9 +2,9 @@ import { Router, Request } from 'express';
 import { eq } from 'drizzle-orm';
 import multer from 'multer';
 import { body, validationResult } from 'express-validator';
-import { db } from '../db';
+import { db, query } from '@db/index';
 import { flashcardSets, flashcards, memorizationSessions } from '@db/schema/flashcards';
-import type { FlashcardSet, Flashcard, MemorizationSession } from '../db';
+import type { FlashcardSet, Flashcard, MemorizationSession } from '@db/schema/flashcards';
 import { storage } from '../lib/storage';
 
 // Extend Express Request type to include user
@@ -119,13 +119,7 @@ router.post('/sets/:setId/cards',
       }
 
       // Verify set ownership
-      const set = await db.query.flashcardSets.findFirst({
-        where: eq(flashcardSets.id, parseInt(setId)),
-        columns: {
-          id: true,
-          userId: true
-        }
-      });
+      const set = await query.flashcardSets.findWithCards(parseInt(setId));
 
       if (!set || set.userId !== userId) {
         return res.status(403).json({ error: 'Forbidden' });
@@ -165,13 +159,7 @@ router.post('/sets/:setId/memorize', async (req: AuthenticatedRequest, res) => {
     }
 
     // Get all cards in the set
-    const cards = await db.query.flashcards.findMany({
-      where: eq(flashcards.setId, parseInt(setId)),
-      orderBy: flashcards.position,
-      columns: {
-        id: true
-      }
-    });
+    const cards = await query.flashcards.findBySet(parseInt(setId));
 
     if (!cards.length) {
       return res.status(404).json({ error: 'No cards found in this set' });

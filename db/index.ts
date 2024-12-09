@@ -2,7 +2,7 @@ import { drizzle } from "drizzle-orm/neon-serverless";
 import ws from "ws";
 import * as schema from "@db/schema";
 import { flashcardSets, flashcards, memorizationSessions } from "@db/schema/flashcards";
-import { InferModel } from "drizzle-orm";
+import { InferModel, eq } from "drizzle-orm";
 import { users } from "@db/schema/users";
 
 if (!process.env.DATABASE_URL) {
@@ -39,8 +39,8 @@ export type DBSchema = {
 // Export database instance type
 export type Database = typeof db;
 
-// Configure relations and queries
-const queryBuilder = {
+// Configure and export query helpers
+export const query = {
   flashcardSets: {
     ...db.query.flashcardSets,
     findWithCards: async (setId: number) => {
@@ -57,7 +57,7 @@ const queryBuilder = {
     findBySet: async (setId: number) => {
       return db.query.flashcards.findMany({
         where: eq(flashcards.setId, setId),
-        orderBy: flashcards.position,
+        orderBy: [flashcards.position],
       });
     },
   },
@@ -74,5 +74,3 @@ const queryBuilder = {
   },
   users: db.query.users,
 };
-
-export { queryBuilder as query };

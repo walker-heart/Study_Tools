@@ -43,12 +43,12 @@ class ObjectStorage {
         throw new Error(errorData.message || 'Failed to get upload URL');
       }
 
-      const data = await uploadResponse.json() as ReplitStorageResponse;
-      if (!data.urls?.length) {
+      const responseData = await uploadResponse.json() as ReplitStorageResponse;
+      if (!responseData.urls?.length) {
         throw new Error('No upload URL received');
       }
 
-      const uploadUrl = data.urls[0];
+      const uploadUrl = responseData.urls[0];
 
       // Upload file
       const putResponse = await fetch(uploadUrl, {
@@ -90,12 +90,12 @@ class ObjectStorage {
         throw new Error(errorData.message || 'Failed to get download URL');
       }
 
-      const data = await response.json() as ReplitStorageResponse;
-      if (!data.urls?.length) {
+      const responseData = await response.json() as ReplitStorageResponse;
+      if (!responseData.urls?.length) {
         throw new Error('No download URL received');
       }
 
-      return { presignedUrl: data.urls[0] };
+      return { presignedUrl: responseData.urls[0] };
     } catch (error) {
       console.error('Storage error:', error);
       return { error: error instanceof Error ? error.message : 'Unknown error' };
