@@ -7,8 +7,8 @@ import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { db } from "./db";
-import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
+import { Client } from '@replit/object-storage';
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
@@ -185,17 +185,8 @@ app.use((req, res, next) => {
   try {
     // Initialize critical services
     const initializeServices = async () => {
-      // Verify database connection
-      try {
-        const result = await db.execute(sql`SELECT 1`);
-        log('Database connection successful');
-      } catch (error) {
-        throw new Error(`Database connection failed: ${error instanceof Error ? error.message : String(error)}`);
-      }
-
       // Verify Object Storage is accessible
       try {
-        const { Client } = await import('@replit/object-storage');
         const client = new Client();
         await client.list(); // Test if we can list objects
         log('Object Storage connection successful');
@@ -209,11 +200,6 @@ app.use((req, res, next) => {
     // Check for required environment variables
     if (!process.env.JWT_SECRET) {
       log('Error: JWT_SECRET is not set. Authentication will not work properly.');
-      process.exit(1);
-    }
-
-    if (!process.env.DATABASE_URL) {
-      log('Error: DATABASE_URL is not set. Database connections will fail.');
       process.exit(1);
     }
 

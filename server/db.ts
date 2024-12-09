@@ -1,26 +1,25 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
-import { users } from "../db/schema/users";
-import { flashcardSets, flashcards, memorizationSessions } from "../db/schema/flashcards";
-import { Pool } from '@neondatabase/serverless';
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import { users } from "./schema/users";
+import { flashcardSets, flashcards, memorizationSessions } from "./schema/flashcards";
+import { env } from "./lib/env";
 
 // Validate environment variables
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+if (!env.DATABASE_URL) {
+  throw new Error("DATABASE_URL environment variable is required");
 }
 
-// Configure database pool with SSL and connection options
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: true,
-  connectionTimeoutMillis: 5000,
-  max: 20
+// Configure PostgreSQL client with proper connection options
+const client = postgres(env.DATABASE_URL, {
+  max: 20,
+  idle_timeout: 20,
+  connect_timeout: 10,
+  ssl: env.NODE_ENV === 'production',
+  debug: env.NODE_ENV === 'development',
 });
 
-// Initialize drizzle with the schema and connection pool
-export const db = drizzle(pool, {
+// Initialize Drizzle ORM with schema
+export const db = drizzle(client, {
   schema: {
     users,
     flashcardSets,
@@ -28,3 +27,6 @@ export const db = drizzle(pool, {
     memorizationSessions,
   },
 });
+
+// Export the raw client for transactions and complex queries
+export const sql = client;
