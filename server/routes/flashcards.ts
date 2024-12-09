@@ -351,4 +351,51 @@ router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
     }
 });
 
+// Get preview data for a flashcard set
+router.get('/sets/:setId/preview', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { setId } = req.params;
+    const userId = req.session.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get the flashcard set
+    const set = await db.query.flashcardSets.findFirst({
+      where: eq(flashcardSets.id, parseInt(setId)),
+    });
+
+    if (!set || set.userId !== userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Get all cards in the set
+    const cards = await query.flashcards.findBySet(parseInt(setId));
+
+    // Get download URL if file exists
+    let downloadUrl = null;
+    if (set.filePath) {
+      const downloadResult = await storage.downloadFile(set.filePath);
+      if (!downloadResult.error && downloadResult.presignedUrl) {
+        downloadUrl = downloadResult.presignedUrl;
+      }
+    }
+
+    res.json({
+      set: { ...set, downloadUrl },
+      cards: cards.map(card => ({
+        'Vocab Word': card.vocabWord,
+        'Identifying Part Of Speach': card.partOfSpeech,
+        'Definition': card.definition,
+        'Example Sentance': card.exampleSentence,
+        lineNumber: card.position
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting preview data:', error);
+    res.status(500).json({ error: 'Failed to get preview data' });
+  }
+});
+
 export default router;

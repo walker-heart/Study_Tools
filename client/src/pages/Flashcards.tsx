@@ -107,17 +107,32 @@ export default function Flashcards() {
 
     setIsProcessing(true);
     try {
-      const csvContent = Papa.unparse(previewCards);
-      const csvFile = new File([csvContent], "vocab_cards.csv", { type: "text/csv" });
-      await generatePDF(csvFile);
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/flashcards/sets/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload file');
+      }
+
+      const { flashcardSet } = await response.json();
       toast({
         title: "Success",
-        description: "PDF generated successfully!",
+        description: "File uploaded successfully!",
       });
+
+      // Navigate to preview page
+      window.location.href = `/preview/${flashcardSet.id}`;
     } catch (error) {
+      console.error('Error uploading file:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate PDF",
+        description: "Failed to upload file",
         variant: "destructive",
       });
     } finally {
