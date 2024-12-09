@@ -1,4 +1,3 @@
-import { asyncHandler } from "../middleware/errorHandling";
 import { Request, Response, NextFunction } from "express";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
@@ -10,6 +9,7 @@ import { env } from "../lib/env";
 const { JWT_SECRET } = env;
 
 export async function signUp(req: Request, res: Response) {
+  try {
     const { firstName, lastName, email, password } = req.body;
 
     // Check if user already exists
@@ -34,11 +34,15 @@ export async function signUp(req: Request, res: Response) {
     const token = jwt.sign({ userId: newUser.id }, JWT_SECRET, { expiresIn: '24h' });
 
     res.status(201).json({ token });
+  } catch (error) {
+    console.error('Sign up error:', error);
+    res.status(500).json({ message: "Error creating user" });
   }
 }
 
 // Add session check endpoint
 export async function checkAuth(req: Request, res: Response) {
+  try {
     console.log('Auth check - Session data:', {
       sessionId: req.session.id,
       sessionUser: req.session.user,
@@ -107,10 +111,17 @@ export async function checkAuth(req: Request, res: Response) {
         theme: user.theme || 'light'
       } 
     });
+  } catch (error) {
+    console.error('Auth check error:', error);
+    res.status(500).json({ 
+      authenticated: false, 
+      error: 'Internal server error during auth check' 
+    });
   }
 }
 
 export async function signIn(req: Request, res: Response) {
+  try {
     const { email, password } = req.body;
 
     // Find user
@@ -131,6 +142,7 @@ export async function signIn(req: Request, res: Response) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    try {
       console.log('Setting up session for user:', user.id);
       
       // Set user session
@@ -179,11 +191,16 @@ export async function signIn(req: Request, res: Response) {
         isAdmin: user.isAdmin || false
       } 
     });
+  } catch (error) {
+    console.error('Sign in error:', error);
+    res.status(500).json({ message: "Error signing in" });
   }
 }
 export async function signOut(req: Request, res: Response) {
+  try {
     // Clear user session from database if user exists
     if (req.session?.user?.id) {
+      try {
         await db.execute(sql`
           UPDATE user_sessions 
           SET ended_at = NOW() 
@@ -218,10 +235,14 @@ export async function signOut(req: Request, res: Response) {
         resolve();
       });
     });
+  } catch (error) {
+    console.error('Sign out error:', error);
+    res.status(500).json({ message: "Error signing out" });
   }
 }
 
 export async function checkAdmin(req: Request, res: Response) {
+  try {
     if (!req.session.user?.id) {
       return res.status(401).json({ message: "Not authenticated" });
     }
@@ -237,11 +258,15 @@ export async function checkAdmin(req: Request, res: Response) {
     console.log('Admin check for user:', req.session.user.id, 'Result:', user);
     
     res.json({ isAdmin: user?.isAdmin || false });
+  } catch (error) {
+    console.error('Error checking admin status:', error);
+    res.status(500).json({ message: "Error checking admin status" });
   }
 }
 
 // Admin middleware to check if user is admin
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  try {
     if (!req.session.user?.id) {
       return res.status(401).json({ message: "Not authenticated" });
     }
@@ -259,11 +284,15 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     }
 
     next();
+  } catch (error) {
+    console.error('Error in admin middleware:', error);
+    res.status(500).json({ message: "Error checking admin status" });
   }
 }
 
 // Get all users (admin only)
 export async function getUsers(req: Request, res: Response) {
+  try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const search = (req.query.search as string) || '';
@@ -306,11 +335,15 @@ export async function getUsers(req: Request, res: Response) {
         totalPages: Math.ceil(count / limit)
       }
     });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ message: "Error fetching users" });
   }
 }
 
 // Update user (admin only)
 export async function updateUser(req: Request, res: Response) {
+  try {
     const userId = parseInt(req.params.id);
     const { firstName, lastName, email, isAdmin } = req.body;
 
@@ -348,11 +381,15 @@ export async function updateUser(req: Request, res: Response) {
 
     console.log('Updated user:', updatedUser);
     res.json(updatedUser);
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ message: "Error updating user" });
   }
 }
 
 // Update user password (admin only)
 export async function updateUserPassword(req: Request, res: Response) {
+  try {
     const userId = parseInt(req.params.id);
     const { password } = req.body;
 
@@ -373,5 +410,8 @@ export async function updateUserPassword(req: Request, res: Response) {
 
     console.log('Updated user password:', userId);
     res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    console.error('Error updating user password:', error);
+    res.status(500).json({ message: "Error updating user password" });
   }
 }
