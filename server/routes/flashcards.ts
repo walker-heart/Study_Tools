@@ -54,7 +54,9 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       userId,
       title: req.file.originalname,
       isPublic: false,
-      tags: []
+      tags: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
     }).returning();
 
     // Upload file to storage with proper error handling using setId in path
