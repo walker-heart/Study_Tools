@@ -1,5 +1,6 @@
-import { Client } from '@replit/object-storage';
-import { Readable } from 'stream';
+import { writeFile, readFile, unlink, readdir, mkdir } from 'fs/promises';
+import { dirname, join } from 'path';
+import { existsSync } from 'fs';
 
 interface StorageResult<T> {
   success: boolean;
@@ -10,18 +11,29 @@ interface StorageResult<T> {
 }
 
 class ObjectStorage {
-  private client: Client;
+  private baseDir: string;
 
   constructor() {
-    this.client = new Client();
+    this.baseDir = join(process.cwd(), 'storage');
+    // Create storage directory if it doesn't exist
+    if (!existsSync(this.baseDir)) {
+      mkdir(this.baseDir, { recursive: true }).catch(console.error);
+    }
+  }
+
+  private getFullPath(path: string): string {
+    return join(this.baseDir, path);
   }
 
   async upload(path: string, data: Buffer): Promise<StorageResult<void>> {
     try {
-      await this.client.putObject({
-        key: path,
-        body: data
-      });
+      const fullPath = this.getFullPath(path);
+      // Create parent directories if they don't exist
+      const dirPath = dirname(fullPath);
+      if (!existsSync(dirPath)) {
+        await mkdir(dirPath, { recursive: true });
+      }
+      await writeFile(fullPath, data);
       return { success: true };
     } catch (error) {
       console.error('Upload error:', error);
@@ -34,27 +46,10 @@ class ObjectStorage {
 
   async download(path: string): Promise<StorageResult<Buffer>> {
     try {
-      const result = await this.client.getObject({
-        key: path
-      });
+      const fullPath = this.getFullPath(path);
+      const data = await readFile(fullPath);
+      const presignedUrl = `/storage/${path}`; // URL for static file serving
       
-      if (!result) {
-        throw new Error('File not found');
-      }
-
-      // Convert the response to a buffer
-      const chunks: Buffer[] = [];
-      for await (const chunk of result.body) {
-        chunks.push(Buffer.from(chunk));
-      }
-      const data = Buffer.concat(chunks);
-
-      // Get presigned URL
-      const presignedUrl = await this.client.getSignedUrl({
-        key: path,
-        expiresIn: 3600 // 1 hour
-      });
-
       return { 
         success: true, 
         data,
@@ -71,9 +66,10 @@ class ObjectStorage {
 
   async delete(path: string): Promise<StorageResult<void>> {
     try {
-      await this.client.deleteObject({
-        key: path
-      });
+      const fullPath = this.getFullPath(path);
+      if (existsSync(fullPath)) {
+        await unlink(fullPath);
+      }
       return { success: true };
     } catch (error) {
       console.error('Delete error:', error);
@@ -84,15 +80,21 @@ class ObjectStorage {
     }
   }
 
-  async list(prefix?: string): Promise<StorageResult<string[]>> {
+  async list(prefix: string = ''): Promise<StorageResult<string[]>> {
     try {
-      const result = await this.client.listObjects({
-        prefix: prefix || ''
-      });
-
+      const searchPath = this.getFullPath(prefix);
+      if (!existsSync(searchPath)) {
+        return { success: true, files: [] };
+      }
+      
+      const files = await readdir(searchPath, { recursive: true });
+      const relativePaths = files.map(file => 
+        join(prefix, file.toString()).replace(/\\/g, '/')
+      );
+      
       return { 
         success: true, 
-        files: result.objects.map(obj => obj.key)
+        files: relativePaths
       };
     } catch (error) {
       console.error('List error:', error);

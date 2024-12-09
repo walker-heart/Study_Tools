@@ -100,10 +100,17 @@ const staticOptions = {
 };
 
 // Serve the main public directory
+// Serve the main public directory
 app.use(express.static(publicPath, {
   ...staticOptions,
   index: false, // Let our router handle the index route
   fallthrough: true // Continue to next middleware if file not found
+}));
+
+// Serve uploaded files from storage directory
+app.use('/storage', express.static(join(__dirname, '..', 'storage'), {
+  ...staticOptions,
+  fallthrough: true
 }));
 
 // Explicitly serve assets directory with additional caching
@@ -237,6 +244,7 @@ app.use((req, res, next) => {
           const testContent = Buffer.from('Storage test');
           
           // Test upload
+          const { storage } = await import('./lib/storage');
           const uploadResult = await storage.upload(testPath, testContent);
           if (!uploadResult.success) {
             throw new Error(`Upload failed: ${uploadResult.error}`);
