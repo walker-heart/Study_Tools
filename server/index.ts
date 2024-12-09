@@ -19,6 +19,10 @@ const sessionPool = new Pool({
 });
 import { env } from "./lib/env";
 import { storageService } from './services/storage';
+// Set up storage directory
+if (!existsSync(join(__dirname, '..', 'storage'))) {
+  mkdirSync(join(__dirname, '..', 'storage'), { recursive: true });
+}
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import path from "path";
@@ -244,25 +248,16 @@ app.use((req, res, next) => {
           const testContent = Buffer.from('Storage test');
           
           // Test upload
-          const { storage } = await import('./lib/storage');
-          const uploadResult = await storage.upload(testPath, testContent);
-          if (!uploadResult.success) {
-            throw new Error(`Upload failed: ${uploadResult.error}`);
-          }
+          const uploadResult = await storageService.saveFlashcardSet(0, testPath, testContent);
           log('Storage test upload successful');
 
           // Test download
-          const downloadResult = await storage.download(testPath);
-          if (!downloadResult.success) {
-            throw new Error(`Download failed: ${downloadResult.error}`);
-          }
+          const content = await storageService.getFlashcardSet(0, testPath);
           log('Storage test download successful');
 
           // Test delete
-          const deleteResult = await storage.delete(testPath);
-          if (!deleteResult.success) {
-            throw new Error(`Delete failed: ${deleteResult.error}`);
-          }
+          await storageService.deleteFlashcardSet(0, testPath);
+          log('Storage test delete successful');
           log('Storage test delete successful');
 
           log('Object Storage service verified successfully');

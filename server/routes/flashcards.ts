@@ -61,11 +61,7 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       const fileName = `flashcards/${userId}/${flashcardSet.id}/${req.file.originalname}`;
       
       // Upload file using storage service
-      const uploadResult = await storage.upload(fileName, req.file.buffer);
-      
-      if (uploadResult.error) {
-        throw new Error(uploadResult.error);
-      }
+      await storage.upload(fileName, req.file.buffer);
 
       // Update the set with the file path after successful upload
       const [updatedSet] = await db.update(flashcardSets)
@@ -131,7 +127,7 @@ router.post('/sets',
         title,
         description,
         isPublic: isPublic || false,
-        tags: tags ? `{${tags.map(t => `"${t}"`).join(',')}}` : '{}',
+        tags: tags ? tags as string[] : [],
         createdAt: new Date(),
         updatedAt: new Date()
       }).returning();
@@ -261,7 +257,7 @@ router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
       return res.status(404).json({ error: 'No file associated with this set' });
     }
 
-    const downloadResult = await storage.downloadFile(set.filePath);
+    const downloadResult = await storage.download(set.filePath);
     
     if (downloadResult.error) {
       throw new Error(downloadResult.error);

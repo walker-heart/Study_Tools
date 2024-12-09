@@ -15,7 +15,6 @@ class ObjectStorage {
 
   constructor() {
     this.baseDir = join(process.cwd(), 'storage');
-    // Create storage directory if it doesn't exist
     if (!existsSync(this.baseDir)) {
       mkdir(this.baseDir, { recursive: true }).catch(console.error);
     }
@@ -28,7 +27,6 @@ class ObjectStorage {
   async upload(path: string, data: Buffer): Promise<StorageResult<void>> {
     try {
       const fullPath = this.getFullPath(path);
-      // Create parent directories if they don't exist
       const dirPath = dirname(fullPath);
       if (!existsSync(dirPath)) {
         await mkdir(dirPath, { recursive: true });
@@ -48,12 +46,10 @@ class ObjectStorage {
     try {
       const fullPath = this.getFullPath(path);
       const data = await readFile(fullPath);
-      const presignedUrl = `/storage/${path}`; // URL for static file serving
-      
       return { 
         success: true, 
         data,
-        presignedUrl
+        presignedUrl: `/storage/${path}`
       };
     } catch (error) {
       console.error('Download error:', error);
@@ -84,7 +80,7 @@ class ObjectStorage {
     try {
       const searchPath = this.getFullPath(prefix);
       if (!existsSync(searchPath)) {
-        return { success: true, files: [] };
+        await mkdir(searchPath, { recursive: true });
       }
       
       const files = await readdir(searchPath, { recursive: true });
@@ -94,7 +90,7 @@ class ObjectStorage {
       
       return { 
         success: true, 
-        files: relativePaths
+        files: relativePaths 
       };
     } catch (error) {
       console.error('List error:', error);
