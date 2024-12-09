@@ -56,7 +56,7 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       tags: [], // PostgreSQL array
       createdAt: new Date(),
       updatedAt: new Date(),
-      urlPath: `/flashcards/${createSlug(`${req.session.user?.firstName || ''}-${req.session.user?.lastName || ''}-${Date.now()}`)}`,
+      urlPath: generateSetUrl(req.session.user?.firstName, req.session.user?.lastName, flashcardSet.id),
       filePath: null // Will be updated after successful upload
     }).returning();
 
