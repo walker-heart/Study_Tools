@@ -3,6 +3,13 @@ import fetch from 'node-fetch';
 interface StorageResponse {
   presignedUrl?: string;
   error?: string;
+  files?: StorageFile[];
+}
+
+interface StorageFile {
+  path: string;
+  size?: number;
+  lastModified?: string;
 }
 
 interface ReplitStorageResponse {
@@ -16,7 +23,11 @@ interface ReplitStorageError {
 
 interface StorageFileRequest {
   path: string;
-  operation: 'read' | 'write';
+  operation: 'read' | 'write' | 'list';
+}
+
+interface StorageListResponse {
+  files: StorageFile[];
 }
 
 class ObjectStorage {
@@ -120,6 +131,31 @@ class ObjectStorage {
       }
 
       return {};
+    } catch (error) {
+      console.error('Storage error:', error);
+      return { error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async listFiles(prefix?: string): Promise<StorageResponse> {
+    try {
+      const response = await fetch(`${this.API_BASE}/list`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prefix: prefix || '',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json() as ReplitStorageError;
+        throw new Error(errorData.message || 'Failed to list files');
+      }
+
+      const data = await response.json() as StorageListResponse;
+      return { files: data.files };
     } catch (error) {
       console.error('Storage error:', error);
       return { error: error instanceof Error ? error.message : 'Unknown error' };
