@@ -50,12 +50,22 @@ export default function FileUpload({ onFileSelect, isProcessing, setSelectedFile
       validateFile(file);
       setUploadProgress(0);
       setSelectedFile(file);
+      
+      // Start upload progress animation
+      const interval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 10, 90));
+      }, 100);
+
       await onFileSelect(file);
+      
+      clearInterval(interval);
       setUploadProgress(100);
+      
       toast({
         title: "Success",
-        description: "File uploaded successfully",
+        description: "File uploaded successfully. Redirecting to preview...",
       });
+
     } catch (error) {
       const err = error as FileValidationError;
       toast({
@@ -63,8 +73,9 @@ export default function FileUpload({ onFileSelect, isProcessing, setSelectedFile
         description: err.message || "Failed to upload file",
         variant: "destructive",
       });
+      setSelectedFile(null);
     } finally {
-      setUploadProgress(0);
+      setTimeout(() => setUploadProgress(0), 1000);
     }
   };
 
