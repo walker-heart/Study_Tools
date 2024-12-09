@@ -24,7 +24,15 @@ class ReplitStorageService implements StorageService {
       }
       return filePath;
     } catch (error) {
-      console.error(`Error saving flashcard set ${setId}:`, error);
+      console.error(`Error saving flashcard set ${setId}:`, {
+        error: error instanceof Error ? error.message : String(error),
+        context: {
+          setId,
+          filePath,
+          fileSize: fileData.length,
+          timestamp: new Date().toISOString()
+        }
+      });
       throw new Error('Failed to save flashcard set');
     }
   }
