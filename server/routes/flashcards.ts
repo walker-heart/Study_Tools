@@ -204,7 +204,7 @@ router.get('/sets/files', async (req: AuthenticatedRequest, res) => {
     }
 
     const userPrefix = `flashcards/${userId}/`;
-    const filesResult = await storage.listFiles(userPrefix);
+    const filesResult = await storage.list(userPrefix);
     
     if (filesResult.error) {
       throw new Error(filesResult.error);
@@ -224,7 +224,7 @@ router.get('/sets/files', async (req: AuthenticatedRequest, res) => {
     // Get download URLs for all files
     for (const file of filesWithMetadata) {
       if (file.filePath) {
-        const downloadResult = await storage.downloadFile(file.filePath);
+        const downloadResult = await storage.download(file.filePath);
         if (downloadResult.presignedUrl) {
           file.downloadUrl = downloadResult.presignedUrl;
         }
