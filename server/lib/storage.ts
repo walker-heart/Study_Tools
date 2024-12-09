@@ -9,7 +9,7 @@ class ObjectStorage {
 
   async upload(path: string, data: Buffer) {
     try {
-      const result = await this.client.putObject(path, data);
+      const result = await this.client.upload(path, data);
       if (!result.ok) {
         console.error('Upload failed:', result.error);
         return { success: false, error: result.error };
@@ -69,7 +69,7 @@ class ObjectStorage {
 
   async list(prefix?: string) {
     try {
-      const result = await this.client.listObjects(prefix);
+      const result = await this.client.list(prefix);
       if (!result.ok) {
         console.error('List failed:', result.error);
         return { success: false, error: result.error, files: [] };
