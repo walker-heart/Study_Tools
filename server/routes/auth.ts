@@ -176,7 +176,7 @@ export async function signIn(req: Request, res: Response) {
     // Set up session with proper error handling
     try {
       await new Promise<void>((resolve, reject) => {
-        req.session.regenerate((err) => {
+        req.session.regenerate((err: Error | null) => {
           if (err) {
             console.error('Session regeneration error:', err);
             reject(new Error('Failed to establish session'));
@@ -194,7 +194,7 @@ export async function signIn(req: Request, res: Response) {
           req.session.authenticated = true;
 
           // Save session and resolve
-          req.session.save((saveErr) => {
+          req.session.save((saveErr: Error | null) => {
             if (saveErr) {
               console.error('Session save error:', {
                 error: saveErr instanceof Error ? saveErr.message : String(saveErr),
