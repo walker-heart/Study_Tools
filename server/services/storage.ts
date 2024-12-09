@@ -16,16 +16,20 @@ interface StorageService {
 }
 
 class ReplitStorageService implements StorageService {
+  private getFullPath(setId: number, filePath: string): string {
+    return `flashcards/${setId}/${filePath}`;
+  }
+
   async saveFlashcardSet(setId: number, filePath: string, fileData: Buffer): Promise<string> {
     try {
-      const path = `flashcards/${setId}/${filePath}`;
-      const result = await storage.upload(path, fileData);
+      const fullPath = this.getFullPath(setId, filePath);
+      const result = await storage.upload(fullPath, fileData);
       
       if (!result.success) {
         throw new Error(`Failed to upload file: ${result.error}`);
       }
       
-      return path;
+      return fullPath;
     } catch (error) {
       console.error(`Error saving flashcard set ${setId}:`, {
         error: error instanceof Error ? error.message : String(error),
@@ -40,27 +44,38 @@ class ReplitStorageService implements StorageService {
     }
   }
 
-  async getFlashcardSet(_setId: number, filePath: string): Promise<Buffer> {
+  async getFlashcardSet(setId: number, filePath: string): Promise<Buffer> {
     try {
-      const result = await storage.download(filePath);
+      const fullPath = this.getFullPath(setId, filePath);
+      const result = await storage.download(fullPath);
+      
       if (!result.success || !result.data) {
         throw new Error(result.error || 'Failed to download file');
       }
+      
       return result.data;
     } catch (error) {
-      console.error(`Error reading flashcard set:`, error);
+      console.error(`Error reading flashcard set:`, {
+        error: error instanceof Error ? error.message : String(error),
+        context: { setId, filePath }
+      });
       throw new Error('Failed to read flashcard set');
     }
   }
 
-  async deleteFlashcardSet(_setId: number, filePath: string): Promise<void> {
+  async deleteFlashcardSet(setId: number, filePath: string): Promise<void> {
     try {
-      const result = await storage.delete(filePath);
+      const fullPath = this.getFullPath(setId, filePath);
+      const result = await storage.delete(fullPath);
+      
       if (!result.success) {
         throw new Error(`Failed to delete file: ${result.error}`);
       }
     } catch (error) {
-      console.error(`Error deleting flashcard set:`, error);
+      console.error(`Error deleting flashcard set:`, {
+        error: error instanceof Error ? error.message : String(error),
+        context: { setId, filePath }
+      });
       throw new Error('Failed to delete flashcard set');
     }
   }
@@ -69,12 +84,17 @@ class ReplitStorageService implements StorageService {
     try {
       const prefix = `flashcards/${userId}/`;
       const result = await storage.list(prefix);
+      
       if (!result.success) {
         throw new Error(`Failed to list files: ${result.error}`);
       }
+      
       return result.files;
     } catch (error) {
-      console.error('Error listing flashcard sets:', error);
+      console.error('Error listing flashcard sets:', {
+        error: error instanceof Error ? error.message : String(error),
+        context: { userId }
+      });
       throw new Error('Failed to list flashcard sets');
     }
   }
