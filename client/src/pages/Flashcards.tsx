@@ -105,10 +105,14 @@ export default function Flashcards() {
         throw new Error(errorData.error || 'Failed to upload file');
       }
 
-      const { flashcardSet } = await response.json();
+      const data = await response.json();
       
       // Redirect to preview page using new URL structure
-      setLocation(`/flashcards/${flashcardSet.urlPath}`);
+      if (data.flashcardSet?.urlPath) {
+        setLocation(`/flashcards/${data.flashcardSet.urlPath}`);
+      } else {
+        throw new Error('Missing URL path in response');
+      }
     } catch (error) {
       console.error('Error handling file:', error);
       toast({
