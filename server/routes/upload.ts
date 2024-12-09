@@ -81,7 +81,7 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
     const nextId = (lastSet?.id || 0) + 1;
 
     // Create URL path: firstname-lastname/set-id (URL safe format)
-    const urlPath = `${user.first_name.toLowerCase()}-${user.last_name.toLowerCase()}/set-${nextId}`;
+    const urlPath = `${user.firstName.toLowerCase()}-${user.lastName.toLowerCase()}/set-${nextId}`;
 
     // Create flashcard set in database
     const [newSet] = await db.insert(flashcardSets).values({
