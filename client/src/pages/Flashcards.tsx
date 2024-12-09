@@ -1,12 +1,11 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import Papa from 'papaparse';
 import FileUpload from "../components/FileUpload";
 import { generatePDF } from "../lib/pdfGenerator";
-import FileList from "../components/FileList";
+import CardPreview from "../components/CardPreview";
 
 interface VocabCard {
   'Vocab Word': string;
@@ -16,72 +15,10 @@ interface VocabCard {
   lineNumber: number;
 }
 
-interface FlashcardSet {
-  id: number;
-  title: string;
-  filePath: string | null;
-  createdAt: string;
-  downloadUrl: string | null;
-}
-
 export default function Flashcards() {
-  const handleDelete = async (setId: number) => {
-    try {
-      const response = await fetch(`/api/flashcards/sets/${setId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete flashcard set');
-      }
-      
-      // Refresh the file list
-      await fetchUploadedFiles();
-      
-      toast({
-        title: "Success",
-        description: "Flashcard set deleted successfully",
-      });
-    } catch (error) {
-      console.error('Error deleting flashcard set:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete flashcard set",
-        variant: "destructive",
-      });
-    }
-  };
-  const [, setLocation] = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewCards, setPreviewCards] = useState<VocabCard[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<FlashcardSet[]>([]);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { toast } = useToast();
-
-  useEffect(() => {
-    fetchUploadedFiles();
-  }, []);
-
-  const fetchUploadedFiles = async () => {
-    try {
-      const response = await fetch('/api/flashcards/sets/files', {
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch files');
-      }
-      const files = await response.json();
-      setUploadedFiles(files);
-    } catch (error) {
-      console.error('Error fetching files:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch uploaded files",
-        variant: "destructive",
-      });
-    }
-  };
 
   const parseCSV = (file: File): Promise<VocabCard[]> => {
     return new Promise((resolve, reject) => {
@@ -114,53 +51,45 @@ export default function Flashcards() {
 
   const handleFileSelect = async (file: File) => {
     try {
-      setIsProcessing(true);
       const cards = await parseCSV(file);
       setPreviewCards(cards);
-
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await fetch('/api/flashcards/sets/upload', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload file');
-      }
-
-      const data = await response.json();
-      console.log('Upload response:', data);
-      
-      if (!data.flashcardSet?.id) {
-        throw new Error('Invalid response from server: missing flashcard set ID');
-      }
-      
-      // Redirect to the set's preview page
-      const previewUrl = data.flashcardSet.urlPath;
-      console.log('Redirecting to:', previewUrl);
-      setLocation(previewUrl);
-      toast({
-        title: "Success",
-        description: "File uploaded successfully. Redirecting...",
-      });
     } catch (error) {
-      console.error('Error handling file:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to process file",
+        description: "Failed to parse CSV file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleGeneratePDF = async () => {
+    if (previewCards.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please upload a CSV file first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const csvContent = Papa.unparse(previewCards);
+      const csvFile = new File([csvContent], "vocab_cards.csv", { type: "text/csv" });
+      await generatePDF(csvFile);
+      toast({
+        title: "Success",
+        description: "PDF generated successfully!",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate PDF",
         variant: "destructive",
       });
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const handleFileClick = (setId: number) => {
-    setLocation(`/preview/${setId}`);
   };
 
   return (
@@ -182,7 +111,6 @@ export default function Flashcards() {
             <FileUpload 
               onFileSelect={handleFileSelect}
               isProcessing={isProcessing}
-              setSelectedFile={setSelectedFile}
             />
 
             <div className="text-sm text-gray-600 mt-4">
@@ -197,12 +125,21 @@ export default function Flashcards() {
           </div>
         </Card>
 
-        {uploadedFiles.length > 0 && (
-          <FileList 
-            files={uploadedFiles}
-            onFileSelect={handleFileClick}
-            onDelete={handleDelete}
-          />
+        {previewCards.length > 0 && (
+          <Card className="p-6">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold">Preview Cards</h2>
+                <Button 
+                  onClick={handleGeneratePDF}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? "Generating PDF..." : "Generate PDF"}
+                </Button>
+              </div>
+              <CardPreview cards={previewCards} />
+            </div>
+          </Card>
         )}
       </div>
     </div>

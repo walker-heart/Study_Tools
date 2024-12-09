@@ -2,7 +2,6 @@ import { Router, type Express } from "express";
 import { signUp, signIn, signOut, checkAuth, checkAdmin, requireAdmin, getUsers, updateUser, updateUserPassword } from "./auth";
 import { updateTheme, getTheme } from "./user";
 import analyticsRoutes from "./analytics";
-import flashcardRoutes from "./flashcards";
 
 export function registerRoutes(app: Express): void {
   const router = Router();
@@ -25,9 +24,6 @@ export function registerRoutes(app: Express): void {
 
   // Analytics routes
   router.use('/api/analytics', analyticsRoutes);
-
-  // Flashcard routes
-  router.use('/api/flashcards', flashcardRoutes);
 
   // Use the router middleware
   app.use(router);

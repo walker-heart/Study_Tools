@@ -5,12 +5,9 @@ const { Pool } = pkg;
 
 const router = Router();
 
-// Create PostgreSQL pool with proper SSL config
+// Create PostgreSQL pool
 const pool = new Pool({
-  connectionString: env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
+  connectionString: process.env.DATABASE_URL,
 });
 
 // Test database connection

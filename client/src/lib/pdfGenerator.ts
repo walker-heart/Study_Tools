@@ -1,6 +1,5 @@
 import Papa from 'papaparse';
 import { jsPDF } from 'jspdf';
-import type { VocabCard } from '../types/flashcards';
 
 interface VocabCard {
   'Vocab Word': string;
