@@ -42,9 +42,43 @@ export async function signUp(req: Request, res: Response) {
 
 // Add session check endpoint
 export async function checkAuth(req: Request, res: Response) {
-  if (req.session.user?.id) {
-    res.json({ authenticated: true, user: { id: req.session.user.id, email: req.session.user.email } });
+  console.log('Auth check - Session data:', {
+    sessionId: req.session.id,
+    sessionUser: req.session.user,
+    authenticated: req.session.authenticated
+  });
+
+  if (req.session.user?.id && req.session.authenticated) {
+    // Verify user still exists in database
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        isAdmin: users.isAdmin
+      })
+      .from(users)
+      .where(eq(users.id, req.session.user.id))
+      .limit(1);
+
+    if (!user) {
+      console.log('User not found in database, clearing session');
+      req.session.destroy((err) => {
+        if (err) console.error('Session destruction error:', err);
+      });
+      return res.status(401).json({ authenticated: false });
+    }
+
+    console.log('Auth check successful for user:', user.id);
+    res.json({ 
+      authenticated: true, 
+      user: { 
+        id: user.id, 
+        email: user.email,
+        isAdmin: user.isAdmin 
+      } 
+    });
   } else {
+    console.log('Auth check failed - No valid session');
     res.status(401).json({ authenticated: false });
   }
 }
@@ -72,6 +106,8 @@ export async function signIn(req: Request, res: Response) {
     }
 
     try {
+      console.log('Setting up session for user:', user.id);
+      
       // Set user session
       req.session.user = {
         id: user.id,
@@ -80,12 +116,25 @@ export async function signIn(req: Request, res: Response) {
       };
       req.session.authenticated = true;
       
+      console.log('Session data before save:', req.session);
+      
       // Save session before responding
       await new Promise<void>((resolve, reject) => {
-        req.session.save((err) => {
-          if (err) reject(err);
-          else resolve();
+        req.session.save((err: Error | null) => {
+          if (err) {
+            console.error('Session save error:', err);
+            reject(err);
+          } else {
+            console.log('Session saved successfully');
+            resolve();
+          }
         });
+      });
+      
+      console.log('Final session state:', {
+        id: req.session.id,
+        user: req.session.user,
+        authenticated: req.session.authenticated
       });
     } catch (sessionError) {
       console.error('Session creation error:', sessionError);
