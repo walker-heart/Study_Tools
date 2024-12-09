@@ -106,14 +106,14 @@ export default function Flashcards() {
       }
 
       const data = await response.json();
-      console.log('Upload response:', data); // Add logging
+      console.log('Upload response:', data);
       
       if (!data.flashcardSet?.urlPath) {
-        console.error('Missing URL path in response:', data);
-        throw new Error('Invalid response from server');
+        throw new Error('Invalid response from server: missing URL path');
       }
       
-      const redirectUrl = `/flashcards/${data.flashcardSet.urlPath}`;
+      // Redirect to the set's preview page
+      const redirectUrl = `/preview/${data.flashcardSet.id}`;
       console.log('Redirecting to:', redirectUrl);
       setLocation(redirectUrl);
       toast({

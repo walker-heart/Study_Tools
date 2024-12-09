@@ -89,12 +89,19 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       title: req.file.originalname.replace(/\.[^/.]+$/, ""), // Remove file extension
       isPublic: false,
       tags: [],
-      urlPath
-    }).returning({
-      id: flashcardSets.id,
-      title: flashcardSets.title,
-      urlPath: flashcardSets.urlPath,
-    });
+      urlPath,
+      filePath: null // Will be updated after storage upload
+    }).returning();
+
+    // Map cards data to match schema
+    const cardValues = cards.map((card, index) => ({
+      setId: newSet.id,
+      vocabWord: card['Vocab Word'],
+      partOfSpeech: card['Identifying Part Of Speach'],
+      definition: card['Definition'],
+      exampleSentence: card['Example Sentance'],
+      position: index + 1
+    }));
 
     // Create unique file path
     const filePath = `flashcards/${req.session.user.id}/${newSet.id}/${req.file.originalname}`;
@@ -114,22 +121,19 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       .returning();
 
     // Insert flashcards
-    const cardValues = cards.map((card, index) => ({
-      setId: newSet.id,
-      vocabWord: card['Vocab Word'],
-      partOfSpeech: card['Identifying Part Of Speach'],
-      definition: card['Definition'],
-      exampleSentence: card['Example Sentance'],
-      position: index + 1
-    }));
+    await db.insert(flashcards).values(cardValues);
 
     await db.insert(flashcards).values(cardValues);
 
+    // Prepare the response to match client expectations
     res.status(201).json({
       message: 'File uploaded successfully',
       flashcardSet: {
-        ...updatedSet,
-        urlPath: updatedSet.urlPath
+        id: newSet.id,
+        title: newSet.title,
+        filePath: filePath,
+        urlPath: urlPath,
+        createdAt: newSet.createdAt
       }
     });
   } catch (error) {
