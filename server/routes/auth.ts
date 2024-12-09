@@ -71,20 +71,26 @@ export async function signIn(req: Request, res: Response) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Set user session
-    req.session.user = {
-      id: user.id,
-      email: user.email,
-      isAdmin: user.isAdmin
-    };
-    req.session.authenticated = true;
-    
-    // Create a session record in the database
-    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    await sql`
-      INSERT INTO user_sessions (user_id, ip_address)
-      VALUES (${user.id}, ${ipAddress})
-    `;
+    try {
+      // Set user session
+      req.session.user = {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin
+      };
+      req.session.authenticated = true;
+      
+      // Save session before responding
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    } catch (sessionError) {
+      console.error('Session creation error:', sessionError);
+      return res.status(500).json({ message: "Error creating session" });
+    }
     
     // Also send JWT token for API authentication
     const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
