@@ -9,7 +9,7 @@ class ObjectStorage {
 
   async upload(path: string, data: Buffer) {
     try {
-      const result = await this.client.put(path, data);
+      const result = await this.client.putObject(path, data);
       if (!result.ok) {
         console.error('Upload failed:', result.error);
         return { success: false, error: result.error };
@@ -27,12 +27,20 @@ class ObjectStorage {
 
   async download(path: string) {
     try {
-      const result = await this.client.downloadToMemory(path);
+      const result = await this.client.getObject(path);
       if (!result.ok) {
         console.error('Download failed:', result.error);
         return { success: false, error: result.error };
       }
-      return { success: true, data: result.value };
+      
+      // Get presigned URL for temporary access
+      const presignedResult = await this.client.getPresignedUrl(path, { expires: 3600 }); // 1 hour expiry
+      
+      return { 
+        success: true, 
+        data: result.value,
+        presignedUrl: presignedResult.ok ? presignedResult.value : undefined
+      };
     } catch (error) {
       console.error('Download error:', error);
       return {
@@ -44,7 +52,7 @@ class ObjectStorage {
 
   async delete(path: string) {
     try {
-      const result = await this.client.delete(path);
+      const result = await this.client.deleteObject(path);
       if (!result.ok) {
         console.error('Delete failed:', result.error);
         return { success: false, error: result.error };
@@ -61,14 +69,14 @@ class ObjectStorage {
 
   async list(prefix?: string) {
     try {
-      const result = await this.client.list(prefix);
+      const result = await this.client.listObjects(prefix);
       if (!result.ok) {
         console.error('List failed:', result.error);
         return { success: false, error: result.error, files: [] };
       }
       return { 
         success: true, 
-        files: result.value.map(file => file.name)
+        files: result.value.map(file => file.key)
       };
     } catch (error) {
       console.error('List error:', error);
