@@ -236,8 +236,8 @@ app.use((req, res, next) => {
           const testPath = 'test/storage-check.txt';
           const testContent = Buffer.from('Storage test');
           
-          await storage.uploadFile(testPath, testContent);
-          await storage.deleteFile(testPath);
+          await storageService.saveFlashcardSet(0, testPath, testContent);
+          await storageService.deleteFlashcardSet(0, testPath);
           log('Object Storage service verified successfully');
         } catch (testError) {
           log(`Warning: Object Storage test failed: ${testError instanceof Error ? testError.message : String(testError)}`);
