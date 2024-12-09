@@ -173,35 +173,58 @@ export async function signIn(req: Request, res: Response) {
     };
     req.session.authenticated = true;
 
-    // Save session explicitly with enhanced error handling
-    try {
-      await new Promise<void>((resolve, reject) => {
-        req.session.save((err) => {
-          if (err) {
-            console.error('Session save error:', {
-              error: err instanceof Error ? err.message : String(err),
-              stack: err instanceof Error ? err.stack : undefined,
-              sessionId: req.session.id,
-              userId: user.id
-            });
-            reject(err);
-          } else {
-            console.log('Session saved successfully:', {
-              sessionId: req.session.id,
-              userId: user.id,
-              afterState: {
-                user: req.session.user,
-                authenticated: req.session.authenticated
-              }
-            });
-            resolve();
+    // Set session data
+    req.session.regenerate(async (err) => {
+      if (err) {
+        console.error('Session regeneration error:', err);
+        return res.status(500).json({ message: "Failed to establish session" });
+      }
+
+      req.session.user = {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        firstName: user.firstName,
+        lastName: user.lastName
+      };
+      req.session.authenticated = true;
+
+      // Save session explicitly
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error('Session save error:', {
+            error: saveErr instanceof Error ? saveErr.message : String(saveErr),
+            stack: saveErr instanceof Error ? saveErr.stack : undefined,
+            sessionId: req.session.id,
+            userId: user.id
+          });
+          return res.status(500).json({ message: "Failed to save session" });
+        }
+
+        console.log('Session saved successfully:', {
+          sessionId: req.session.id,
+          userId: user.id,
+          state: {
+            user: req.session.user,
+            authenticated: req.session.authenticated
+          }
+        });
+
+        // Generate JWT token and send response
+        const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
+        res.json({
+          token,
+          user: {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            theme: user.theme || 'light',
+            isAdmin: user.isAdmin || false
           }
         });
       });
-    } catch (sessionError) {
-      console.error('Failed to save session:', sessionError);
-      throw new Error('Failed to establish session');
-    }
+    });
 
     // Generate JWT token
     const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });

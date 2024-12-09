@@ -60,8 +60,8 @@ try {
 // Export session configuration
 export const sessionConfig = {
   secret: process.env.JWT_SECRET,
-  resave: false,
-  saveUninitialized: false,
+  resave: true, // Changed to true to ensure session is saved
+  saveUninitialized: true, // Changed to true to create session for all requests
   rolling: true,
   cookie: {
     secure: false, // Set to false for development
@@ -69,8 +69,9 @@ export const sessionConfig = {
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     sameSite: 'lax' as const,
     path: '/',
+    domain: undefined, // Allow the browser to handle domain
   },
-  name: 'sid',
+  name: 'connect.sid', // Changed to default Express session name
   proxy: false, // Set to false for development
 };
 
