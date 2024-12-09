@@ -28,59 +28,53 @@ const upload = multer({
 
 // Handle file upload and create flashcard set
 router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) => {
-  let storedFileName: string | undefined;
-  
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const { title, description } = req.body;
+    const { title } = req.body;
     if (!req.session?.user?.id) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    // Generate a unique filename with user ID and timestamp
-    const timestamp = Date.now();
-    const fileExtension = req.file.originalname.split('.').pop();
-    storedFileName = `user_${req.session.user.id}_${timestamp}.${fileExtension}`;
-
-    // Upload file to Object Storage
-    await storageService.uploadFile(
-      req.file.buffer,
-      storedFileName
-    );
-
-    // Create flashcard set with file reference
-    const [flashcardSet] = await db
-      .insert(flashcardSets)
-      .values({
-        userId: req.session.user.id,
-        title: title || req.file.originalname,
-        description,
-        filePath: storedFileName,
+    // Parse CSV file
+    const csvContent = req.file.buffer.toString('utf-8');
+    const cards = await new Promise<any[]>((resolve, reject) => {
+      const results: any[] = [];
+      require('csv-parse').parse(csvContent, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
       })
-      .returning();
+      .on('data', (data: any) => results.push(data))
+      .on('error', (error: Error) => reject(error))
+      .on('end', () => resolve(results));
+    });
 
-    // Get signed URL for immediate use
-    const fileUrl = await storageService.getFileUrl(storedFileName);
+    // Create flashcard set object with simplified structure
+    const flashcardSet = {
+      id: Date.now(), // Use timestamp as temporary ID
+      userId: req.session.user.id,
+      title: title || req.file.originalname,
+      cards: cards.map(card => ({
+        text: card['Text'],
+        createdAt: new Date().toISOString()
+      })),
+      createdAt: new Date().toISOString()
+    };
+
+    // Save flashcard set to file storage
+    await storageService.saveFlashcardSet(flashcardSet.id, flashcardSet);
 
     res.status(201).json({
-      ...flashcardSet,
-      fileUrl
+      id: flashcardSet.id,
+      title: flashcardSet.title,
+      createdAt: flashcardSet.createdAt,
+      cardCount: flashcardSet.cards.length
     });
   } catch (error) {
     console.error('Upload error:', error);
-    
-    // Clean up any uploaded file if database operation failed
-    if (storedFileName) {
-      try {
-        await storageService.deleteFile(storedFileName);
-      } catch (cleanupError) {
-        console.error('Failed to cleanup file after error:', cleanupError);
-      }
-    }
-
     res.status(500).json({ 
       error: 'Failed to process upload',
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -88,27 +82,48 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
   }
 });
 
-// Get file URL for a flashcard set
-router.get('/:setId/file', async (req: AuthenticatedRequest, res) => {
+// Get flashcard set data
+router.get('/:setId', async (req: AuthenticatedRequest, res) => {
   try {
     const setId = parseInt(req.params.setId);
     if (!req.session?.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const flashcardSet = await db.query.flashcardSets.findFirst({
-      where: eq(flashcardSets.id, setId)
-    });
-
-    if (!flashcardSet || !flashcardSet.filePath) {
-      return res.status(404).json({ error: 'File not found' });
+    const flashcardSet = await storageService.getFlashcardSet(setId);
+    
+    if (flashcardSet.userId !== req.session.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
     }
 
-    const fileUrl = await storageService.getFileUrl(flashcardSet.filePath);
-    res.json({ fileUrl });
+    res.json(flashcardSet);
   } catch (error) {
-    console.error('Error getting file URL:', error);
-    res.status(500).json({ error: 'Failed to get file URL' });
+    console.error('Error getting flashcard set:', error);
+    res.status(500).json({ error: 'Failed to get flashcard set' });
+  }
+});
+
+// List all flashcard sets for user
+router.get('/', async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.session?.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const setIds = await storageService.listFlashcardSets(req.session.user.id);
+    const sets = await Promise.all(
+      setIds.map(id => storageService.getFlashcardSet(id))
+    );
+
+    res.json(sets.map(set => ({
+      id: set.id,
+      title: set.title,
+      createdAt: set.createdAt,
+      cardCount: set.cards.length
+    })));
+  } catch (error) {
+    console.error('Error listing flashcard sets:', error);
+    res.status(500).json({ error: 'Failed to list flashcard sets' });
   }
 });
 
