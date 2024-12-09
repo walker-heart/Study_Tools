@@ -27,6 +27,7 @@ interface FileValidationError extends Error {
 export default function FileUpload({ onFileSelect, isProcessing, setSelectedFile }: FileUploadProps) {
   const { toast } = useToast();
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [fileToUpload, setFileToUpload] = useState<File | null>(null);
 
   const validateFile = (file: File): void | never => {
     if (!file.name.endsWith('.csv')) {
@@ -42,21 +43,38 @@ export default function FileUpload({ onFileSelect, isProcessing, setSelectedFile
     }
   };
 
-  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       validateFile(file);
-      setUploadProgress(0);
+      setFileToUpload(file);
       setSelectedFile(file);
+    } catch (error) {
+      const err = error as FileValidationError;
+      toast({
+        title: "Error",
+        description: err.message || "Invalid file selected",
+        variant: "destructive",
+      });
+      setFileToUpload(null);
+      setSelectedFile(null);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!fileToUpload) return;
+
+    try {
+      setUploadProgress(0);
       
       // Start upload progress animation
       const interval = setInterval(() => {
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 100);
 
-      await onFileSelect(file);
+      await onFileSelect(fileToUpload);
       
       clearInterval(interval);
       setUploadProgress(100);
@@ -90,8 +108,24 @@ export default function FileUpload({ onFileSelect, isProcessing, setSelectedFile
           onChange={handleFileChange}
           disabled={isProcessing}
         />
+        
+        {fileToUpload && (
+          <div className="mt-2">
+            <p className="text-sm text-muted-foreground">
+              Selected file: {fileToUpload.name}
+            </p>
+            <Button 
+              className="mt-2"
+              onClick={handleUpload}
+              disabled={isProcessing || !fileToUpload}
+            >
+              {isProcessing ? "Uploading..." : "Upload File"}
+            </Button>
+          </div>
+        )}
+
         {(uploadProgress > 0 || isProcessing) && (
-          <div className="space-y-2">
+          <div className="space-y-2 mt-2">
             <Progress value={uploadProgress} className="w-full" />
             <p className="text-sm text-muted-foreground">
               {isProcessing ? "Processing file..." : `Uploading: ${uploadProgress}%`}
