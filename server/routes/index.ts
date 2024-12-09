@@ -1,4 +1,3 @@
-import { asyncHandler } from "../middleware/errorHandling";
 import { Router, type Express } from "express";
 import { signUp, signIn, signOut, checkAuth, checkAdmin, requireAdmin, getUsers, updateUser, updateUserPassword } from "./auth";
 import { updateTheme, getTheme } from "./user";
