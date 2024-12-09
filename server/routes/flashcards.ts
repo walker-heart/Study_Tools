@@ -49,23 +49,30 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Upload file to storage with proper error handling
-    const fileBuffer = req.file.buffer;
-    const fileName = `flashcards/${userId}/${Date.now()}-${req.file.originalname}`;
-    const uploadResult = await storage.uploadFile(fileName, fileBuffer);
-
-    if (uploadResult.error) {
-      throw new Error(uploadResult.error);
-    }
-
-    // Store file reference in database with proper type safety
+    // Create flashcard set first to get the setId
     const [flashcardSet] = await db.insert(flashcardSets).values({
       userId,
       title: req.file.originalname,
-      filePath: fileName,
       isPublic: false,
       tags: []
     }).returning();
+
+    // Upload file to storage with proper error handling using setId in path
+    const fileBuffer = req.file.buffer;
+    const fileName = `flashcards/${userId}/${flashcardSet.id}/${req.file.originalname}`;
+    const uploadResult = await storage.uploadFile(fileName, fileBuffer);
+
+    if (uploadResult.error) {
+      // Cleanup the created set if upload fails
+      await db.delete(flashcardSets).where(eq(flashcardSets.id, flashcardSet.id));
+      throw new Error(uploadResult.error);
+    }
+
+    // Update the set with the file path
+    const [updatedSet] = await db.update(flashcardSets)
+      .set({ filePath: fileName })
+      .where(eq(flashcardSets.id, flashcardSet.id))
+      .returning();
 
     res.status(201).json({ 
       message: 'File uploaded successfully',
@@ -254,6 +261,88 @@ router.put('/memorize/:sessionId',
         })
         .where(eq(memorizationSessions.id, parseInt(sessionId)))
         .returning();
+// Get user's uploaded files
+router.get('/sets/files', async (req: AuthenticatedRequest, res) => {
+  try {
+    const userId = req.session.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const userPrefix = `flashcards/${userId}/`;
+    const filesResult = await storage.listFiles(userPrefix);
+    
+    if (filesResult.error) {
+      throw new Error(filesResult.error);
+    }
+
+    // Get all flashcard sets for the user
+    const sets = await db.query.flashcardSets.findMany({
+      where: eq(flashcardSets.userId, userId),
+      orderBy: [flashcardSets.createdAt],
+    });
+
+    const filesWithMetadata = sets.map(set => ({
+      ...set,
+      downloadUrl: null as string | null
+    }));
+
+    // Get download URLs for all files
+    for (const file of filesWithMetadata) {
+      if (file.filePath) {
+        const downloadResult = await storage.downloadFile(file.filePath);
+        if (downloadResult.presignedUrl) {
+          file.downloadUrl = downloadResult.presignedUrl;
+        }
+      }
+    }
+
+    res.json(filesWithMetadata);
+  } catch (error) {
+    console.error('Error listing files:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to list files' });
+  }
+});
+
+// Download a specific file
+router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { setId } = req.params;
+    const userId = req.session.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get the flashcard set
+    const set = await db.query.flashcardSets.findFirst({
+      where: eq(flashcardSets.id, parseInt(setId)),
+    });
+
+    if (!set || set.userId !== userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (!set.filePath) {
+      return res.status(404).json({ error: 'No file associated with this set' });
+    }
+
+    const downloadResult = await storage.downloadFile(set.filePath);
+    
+    if (downloadResult.error) {
+      throw new Error(downloadResult.error);
+    }
+
+    if (!downloadResult.presignedUrl) {
+      throw new Error('Failed to generate download URL');
+    }
+
+    res.json({ downloadUrl: downloadResult.presignedUrl });
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to download file' });
+  }
+});
 
       res.json(updatedSession);
     } catch (error) {
