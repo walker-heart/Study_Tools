@@ -92,7 +92,7 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       userId: req.session.user.id,
       title: req.file.originalname.replace(/\.[^/.]+$/, ""),
       isPublic: false,
-      tags: '{}',
+      tags: [] as string[],
       urlPath: `sets/${timestamp}`,
       filePath: filePath,
       createdAt: new Date(),

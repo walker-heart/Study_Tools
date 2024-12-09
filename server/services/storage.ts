@@ -89,7 +89,7 @@ class ReplitStorageService implements StorageService {
         throw new Error(`Failed to list files: ${result.error}`);
       }
       
-      return result.files;
+      return result.files || [];
     } catch (error) {
       console.error('Error listing flashcard sets:', {
         error: error instanceof Error ? error.message : String(error),

@@ -74,7 +74,7 @@ export async function checkAuth(req: Request, res: Response) {
 
     if (!user) {
       console.log('User not found in database, clearing session');
-      req.session.destroy((err) => {
+      req.session.destroy((err: Error | null) => {
         if (err) console.error('Session destruction error:', err);
       });
       return res.status(401).json({ authenticated: false, error: 'User not found' });
@@ -90,7 +90,7 @@ export async function checkAuth(req: Request, res: Response) {
 
     // Save session explicitly
     await new Promise<void>((resolve, reject) => {
-      req.session.save((err) => {
+      req.session.save((err: Error | null) => {
         if (err) {
           console.error('Session save error:', err);
           reject(err);
