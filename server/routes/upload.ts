@@ -64,12 +64,31 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       });
     }
 
+    // Get user information for URL path
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, req.session.user.id)
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Get the next ID for the set
+    const lastSet = await db.query.flashcardSets.findFirst({
+      orderBy: [desc(flashcardSets.id)],
+    });
+    const nextId = (lastSet?.id || 0) + 1;
+
+    // Create URL path: /flashcards/(firstname+lastname)/(incrementing-id)
+    const urlPath = `${user.first_name.toLowerCase()}${user.last_name.toLowerCase()}/${nextId}`;
+
     // Create flashcard set in database
     const [newSet] = await db.insert(flashcardSets).values({
       userId: req.session.user.id,
       title: req.file.originalname,
       isPublic: false,
-      tags: []
+      tags: [],
+      urlPath
     }).returning();
 
     // Create unique file path
