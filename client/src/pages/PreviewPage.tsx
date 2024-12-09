@@ -18,8 +18,9 @@ interface FlashcardSet {
   id: number;
   title: string;
   filePath: string | null;
+  pdfPath: string | null;
   downloadUrl: string | null;
-  fileType: 'csv' | 'image' | 'unknown' | null;
+  fileType: 'csv' | 'image' | 'pdf' | 'unknown' | null;
 }
 
 export default function PreviewPage() {
@@ -127,17 +128,31 @@ export default function PreviewPage() {
               {flashcardSet?.fileType === 'csv' ? 'Download CSV' : 'View File'}
             </Button>
           </div>
-          {flashcardSet?.fileType === 'image' && flashcardSet.downloadUrl ? (
-            <div className="flex justify-center mb-4">
-              <img 
-                src={flashcardSet.downloadUrl} 
-                alt={flashcardSet.title}
-                className="max-w-full h-auto rounded-lg shadow-lg"
-              />
-            </div>
-          ) : (
-            <CardPreview cards={previewCards} />
-          )}
+          {(() => {
+            if (flashcardSet?.fileType === 'pdf' && flashcardSet.downloadUrl) {
+              return (
+                <div className="flex justify-center mb-4">
+                  <iframe
+                    src={flashcardSet.downloadUrl}
+                    title="PDF Preview"
+                    className="w-full h-[600px] rounded-lg shadow-lg"
+                  />
+                </div>
+              );
+            } else if (flashcardSet?.fileType === 'image' && flashcardSet.downloadUrl) {
+              return (
+                <div className="flex justify-center mb-4">
+                  <img 
+                    src={flashcardSet.downloadUrl} 
+                    alt={flashcardSet.title}
+                    className="max-w-full h-auto rounded-lg shadow-lg"
+                  />
+                </div>
+              );
+            } else {
+              return <CardPreview cards={previewCards} />;
+            }
+          })()}
         </Card>
       </div>
     </div>
