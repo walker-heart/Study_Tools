@@ -118,8 +118,20 @@ app.use('/storage', express.static(storageDir, {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Range');
+    res.setHeader('Access-Control-Expose-Headers', 'Accept-Ranges, Content-Range, Content-Length');
   }
 }));
+
+// Handle storage directory access
+app.use('/api/storage/:userId/:filename', (req, res, next) => {
+  const { userId, filename } = req.params;
+  if (!req.session?.user?.id || req.session.user.id !== parseInt(userId)) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  next();
+});
 
 // Debug logging
 app.use((req, _res, next) => {
