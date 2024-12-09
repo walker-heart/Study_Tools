@@ -8,7 +8,7 @@ export const flashcardSets = pgTable("flashcard_sets", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   isPublic: boolean("is_public").default(false),
-  tags: json("tags").$type<string[]>().default([]),
+  tags: json("tags").$type<string[]>().default('[]'),
   filePath: text("file_path"),
   urlPath: text("url_path"),
   createdAt: timestamp("created_at").defaultNow(),

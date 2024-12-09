@@ -33,12 +33,30 @@ interface StorageListResponse {
 class ObjectStorage {
   private readonly API_BASE = 'https://api.replit.com/v1/replspace/object-storage';
 
+  private async retryFetch(url: string, options: any, retries = 3): Promise<Response> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url, {
+          ...options,
+          timeout: 5000, // 5 second timeout
+        });
+        return response;
+      } catch (error) {
+        console.error(`Attempt ${i + 1} failed:`, error);
+        if (i === retries - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+      }
+    }
+    throw new Error('All retry attempts failed');
+  }
+
   async uploadFile(path: string, fileData: Buffer): Promise<StorageResponse> {
     try {
       console.log('Storage Service - Upload request:', {
         path,
         fileSize: fileData.length,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        apiBase: this.API_BASE
       });
       
       // Validate input
@@ -46,8 +64,8 @@ class ObjectStorage {
         throw new Error('Invalid upload parameters: path and file data are required');
       }
 
-      // Get upload URL
-      const uploadResponse = await fetch(`${this.API_BASE}/generate-presigned-url`, {
+      // Get upload URL with retry logic
+      const uploadResponse = await this.retryFetch(`${this.API_BASE}/generate-presigned-url`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
