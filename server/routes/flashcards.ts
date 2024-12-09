@@ -1,6 +1,7 @@
 import { Router, Request } from 'express';
 import { eq } from 'drizzle-orm';
 import multer from 'multer';
+import { storageService } from '../services/storage';
 import { body, validationResult } from 'express-validator';
 import { createSlug } from '../utils/slug';
 import { db, query } from '@db/index';

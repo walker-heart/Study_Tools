@@ -25,6 +25,33 @@ interface FlashcardSet {
 }
 
 export default function Flashcards() {
+  const handleDelete = async (setId: number) => {
+    try {
+      const response = await fetch(`/api/flashcards/sets/${setId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete flashcard set');
+      }
+      
+      // Refresh the file list
+      await fetchUploadedFiles();
+      
+      toast({
+        title: "Success",
+        description: "Flashcard set deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting flashcard set:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete flashcard set",
+        variant: "destructive",
+      });
+    }
+  };
   const [, setLocation] = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewCards, setPreviewCards] = useState<VocabCard[]>([]);

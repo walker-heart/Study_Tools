@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import CardPreview from "@/components/CardPreview";
 import { ArrowLeft } from "lucide-react";
+import { generatePDF } from "../lib/pdfGenerator";
 
 interface VocabCard {
   'Vocab Word': string;
@@ -25,7 +26,7 @@ interface FlashcardSet {
 
 export default function PreviewPage() {
   const [, setLocation] = useLocation();
-  const [, params] = useRoute("/flashcards/:userSlug/:setId");
+  const [matches, params] = useRoute("/flashcards/:userSlug/:setId");
   const [isLoading, setIsLoading] = useState(true);
   const [flashcardSet, setFlashcardSet] = useState<FlashcardSet | null>(null);
   const [previewCards, setPreviewCards] = useState<VocabCard[]>([]);
@@ -68,6 +69,12 @@ export default function PreviewPage() {
     if (!flashcardSet?.id) return;
     
     try {
+      // First generate PDF from the cards data
+      if (previewCards.length > 0) {
+        await generatePDF(new Blob([JSON.stringify(previewCards)], { type: 'application/json' }));
+      }
+
+      // Also provide option to download original CSV
       const response = await fetch(`/api/flashcards/sets/${flashcardSet.id}/download`, {
         credentials: 'include'
       });
@@ -76,20 +83,16 @@ export default function PreviewPage() {
         throw new Error('Failed to get download URL');
       }
       
-      const { downloadUrl, contentType } = await response.json();
+      const { downloadUrl } = await response.json();
       
-      if (flashcardSet.fileType === 'image') {
-        // For images, open in new tab
-        window.open(downloadUrl, '_blank');
-      } else {
-        // For CSV files, trigger direct download
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = `${flashcardSet.title || 'flashcards'}.${flashcardSet.fileType === 'csv' ? 'csv' : 'txt'}`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+      // For CSV files, trigger direct download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${flashcardSet.title || 'flashcards'}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
     } catch (error) {
       console.error('Error downloading file:', error);
       toast({

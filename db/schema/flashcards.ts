@@ -11,6 +11,7 @@ export const flashcardSets = pgTable("flashcard_sets", {
   tags: json("tags").$type<string[]>().default(['[]']),
   filePath: text("file_path"),
   urlPath: text("url_path"),
+  pdfPath: text("pdf_path"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
