@@ -107,18 +107,25 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
     const filePath = `flashcards/${req.session.user.id}/${newSet.id}/${req.file.originalname}`;
     
     // Upload file to storage
+    console.log('Attempting to upload file:', { filePath, fileSize: req.file.buffer.length });
     const uploadResult = await storage.uploadFile(filePath, req.file.buffer);
+    console.log('Upload result:', uploadResult);
+    
     if (uploadResult.error) {
+      console.error('File upload failed:', uploadResult.error);
       // Cleanup the database entry if file upload fails
       await db.delete(flashcardSets).where(eq(flashcardSets.id, newSet.id));
       throw new Error(uploadResult.error);
     }
 
+    console.log('File uploaded successfully, updating database record');
     // Update set with file path
     const [updatedSet] = await db.update(flashcardSets)
       .set({ filePath })
       .where(eq(flashcardSets.id, newSet.id))
       .returning();
+    
+    console.log('Database record updated:', updatedSet);
 
     // Insert flashcards
     await db.insert(flashcards).values(cardValues);
