@@ -14,14 +14,22 @@ const connectionConfig = {
   max: 20,
   idle_timeout: 20,
   connect_timeout: 10,
-  ssl: env.NODE_ENV === 'production' ? {
+  ssl: {
     rejectUnauthorized: false
-  } : false,
+  },
   debug: env.NODE_ENV === 'development',
   onnotice: () => {}, // Ignore notice messages
   connection: {
     application_name: 'flashcard-app'
-  }
+  },
+  transform: {
+    undefined: null,
+  },
+  host: process.env.PGHOST,
+  port: parseInt(process.env.PGPORT || '5432'),
+  user: process.env.PGUSER,
+  password: process.env.PGPASSWORD,
+  database: process.env.PGDATABASE
 };
 
 // Create the client with SSL configuration
@@ -43,11 +51,29 @@ export const sql = client;
 // Test database connection function
 export async function testDatabaseConnection() {
   try {
-    await sql`SELECT NOW()`;
-    console.log('Database connection successful');
+    const result = await sql`SELECT NOW()`;
+    console.log('Database connection successful:', result[0].now);
+    
+    // Test session table creation
+    await sql`
+      CREATE TABLE IF NOT EXISTS "session" (
+        "sid" varchar NOT NULL COLLATE "default",
+        "sess" json NOT NULL,
+        "expire" timestamp(6) NOT NULL,
+        CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+      )
+    `;
+    console.log('Session table verified');
     return true;
   } catch (error) {
     console.error('Database connection error:', error);
+    console.error('Connection details:', {
+      host: process.env.PGHOST,
+      port: process.env.PGPORT,
+      database: process.env.PGDATABASE,
+      user: process.env.PGUSER,
+      ssl: env.NODE_ENV === 'production'
+    });
     throw error;
   }
 }

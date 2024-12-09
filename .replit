@@ -61,3 +61,7 @@ args = "npm run build"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-6dd59cd2-cf93-4a5d-9ba1-3b2545b019a0"
+
+[auth]
+pageEnabled = false
+buttonEnabled = false

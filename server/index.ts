@@ -124,25 +124,41 @@ app.use(express.urlencoded({ extended: false }));
 app.use(session({
   store: new pgSession({
     pool: sql,
-    tableName: 'user_sessions',
+    tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15,
+    pruneSessionInterval: 60 * 15, // Cleanup every 15 minutes
     errorLog: (err) => {
       console.error('Session store error:', err);
+      // Continue with memory store if database fails
     }
   }),
   name: 'sid',
   secret: env.JWT_SECRET!,
   resave: false,
   saveUninitialized: false,
+  rolling: true, // Refresh session with each request
   cookie: {
-    secure: env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
     sameSite: 'lax',
     path: '/'
   }
 }));
+
+// Add session debug middleware in development
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, _res, next) => {
+    if (req.session) {
+      console.log('Session data:', {
+        id: req.session.id,
+        user: req.session.user,
+        authenticated: req.session.authenticated
+      });
+    }
+    next();
+  });
+}
 
 // Add static file error handling
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
@@ -189,10 +205,12 @@ app.use((req, res, next) => {
     // Initialize critical services
     const initializeServices = async () => {
       try {
-        // Import and test database connection first
+        // Create database connection
+        log('Initializing database connection...');
         const { testDatabaseConnection } = await import('./db');
         await testDatabaseConnection();
-        
+        log('Database connection established successfully');
+
         // Initialize storage service - it will create directory if needed
         const storageDir = join(process.cwd(), 'storage', 'files');
         if (!existsSync(storageDir)) {
