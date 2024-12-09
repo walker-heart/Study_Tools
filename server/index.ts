@@ -196,11 +196,22 @@ app.use((req, res, next) => {
         }
         log('File storage system initialized successfully');
 
-        // Test storage service by writing and deleting a test file
+        // Test storage service by creating and deleting a test flashcard set
         try {
-          const testBuffer = Buffer.from('test');
-          const testFile = await storageService.uploadFile(testBuffer, 'test.txt');
-          await storageService.deleteFile(testFile);
+          const testSet = {
+            id: 999999,
+            userId: 1,
+            title: "Test Set",
+            cards: [{
+              text: "Test flashcard",
+              createdAt: new Date().toISOString()
+            }],
+            createdAt: new Date().toISOString()
+          };
+          
+          await storageService.saveFlashcardSet(testSet.id, testSet);
+          await storageService.getFlashcardSet(testSet.id);
+          await storageService.deleteFlashcardSet(testSet.id);
           log('Storage service verified successfully');
         } catch (testError) {
           log(`Warning: Storage service test failed: ${testError instanceof Error ? testError.message : String(testError)}`);

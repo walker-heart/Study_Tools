@@ -1,18 +1,30 @@
-import { mkdir, writeFile, readFile, unlink } from 'fs/promises';
+import { mkdir, writeFile, readFile, unlink, readdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 
+interface FlashcardSet {
+  id: number;
+  userId: number;
+  title: string;
+  cards: Array<{
+    text: string;
+    createdAt: string;
+  }>;
+  createdAt: string;
+}
+
 interface StorageService {
-  uploadFile(file: Buffer, fileName: string): Promise<string>;
-  getFileUrl(filePath: string): Promise<string>;
-  deleteFile(filePath: string): Promise<void>;
+  saveFlashcardSet(setId: number, data: FlashcardSet): Promise<void>;
+  getFlashcardSet(setId: number): Promise<FlashcardSet>;
+  deleteFlashcardSet(setId: number): Promise<void>;
+  listFlashcardSets(userId: number): Promise<number[]>;
 }
 
 class FileStorageService implements StorageService {
   private readonly storageDir: string;
 
   constructor() {
-    this.storageDir = join(process.cwd(), 'storage', 'files');
+    this.storageDir = join(process.cwd(), 'storage', 'flashcards');
     this.initializeStorage().catch(console.error);
   }
 
@@ -22,63 +34,71 @@ class FileStorageService implements StorageService {
     }
   }
 
-  async uploadFile(file: Buffer, fileName: string): Promise<string> {
-    try {
-      // Generate unique filename
-      const timestamp = Date.now();
-      const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const uniqueFileName = `${timestamp}_${sanitizedFileName}`;
-      const filePath = join(this.storageDir, uniqueFileName);
+  private getSetFilePath(setId: number): string {
+    return join(this.storageDir, `set_${setId}.json`);
+  }
 
-      // Write file to storage
-      await writeFile(filePath, file);
-      console.log(`File uploaded successfully: ${uniqueFileName}`);
+  async saveFlashcardSet(setId: number, data: FlashcardSet): Promise<void> {
+    try {
+      const filePath = this.getSetFilePath(setId);
+      await writeFile(filePath, JSON.stringify(data, null, 2));
+      console.log(`Flashcard set ${setId} saved successfully`);
+    } catch (error) {
+      console.error(`Error saving flashcard set ${setId}:`, error);
+      throw new Error('Failed to save flashcard set');
+    }
+  }
+
+  async getFlashcardSet(setId: number): Promise<FlashcardSet> {
+    try {
+      const filePath = this.getSetFilePath(setId);
+      const fileContent = await readFile(filePath, 'utf-8');
+      return JSON.parse(fileContent);
+    } catch (error) {
+      console.error(`Error reading flashcard set ${setId}:`, error);
+      throw new Error('Failed to read flashcard set');
+    }
+  }
+
+  async deleteFlashcardSet(setId: number): Promise<void> {
+    try {
+      const filePath = this.getSetFilePath(setId);
+      await unlink(filePath);
+      console.log(`Flashcard set ${setId} deleted successfully`);
+    } catch (error) {
+      console.error(`Error deleting flashcard set ${setId}:`, error);
+      throw new Error('Failed to delete flashcard set');
+    }
+  }
+
+  async listFlashcardSets(userId: number): Promise<number[]> {
+    try {
+      const files = await readdir(this.storageDir);
+      const setIds = files
+        .filter(file => file.startsWith('set_') && file.endsWith('.json'))
+        .map(file => {
+          const match = file.match(/set_(\d+)\.json/);
+          return match ? parseInt(match[1], 10) : null;
+        })
+        .filter((id): id is number => id !== null);
       
-      return uniqueFileName;
-    } catch (error) {
-      console.error('Upload error:', error);
-      throw new Error('Failed to upload file');
-    }
-  }
-
-  async getFileUrl(filePath: string): Promise<string> {
-    try {
-      const fullPath = join(this.storageDir, filePath);
-      const fileContent = await readFile(fullPath);
-      const contentType = this.getContentType(filePath);
+      // Filter sets by userId by reading each file
+      const userSets = await Promise.all(
+        setIds.map(async id => {
+          try {
+            const set = await this.getFlashcardSet(id);
+            return set.userId === userId ? id : null;
+          } catch {
+            return null;
+          }
+        })
+      );
       
-      // Create data URL
-      const base64Content = fileContent.toString('base64');
-      return `data:${contentType};base64,${base64Content}`;
+      return userSets.filter((id): id is number => id !== null);
     } catch (error) {
-      console.error('File access error:', error);
-      throw new Error('Failed to access file');
+      console.error('Error listing flashcard sets:', error);
+      throw new Error('Failed to list flashcard sets');
     }
-  }
-
-  async deleteFile(filePath: string): Promise<void> {
-    try {
-      const fullPath = join(this.storageDir, filePath);
-      await unlink(fullPath);
-      console.log(`File deleted successfully: ${filePath}`);
-    } catch (error) {
-      console.error('Delete error:', error);
-      throw new Error('Failed to delete file');
-    }
-  }
-
-  private getContentType(filePath: string): string {
-    const extension = filePath.split('.').pop()?.toLowerCase() ?? '';
-    const mimeTypes: Record<string, string> = {
-      'csv': 'text/csv',
-      'json': 'application/json',
-      'pdf': 'application/pdf',
-      'png': 'image/png',
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg'
-    };
-    
-    return mimeTypes[extension] || 'application/octet-stream';
   }
 }
 
