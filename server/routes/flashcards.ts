@@ -347,21 +347,11 @@ router.post('/sets/:setId/generate-pdf', async (req: AuthenticatedRequest, res) 
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Convert cards to PDF format using jsPDF
-    // Note: This would be implemented in a separate service
-    // For now we'll use a placeholder PDF
-    const pdfData = Buffer.from('PDF content placeholder');
-    
-    // Save the PDF preview
-    const pdfPath = await storageService.savePdfPreview(parseInt(setId), pdfData);
-    
-    // Update the set with PDF path
-    await db.update(flashcardSets)
-      .set({ 
-        pdfPath,
-        updatedAt: new Date()
-      })
-      .where(eq(flashcardSets.id, parseInt(setId)));
+    // For now we'll skip PDF generation
+    // TODO: Implement proper PDF generation service
+    console.log('PDF generation requested for set:', setId);
+    res.json({ success: true, message: 'PDF generation skipped - feature not implemented' });
+    return;
 
     res.json({ success: true, message: 'PDF preview generated' });
   } catch (error) {
