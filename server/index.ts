@@ -1,40 +1,21 @@
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes/index";
-import uploadRouter from "./routes/upload";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import { db, testDatabaseConnection } from "./db";
-import pkg from 'pg';
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
-import { existsSync, mkdirSync } from 'fs';
-import { storageService } from './services/storage';
-
-const { Pool } = pkg;
-
-// Set up __dirname equivalent for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Set up storage directory
-const storageDir = join(dirname(__dirname), 'storage');
-if (!existsSync(storageDir)) {
-  mkdirSync(storageDir, { recursive: true });
-}
-
-// Create PostgreSQL pool
-const sessionPool = new Pool({
-  connectionString: env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
 
 const pgSession = connectPgSimple(session);
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -43,24 +24,23 @@ function log(message: string) {
     second: "2-digit",
     hour12: true,
   });
+
   console.log(`${formattedTime} [express] ${message}`);
 }
 
 const app = express();
-
-// Configure CORS
+// Configure CORS middleware with more permissive settings for development
 const corsOptions = {
-  origin: true,
+  origin: true, // Allow all origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Content-Length', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials'],
-  maxAge: 86400
+  exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials']
 };
 
 app.use(cors(corsOptions));
 
-// CORS headers
+// Add CORS headers for all responses
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin) {
@@ -79,72 +59,97 @@ app.use((req, res, next) => {
   next();
 });
 
+// Add pre-flight OPTIONS handling
 app.options('*', cors());
 
-// Session configuration
+// Serve static files from the Vite build output
+const publicPath = path.join(__dirname, '..', 'dist', 'public');
+log(`Serving static files from: ${publicPath}`);
+
+// Configure static file serving with proper CORS and caching
+const staticOptions = {
+  maxAge: '1h',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res: Response, path: string) => {
+    // Set aggressive caching for assets
+    const cacheControl = path.includes('/assets/') 
+      ? 'public, max-age=31536000' // 1 year for assets
+      : 'public, max-age=3600';    // 1 hour for other static files
+
+    res.setHeader('Cache-Control', cacheControl);
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Range');
+  }
+};
+
+// Serve the main public directory
+app.use(express.static(publicPath, {
+  ...staticOptions,
+  index: false, // Let our router handle the index route
+  fallthrough: true // Continue to next middleware if file not found
+}));
+
+// Explicitly serve assets directory with additional caching
+app.use('/assets', express.static(path.join(publicPath, 'assets'), {
+  ...staticOptions,
+  immutable: true, // Never validate the cache for versioned assets
+  fallthrough: true
+}));
+
+// Handle static file errors
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.code === 'ENOENT') {
+    log(`Static file not found: ${req.url}`);
+    next();
+  } else {
+    log(`Static file error: ${err.message}`);
+    next(err);
+  }
+});
+
+// Log static file paths for debugging
+log(`Serving static files from: ${publicPath}`);
+
+// Basic request handlers
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+// Configure session middleware with proper error handling
 app.use(session({
   store: new pgSession({
-    pool: sessionPool,
-    tableName: 'session',
+    conObject: {
+      connectionString: env.DATABASE_URL,
+      ssl: true
+    },
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15,
-    errorLog: (err) => {
-      console.error('Session store error:', err);
-    }
+    pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
+    errorLog: console.error // Log session store errors
   }),
-  name: 'sid',
-  secret: env.JWT_SECRET!,
-  resave: true,
-  saveUninitialized: true,
-  rolling: true,
+  name: 'sid', // Session ID cookie name
+  secret: env.JWT_SECRET,
+  resave: false,
+  saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
     sameSite: 'lax',
     path: '/'
   }
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-
-// Serve uploaded files
-app.use('/storage', express.static(storageDir, {
-  maxAge: '1h',
-  etag: true,
-  lastModified: true,
-  setHeaders: (res: Response) => {
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Range');
-    res.setHeader('Access-Control-Expose-Headers', 'Accept-Ranges, Content-Range, Content-Length');
+// Add static file error handling
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.code === 'ENOENT') {
+    log(`Static file not found: ${req.url}`);
+    next();
+  } else {
+    next(err);
   }
-}));
-
-// Handle storage directory access
-app.use('/api/storage/:userId/:filename', (req, res, next) => {
-  const { userId, filename } = req.params;
-  if (!req.session?.user?.id || req.session.user.id !== parseInt(userId)) {
-    return res.status(403).json({ error: 'Unauthorized' });
-  }
-  next();
 });
 
-// Debug logging
-app.use((req, _res, next) => {
-  console.log('Session Debug:', {
-    id: req.session.id,
-    user: req.session.user,
-    authenticated: req.session.authenticated,
-    cookie: req.session.cookie
-  });
-  next();
-});
-
-// Request logging
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -163,9 +168,11 @@ app.use((req, res, next) => {
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
+
       if (logLine.length > 80) {
         logLine = logLine.slice(0, 79) + "…";
       }
+
       log(logLine);
     }
   });
@@ -175,99 +182,67 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Initialize services
-    const initializeServices = async () => {
-      try {
-        log('Initializing database connection...');
-        const { testDatabaseConnection } = await import('./db');
-        await testDatabaseConnection();
-        log('Database connection established successfully');
+    // Verify database connection
+    try {
+      await db.execute(sql`SELECT 1`);
+      log('Database connection successful');
+    } catch (error) {
+      log('Error connecting to database: ' + error);
+      process.exit(1);
+    }
 
-        // Test storage service
-        try {
-          const testPath = 'test/storage-check.txt';
-          const testContent = Buffer.from('Storage test');
-          
-          await storageService.saveFlashcardSet(0, testPath, testContent);
-          log('Storage test upload successful');
-
-          await storageService.getFlashcardSet(0, testPath);
-          log('Storage test download successful');
-
-          await storageService.deleteFlashcardSet(0, testPath);
-          log('Storage test delete successful');
-
-          log('Object Storage service verified successfully');
-        } catch (testError) {
-          log(`Warning: Object Storage test failed: ${testError instanceof Error ? testError.message : String(testError)}`);
-        }
-      } catch (error) {
-        log(`Warning: Failed to initialize services: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    };
-
-    await initializeServices();
-
+    // Check for required environment variables
     if (!process.env.JWT_SECRET) {
       log('Error: JWT_SECRET is not set. Authentication will not work properly.');
       process.exit(1);
     }
 
+    if (!process.env.DATABASE_URL) {
+      log('Error: DATABASE_URL is not set. Database connections will fail.');
+      process.exit(1);
+    }
+
+    // Register routes before error handling
     registerRoutes(app);
-    app.use('/api/upload', uploadRouter);
     
     const server = createServer(app);
 
-    // Error handling
+    // Error handling middleware
     app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
       const status = (err.status || err.statusCode || 500);
       const message = err.message || "Internal Server Error";
+      
       log(`Error: ${message}`);
       res.status(status).json({ message });
     });
 
-    // Environment specific configuration
+    // importantly only setup vite in development and after
+    // setting up all the other routes so the catch-all route
+    // doesn't interfere with the other routes
+    // Configure server based on environment
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
+      // Ensure static files are served in production
       serveStatic(app);
+      
+      // Add catch-all route to serve index.html for client-side routing
       app.get('*', (_req, res) => {
-        res.sendFile(join(__dirname, '..', 'dist', 'public', 'index.html'));
+        res.sendFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'));
       });
     }
 
+    // Get port from environment or default to 5000
     const PORT = parseInt(process.env.PORT || '5000', 10);
-    
-    // Start server
-    log('Attempting to start server...');
-    try {
-      await new Promise((resolve, reject) => {
-        const serverInstance = server.listen({
-          port: PORT,
-          host: '0.0.0.0'
-        }, () => {
-          log(`Server running in ${app.get("env")} mode on port ${PORT}`);
-          log(`APP_URL: ${env.APP_URL}`);
-          resolve(true);
-        });
-
-        serverInstance.on('error', (err: NodeJS.ErrnoException) => {
-          log(`Server startup error: ${err.message}`);
-          if (err.code === 'EADDRINUSE') {
-            log(`Port ${PORT} is already in use`);
-          }
-          reject(err);
-        });
-      });
-    } catch (error) {
-      log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
-      process.exit(1);
-    }
+    server.listen({
+      port: PORT,
+      host: '0.0.0.0'
+    }, () => {
+      log(`Server running in ${app.get("env")} mode on port ${PORT}`);
+      log(`APP_URL: ${env.APP_URL}`);
+    });
   } catch (error) {
-    log(`Fatal error during initialization: ${error instanceof Error ? error.message : String(error)}`);
+    log(`Fatal error: ${error}`);
     process.exit(1);
   }
-})().catch(error => {
-  log(`Unhandled error: ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
-});
+})();

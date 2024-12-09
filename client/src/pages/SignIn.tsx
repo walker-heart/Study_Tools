@@ -59,20 +59,7 @@ export default function SignIn() {
         throw new Error(data.message || 'Failed to sign in');
       }
       
-      const data = await response.json();
-      
-      // Verify the session is established
-      const authCheck = await fetch('/api/auth/check', {
-        credentials: 'include',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
-      
-      if (!authCheck.ok) {
-        throw new Error('Failed to establish session');
-      }
-      
+      await response.json(); // We don't need to store the token anymore
       setLocation('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in');

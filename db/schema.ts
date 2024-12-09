@@ -1,3 +1,2 @@
-// Export all schemas
+// Re-export the schema from schema/users.ts for backward compatibility
 export * from "./schema/users";
-export * from "./schema/flashcards";

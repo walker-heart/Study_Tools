@@ -42,81 +42,10 @@ export async function signUp(req: Request, res: Response) {
 
 // Add session check endpoint
 export async function checkAuth(req: Request, res: Response) {
-  try {
-    console.log('Auth check - Session data:', {
-      sessionId: req.session.id,
-      sessionUser: req.session.user,
-      authenticated: req.session.authenticated,
-      cookie: req.session.cookie
-    });
-
-    if (!req.session) {
-      console.log('No session found');
-      return res.status(401).json({ authenticated: false, error: 'No session' });
-    }
-
-    if (!req.session.user?.id) {
-      console.log('No user in session');
-      return res.status(401).json({ authenticated: false, error: 'No user in session' });
-    }
-
-    // Verify user still exists in database
-    const [user] = await db
-      .select({
-        id: users.id,
-        email: users.email,
-        isAdmin: users.isAdmin,
-        theme: users.theme
-      })
-      .from(users)
-      .where(eq(users.id, req.session.user.id))
-      .limit(1);
-
-    if (!user) {
-      console.log('User not found in database, clearing session');
-      req.session.destroy((err: Error | null) => {
-        if (err) console.error('Session destruction error:', err);
-      });
-      return res.status(401).json({ authenticated: false, error: 'User not found' });
-    }
-
-    // Update session data
-    req.session.user = {
-      id: user.id,
-      email: user.email,
-      isAdmin: user.isAdmin
-    };
-    req.session.authenticated = true;
-
-    // Save session explicitly
-    await new Promise<void>((resolve, reject) => {
-      req.session.save((err: Error | null) => {
-        if (err) {
-          console.error('Session save error:', err);
-          reject(err);
-        } else {
-          console.log('Session saved successfully');
-          resolve();
-        }
-      });
-    });
-
-    console.log('Auth check successful for user:', user.id);
-    res.json({ 
-      authenticated: true, 
-      user: { 
-        id: user.id, 
-        email: user.email,
-        isAdmin: user.isAdmin,
-        theme: user.theme || 'light'
-      } 
-    });
-  } catch (error) {
-    console.error('Auth check error:', error);
-    res.status(500).json({ 
-      authenticated: false, 
-      error: 'Internal server error during auth check' 
-    });
+  if (req.session.user?.id) {
+    res.json({ authenticated: true, user: { id: req.session.user.id, email: req.session.user.email } });
+  } else {
+    res.status(401).json({ authenticated: false });
   }
 }
 
@@ -125,13 +54,7 @@ export async function signIn(req: Request, res: Response) {
     const { email, password } = req.body;
 
     // Find user
-    const [user] = await db.select({
-      id: users.id,
-      email: users.email,
-      passwordHash: users.passwordHash,
-      isAdmin: users.isAdmin,
-      theme: users.theme
-    }).from(users).where(eq(users.email, email));
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -142,41 +65,20 @@ export async function signIn(req: Request, res: Response) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    try {
-      console.log('Setting up session for user:', user.id);
-      
-      // Set user session
-      req.session.user = {
-        id: user.id,
-        email: user.email,
-        isAdmin: user.isAdmin
-      };
-      req.session.authenticated = true;
-      
-      console.log('Session data before save:', req.session);
-      
-      // Save session before responding
-      await new Promise<void>((resolve, reject) => {
-        req.session.save((err: Error | null) => {
-          if (err) {
-            console.error('Session save error:', err);
-            reject(err);
-          } else {
-            console.log('Session saved successfully');
-            resolve();
-          }
-        });
-      });
-      
-      console.log('Final session state:', {
-        id: req.session.id,
-        user: req.session.user,
-        authenticated: req.session.authenticated
-      });
-    } catch (sessionError) {
-      console.error('Session creation error:', sessionError);
-      return res.status(500).json({ message: "Error creating session" });
-    }
+    // Set user session
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      isAdmin: user.isAdmin
+    };
+    req.session.authenticated = true;
+    
+    // Create a session record in the database
+    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    await sql`
+      INSERT INTO user_sessions (user_id, ip_address)
+      VALUES (${user.id}, ${ipAddress})
+    `;
     
     // Also send JWT token for API authentication
     const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
