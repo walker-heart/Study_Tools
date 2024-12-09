@@ -1,35 +1,24 @@
 import { storage } from '../lib/storage';
 
-interface FlashcardSet {
-  id: number;
-  userId: number;
-  title: string;
-  filePath: string;
-  createdAt: string;
-}
-
 interface StorageService {
   saveFlashcardSet(setId: number, filePath: string, fileData: Buffer): Promise<string>;
+  savePdfPreview(setId: number, pdfData: Buffer): Promise<string>;
   getFlashcardSet(setId: number, filePath: string): Promise<Buffer>;
+  getPdfPreview(setId: number): Promise<Buffer>;
   deleteFlashcardSet(setId: number, filePath: string): Promise<void>;
   listFlashcardSets(userId: number): Promise<{ files: string[]; success: boolean; error?: string; }>;
 }
 
 class ReplitStorageService implements StorageService {
-  private getFullPath(setId: number, filePath: string): string {
-    return `flashcards/${setId}/${filePath}`;
-  }
-
   async saveFlashcardSet(setId: number, filePath: string, fileData: Buffer): Promise<string> {
     try {
-      const fullPath = this.getFullPath(setId, filePath);
-      const result = await storage.upload(fullPath, fileData);
+      const result = await storage.upload(filePath, fileData);
       
       if (!result.success) {
-        throw new Error(`Failed to upload file: ${result.error}`);
+        throw new Error(`Failed to save flashcard set: ${result.error}`);
       }
       
-      return fullPath;
+      return filePath;
     } catch (error) {
       console.error(`Error saving flashcard set ${setId}:`, {
         error: error instanceof Error ? error.message : String(error),
@@ -40,17 +29,16 @@ class ReplitStorageService implements StorageService {
           timestamp: new Date().toISOString()
         }
       });
-      throw new Error(`Failed to save flashcard set: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error('Failed to save flashcard set');
     }
   }
 
   async getFlashcardSet(setId: number, filePath: string): Promise<Buffer> {
     try {
-      const fullPath = this.getFullPath(setId, filePath);
-      const result = await storage.download(fullPath);
+      const result = await storage.download(filePath);
       
       if (!result.success || !result.data) {
-        throw new Error(result.error || 'Failed to download file');
+        throw new Error(result.error || 'Failed to download flashcard set');
       }
       
       return result.data;
@@ -65,11 +53,10 @@ class ReplitStorageService implements StorageService {
 
   async deleteFlashcardSet(setId: number, filePath: string): Promise<void> {
     try {
-      const fullPath = this.getFullPath(setId, filePath);
-      const result = await storage.delete(fullPath);
+      const result = await storage.delete(filePath);
       
       if (!result.success) {
-        throw new Error(`Failed to delete file: ${result.error}`);
+        throw new Error(result.error || 'Failed to delete flashcard set');
       }
     } catch (error) {
       console.error(`Error deleting flashcard set:`, {
@@ -77,6 +64,48 @@ class ReplitStorageService implements StorageService {
         context: { setId, filePath }
       });
       throw new Error('Failed to delete flashcard set');
+    }
+  }
+
+  async savePdfPreview(setId: number, pdfData: Buffer): Promise<string> {
+    try {
+      const pdfPath = `flashcards/${setId}/preview.pdf`;
+      const result = await storage.upload(pdfPath, pdfData);
+      
+      if (!result.success) {
+        throw new Error(`Failed to upload PDF preview: ${result.error}`);
+      }
+      
+      return pdfPath;
+    } catch (error) {
+      console.error(`Error saving PDF preview for set ${setId}:`, {
+        error: error instanceof Error ? error.message : String(error),
+        context: {
+          setId,
+          fileSize: pdfData.length,
+          timestamp: new Date().toISOString()
+        }
+      });
+      throw new Error(`Failed to save PDF preview: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async getPdfPreview(setId: number): Promise<Buffer> {
+    try {
+      const pdfPath = `flashcards/${setId}/preview.pdf`;
+      const result = await storage.download(pdfPath);
+      
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to download PDF preview');
+      }
+      
+      return result.data;
+    } catch (error) {
+      console.error(`Error reading PDF preview:`, {
+        error: error instanceof Error ? error.message : String(error),
+        context: { setId }
+      });
+      throw new Error('Failed to read PDF preview');
     }
   }
 

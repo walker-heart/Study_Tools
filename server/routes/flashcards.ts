@@ -293,6 +293,53 @@ router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
 });
 
 // Get preview data for a set
+// Generate PDF preview
+router.post('/sets/:setId/generate-pdf', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { setId } = req.params;
+    const userId = req.session.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get the flashcard set with its cards
+    const set = await db.query.flashcardSets.findFirst({
+      where: eq(flashcardSets.id, parseInt(setId)),
+      with: {
+        cards: {
+          orderBy: (cards: { position: number }, { asc }: { asc: any }) => [asc(cards.position)]
+        }
+      }
+    });
+
+    if (!set || set.userId !== userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Convert cards to PDF format using jsPDF
+    // Note: This would be implemented in a separate service
+    // For now we'll use a placeholder PDF
+    const pdfData = Buffer.from('PDF content placeholder');
+    
+    // Save the PDF preview
+    const pdfPath = await storageService.savePdfPreview(parseInt(setId), pdfData);
+    
+    // Update the set with PDF path
+    await db.update(flashcardSets)
+      .set({ 
+        pdfPath,
+        updatedAt: new Date()
+      })
+      .where(eq(flashcardSets.id, parseInt(setId)));
+
+    res.json({ success: true, message: 'PDF preview generated' });
+  } catch (error) {
+    console.error('Error generating PDF preview:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to generate PDF preview' });
+  }
+});
+
 // Get preview data for a set
 router.get('/sets/:setId/preview', async (req: AuthenticatedRequest, res) => {
   try {
