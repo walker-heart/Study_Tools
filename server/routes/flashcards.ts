@@ -14,6 +14,8 @@ interface AuthenticatedRequest extends Request {
     user?: {
       id: number;
       email: string;
+      firstName?: string;
+      lastName?: string;
       isAdmin?: boolean;
     };
     authenticated?: boolean;
@@ -54,7 +56,7 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       tags: [], // PostgreSQL array
       createdAt: new Date(),
       updatedAt: new Date(),
-      urlPath: `/flashcards/${createSlug(`${req.session.user?.firstName || 'user'}-${req.session.user?.lastName || ''}`)}/${Date.now()}`,
+      urlPath: `/flashcards/${createSlug(`${req.session.user?.firstName || ''}-${req.session.user?.lastName || ''}-${Date.now()}`)}`,
       filePath: null // Will be updated after successful upload
     }).returning();
 
