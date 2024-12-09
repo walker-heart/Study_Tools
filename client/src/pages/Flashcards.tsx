@@ -174,6 +174,7 @@ export default function Flashcards() {
           <FileList 
             files={uploadedFiles}
             onFileSelect={handleFileClick}
+            onDelete={handleDelete}
           />
         )}
       </div>

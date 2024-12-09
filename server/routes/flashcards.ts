@@ -459,3 +459,50 @@ router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
 });
 
 export default router;
+// Delete a flashcard set
+router.delete('/sets/:setId', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { setId } = req.params;
+    const userId = req.session.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get the flashcard set
+    const set = await db.query.flashcardSets.findFirst({
+      where: eq(flashcardSets.id, parseInt(setId))
+    });
+
+    if (!set) {
+      return res.status(404).json({ error: 'Set not found' });
+    }
+
+    if (set.userId !== userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Delete the file from storage if it exists
+    if (set.filePath) {
+      const deleteResult = await storage.delete(set.filePath);
+      if (!deleteResult.success) {
+        console.error('Failed to delete file:', deleteResult.error);
+      }
+    }
+
+    // Delete associated flashcards first
+    await db.delete(flashcards)
+      .where(eq(flashcards.setId, parseInt(setId)));
+
+    // Delete the set
+    await db.delete(flashcardSets)
+      .where(eq(flashcardSets.id, parseInt(setId)));
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting flashcard set:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to delete flashcard set' 
+    });
+  }
+});

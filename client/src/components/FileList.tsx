@@ -12,9 +12,10 @@ interface FlashcardSet {
 interface FileListProps {
   files: FlashcardSet[];
   onFileSelect: (setId: number) => void;
+  onDelete: (setId: number) => Promise<void>;
 }
 
-export default function FileList({ files, onFileSelect }: FileListProps) {
+export default function FileList({ files, onFileSelect, onDelete }: FileListProps) {
   return (
     <Card className="p-6">
       <div className="space-y-4">
@@ -28,13 +29,22 @@ export default function FileList({ files, onFileSelect }: FileListProps) {
                   {new Date(file.createdAt).toLocaleDateString()}
                 </p>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => onFileSelect(file.id)}
-                disabled={!file.filePath}
-              >
-                View & Download
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => onFileSelect(file.id)}
+                  disabled={!file.filePath}
+                >
+                  View & Download
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => onDelete(file.id)}
+                  disabled={!file.filePath}
+                >
+                  Delete
+                </Button>
+              </div>
             </div>
           ))}
         </div>
