@@ -1,4 +1,3 @@
-import { asyncHandler } from "../middleware/errorHandling";
 import { Router } from 'express';
 import multer from 'multer';
 import { storage } from '../lib/storage';
@@ -40,6 +39,7 @@ const upload = multer({
 
 // Handle file upload and create flashcard set
 router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) => {
+  try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -99,6 +99,7 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       updatedAt: new Date()
     }).returning();
 
+    try {
       // Map cards data to schema
       const cardValues = cards.map((card, index) => ({
         setId: newSet.id,
@@ -126,6 +127,18 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
           createdAt: newSet.createdAt
         }
       });
+    } catch (error) {
+      // Cleanup on failure
+      await storage.delete(filePath).catch(err => 
+        console.error('Cleanup error:', err)
+      );
+      throw error;
+    }
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to process upload'
+    });
   }
 });
 
