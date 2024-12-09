@@ -58,7 +58,8 @@ export async function signIn(req: Request, res: Response) {
       id: users.id,
       email: users.email,
       passwordHash: users.passwordHash,
-      isAdmin: users.isAdmin
+      isAdmin: users.isAdmin,
+      theme: users.theme
     }).from(users).where(eq(users.email, email));
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });

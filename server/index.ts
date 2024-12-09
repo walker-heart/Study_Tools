@@ -6,7 +6,7 @@ import { createServer } from "http";
 import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import { db } from "./db";
+import { db, sql } from "./db";
 import { env } from "./lib/env";
 import { storageService } from './services/storage';
 import { existsSync, mkdirSync } from 'fs';
@@ -123,22 +123,22 @@ app.use(express.urlencoded({ extended: false }));
 // Configure session middleware with proper error handling
 app.use(session({
   store: new pgSession({
-    conObject: {
-      connectionString: env.DATABASE_URL,
-      ssl: true
-    },
+    pool: sql,
+    tableName: 'user_sessions',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
-    errorLog: console.error // Log session store errors
+    pruneSessionInterval: 60 * 15,
+    errorLog: (err) => {
+      console.error('Session store error:', err);
+    }
   }),
-  name: 'sid', // Session ID cookie name
-  secret: env.JWT_SECRET,
+  name: 'sid',
+  secret: env.JWT_SECRET!,
   resave: false,
   saveUninitialized: false,
   cookie: {
     secure: env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    maxAge: 24 * 60 * 60 * 1000,
     sameSite: 'lax',
     path: '/'
   }
@@ -189,6 +189,10 @@ app.use((req, res, next) => {
     // Initialize critical services
     const initializeServices = async () => {
       try {
+        // Import and test database connection first
+        const { testDatabaseConnection } = await import('./db');
+        await testDatabaseConnection();
+        
         // Initialize storage service - it will create directory if needed
         const storageDir = join(process.cwd(), 'storage', 'files');
         if (!existsSync(storageDir)) {
