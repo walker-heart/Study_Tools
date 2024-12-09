@@ -227,18 +227,35 @@ app.use((req, res, next) => {
     const PORT = parseInt(process.env.PORT || '5000', 10);
     
     // Start server
-    server.listen({
-      port: PORT,
-      host: '0.0.0.0'
-    }, () => {
-      log(`Server running in ${app.get("env")} mode on port ${PORT}`);
-      log(`APP_URL: ${env.APP_URL}`);
-    }).on('error', (err) => {
-      log(`Failed to start server: ${err.message}`);
+    log('Attempting to start server...');
+    try {
+      await new Promise((resolve, reject) => {
+        const serverInstance = server.listen({
+          port: PORT,
+          host: '0.0.0.0'
+        }, () => {
+          log(`Server running in ${app.get("env")} mode on port ${PORT}`);
+          log(`APP_URL: ${env.APP_URL}`);
+          resolve(true);
+        });
+
+        serverInstance.on('error', (err) => {
+          log(`Server startup error: ${err.message}`);
+          if (err.code === 'EADDRINUSE') {
+            log(`Port ${PORT} is already in use`);
+          }
+          reject(err);
+        });
+      });
+    } catch (error) {
+      log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
-    });
+    }
   } catch (error) {
-    log(`Fatal error: ${error}`);
+    log(`Fatal error during initialization: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
-})();
+})().catch(error => {
+  log(`Unhandled error: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+});

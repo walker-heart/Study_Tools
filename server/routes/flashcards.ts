@@ -258,17 +258,33 @@ router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
       return res.status(404).json({ error: 'No file associated with this set' });
     }
 
+    // Get the file extension to determine content type
+    const ext = set.filePath.split('.').pop()?.toLowerCase();
+    const contentType = ext === 'png' ? 'image/png' 
+                     : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+                     : ext === 'csv' ? 'text/csv'
+                     : 'application/octet-stream';
+
     const downloadResult = await storage.download(set.filePath);
     
-    if (downloadResult.error) {
-      throw new Error(downloadResult.error);
+    if (!downloadResult.success || !downloadResult.presignedUrl) {
+      console.error('Download failed:', downloadResult.error);
+      return res.status(404).json({ error: 'File not found or inaccessible' });
     }
 
-    if (!downloadResult.presignedUrl) {
-      throw new Error('Failed to generate download URL');
+    // For images and other binary files, return the URL directly
+    if (contentType.startsWith('image/')) {
+      return res.json({ 
+        downloadUrl: downloadResult.presignedUrl,
+        contentType
+      });
     }
 
-    res.json({ downloadUrl: downloadResult.presignedUrl });
+    // For CSV files, keep existing behavior
+    res.json({ 
+      downloadUrl: downloadResult.presignedUrl,
+      contentType
+    });
   } catch (error) {
     console.error('Error downloading file:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to download file' });
