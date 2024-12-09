@@ -139,23 +139,32 @@ app.use(session({
     pruneSessionInterval: 60 * 15, // Cleanup every 15 minutes
     errorLog: (err) => {
       console.error('Session store error:', err);
-      // Continue with memory store if database fails
     }
   }),
   name: 'sid',
   secret: env.JWT_SECRET!,
-  resave: false,
-  saveUninitialized: false,
+  resave: true,
+  saveUninitialized: true,
   rolling: true, // Refresh session with each request
   cookie: {
-    secure: false, // Set to false for development
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     sameSite: 'lax',
-    path: '/',
-    domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : undefined
+    path: '/'
   }
 }));
+
+// Add session debug logging
+app.use((req, _res, next) => {
+  console.log('Session Debug:', {
+    id: req.session.id,
+    user: req.session.user,
+    authenticated: req.session.authenticated,
+    cookie: req.session.cookie
+  });
+  next();
+});
 
 // Add session debug middleware in development
 if (process.env.NODE_ENV === 'development') {
