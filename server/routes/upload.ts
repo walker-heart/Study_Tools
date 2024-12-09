@@ -80,17 +80,21 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
     });
     const nextId = (lastSet?.id || 0) + 1;
 
-    // Create URL path: /flashcards/(firstname+lastname)/(incrementing-id)
-    const urlPath = `${user.first_name.toLowerCase()}${user.last_name.toLowerCase()}/${nextId}`;
+    // Create URL path: firstname-lastname/set-id (URL safe format)
+    const urlPath = `${user.first_name.toLowerCase()}-${user.last_name.toLowerCase()}/set-${nextId}`;
 
     // Create flashcard set in database
     const [newSet] = await db.insert(flashcardSets).values({
       userId: req.session.user.id,
-      title: req.file.originalname,
+      title: req.file.originalname.replace(/\.[^/.]+$/, ""), // Remove file extension
       isPublic: false,
       tags: [],
       urlPath
-    }).returning();
+    }).returning({
+      id: flashcardSets.id,
+      title: flashcardSets.title,
+      urlPath: flashcardSets.urlPath,
+    });
 
     // Create unique file path
     const filePath = `flashcards/${req.session.user.id}/${newSet.id}/${req.file.originalname}`;
