@@ -321,13 +321,19 @@ router.get('/sets/:setId/preview', async (req: AuthenticatedRequest, res) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Get download URL if there's a file
+    // Get download URL and determine file type
     let downloadUrl = null;
+    let fileType = null;
     if (set.filePath) {
       try {
         const downloadResult = await storage.download(set.filePath);
         if (downloadResult.success && downloadResult.presignedUrl) {
           downloadUrl = downloadResult.presignedUrl;
+          // Determine file type based on extension
+          fileType = set.filePath.toLowerCase().endsWith('.csv') ? 'csv' :
+                    set.filePath.toLowerCase().endsWith('.png') ? 'image' :
+                    set.filePath.toLowerCase().endsWith('.jpg') ? 'image' :
+                    'unknown';
         }
       } catch (err) {
         console.error('Error generating download URL:', err);
@@ -338,13 +344,15 @@ router.get('/sets/:setId/preview', async (req: AuthenticatedRequest, res) => {
       setId,
       userId,
       hasFile: !!set.filePath,
+      fileType,
       downloadUrl: !!downloadUrl
     });
 
     res.json({ 
       set: {
         ...set,
-        downloadUrl
+        downloadUrl,
+        fileType
       },
       cards: set.cards 
     });

@@ -19,6 +19,7 @@ interface FlashcardSet {
   title: string;
   filePath: string | null;
   downloadUrl: string | null;
+  fileType: 'csv' | 'image' | 'unknown' | null;
 }
 
 export default function PreviewPage() {
@@ -76,13 +77,18 @@ export default function PreviewPage() {
       
       const { downloadUrl, contentType } = await response.json();
       
-      // For CSV files, trigger direct download
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `${flashcardSet.title || 'flashcards'}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      if (flashcardSet.fileType === 'image') {
+        // For images, open in new tab
+        window.open(downloadUrl, '_blank');
+      } else {
+        // For CSV files, trigger direct download
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `${flashcardSet.title || 'flashcards'}.${flashcardSet.fileType === 'csv' ? 'csv' : 'txt'}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     } catch (error) {
       console.error('Error downloading file:', error);
       toast({
@@ -116,12 +122,22 @@ export default function PreviewPage() {
       <div className="space-y-6">
         <Card className="p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Preview Cards</h2>
+            <h2 className="text-xl font-semibold">Preview</h2>
             <Button onClick={handleDownload} disabled={!flashcardSet?.filePath}>
-              Download CSV
+              {flashcardSet?.fileType === 'csv' ? 'Download CSV' : 'View File'}
             </Button>
           </div>
-          <CardPreview cards={previewCards} />
+          {flashcardSet?.fileType === 'image' && flashcardSet.downloadUrl ? (
+            <div className="flex justify-center mb-4">
+              <img 
+                src={flashcardSet.downloadUrl} 
+                alt={flashcardSet.title}
+                className="max-w-full h-auto rounded-lg shadow-lg"
+              />
+            </div>
+          ) : (
+            <CardPreview cards={previewCards} />
+          )}
         </Card>
       </div>
     </div>
