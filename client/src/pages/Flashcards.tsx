@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -205,6 +205,33 @@ export default function Flashcards() {
             </div>
           </div>
         </Card>
+
+        {uploadedFiles.length > 0 && (
+          <Card className="p-6">
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">Uploaded Files</h2>
+              <div className="space-y-2">
+                {uploadedFiles.map((file) => (
+                  <div key={file.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div>
+                      <p className="font-medium">{file.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(file.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleDownload(file.id)}
+                      disabled={!file.filePath}
+                    >
+                      Download
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        )}
 
         {previewCards.length > 0 && (
           <Card className="p-6">
