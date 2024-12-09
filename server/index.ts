@@ -110,7 +110,7 @@ async function initializeDatabase() {
     const [{ exists }] = await sql`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
-        WHERE table_name = 'flashcard_sets'
+        WHERE table_schema = 'public' AND table_name = 'flashcard_sets'
       );
     `;
 
@@ -119,7 +119,7 @@ async function initializeDatabase() {
       return false;
     }
 
-    // Verify session table
+    // Verify and create session table if needed
     await sql`
       CREATE TABLE IF NOT EXISTS "session" (
         "sid" varchar NOT NULL COLLATE "default",
@@ -129,36 +129,27 @@ async function initializeDatabase() {
       )
     `;
 
+    log('Database initialization completed successfully');
     return true;
   } catch (error) {
-    log(`Database initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Database initialization failed: ${errorMessage}`);
+    console.error('Database initialization error:', {
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
     throw error;
   }
 }
 
-// Initialize services
+// Initialize and verify all services
 async function initializeServices() {
   try {
     log('Initializing services...');
     
-    // Test database connection
-    await sql`SELECT 1`;
-    log('Database connection successful');
-
-    // Verify database tables exist
-    const [{ exists }] = await sql`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'flashcard_sets'
-      );
-    `;
-    
-    if (!exists) {
-      log('Required tables not found');
-      throw new Error('Required database tables are missing');
-    }
-
-    // Test storage service
+    // Database has already been verified in initializeDatabase()
+    // Now test storage service
     try {
       const testPath = 'test/storage-check.txt';
       const testContent = Buffer.from('Storage test');
@@ -174,12 +165,26 @@ async function initializeServices() {
 
       log('Object Storage service verified successfully');
     } catch (testError) {
-      log(`Warning: Object Storage test failed: ${testError instanceof Error ? testError.message : String(testError)}`);
+      // Non-fatal error - log warning but continue
+      const errorMessage = testError instanceof Error ? testError.message : String(testError);
+      log(`Warning: Object Storage test failed: ${errorMessage}`);
+      console.warn('Storage service warning:', {
+        error: errorMessage,
+        stack: testError instanceof Error ? testError.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
     }
 
+    log('Services initialization completed');
     return true;
   } catch (error) {
-    log(`Critical error during service initialization: ${error instanceof Error ? error.message : String(error)}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Critical error during service initialization: ${errorMessage}`);
+    console.error('Service initialization error:', {
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
     throw error;
   }
 }
