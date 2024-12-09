@@ -19,10 +19,10 @@ class ReplitStorageService implements StorageService {
   async saveFlashcardSet(setId: number, filePath: string, fileData: Buffer): Promise<string> {
     try {
       const path = `flashcards/${setId}/${filePath}`;
-      const uploadResult = await storage.uploadFromMemory(path, fileData);
+      const result = await storage.upload(path, fileData);
       
-      if (!uploadResult.success) {
-        throw new Error(`Failed to upload file: ${uploadResult.error}`);
+      if (!result.success) {
+        throw new Error(`Failed to upload file: ${result.error}`);
       }
       
       return path;
@@ -42,9 +42,9 @@ class ReplitStorageService implements StorageService {
 
   async getFlashcardSet(_setId: number, filePath: string): Promise<Buffer> {
     try {
-      const result = await storage.downloadToMemory(filePath);
-      if (!result.data) {
-        throw new Error(result.error || 'Failed to download file content');
+      const result = await storage.download(filePath);
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to download file');
       }
       return result.data;
     } catch (error) {
@@ -69,7 +69,7 @@ class ReplitStorageService implements StorageService {
     try {
       const prefix = `flashcards/${userId}/`;
       const result = await storage.list(prefix);
-      if (result.error) {
+      if (!result.success) {
         throw new Error(`Failed to list files: ${result.error}`);
       }
       return result.files;

@@ -1,10 +1,4 @@
 import { Client } from '@replit/object-storage';
-import type { Result } from '@replit/object-storage/dist/result';
-
-interface StorageResponse {
-  error?: string;
-  success: boolean;
-}
 
 class ObjectStorage {
   private client: Client;
@@ -13,75 +7,79 @@ class ObjectStorage {
     this.client = new Client();
   }
 
-  async uploadFromMemory(path: string, fileData: Buffer): Promise<StorageResponse> {
+  async upload(path: string, data: Buffer) {
     try {
-      const result = await this.client.uploadFromMemory(path, fileData);
+      const result = await this.client.uploadFromMemory(path, data);
       if (!result.ok) {
-        throw new Error(result.error);
+        console.error('Upload failed:', result.error);
+        return { success: false, error: result.error };
       }
+      console.log('Upload successful:', path);
       return { success: true };
     } catch (error) {
-      console.error('Storage upload error:', {
-        error: error instanceof Error ? error.message : String(error),
-        path,
-        timestamp: new Date().toISOString()
-      });
+      console.error('Upload error:', error);
       return { 
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
 
-  async downloadToMemory(path: string): Promise<{ data: Buffer | null; error?: string }> {
+  async download(path: string) {
     try {
       const result = await this.client.downloadToMemory(path);
       if (!result.ok) {
-        throw new Error(result.error);
+        console.error('Download failed:', result.error);
+        return { success: false, error: result.error };
       }
-      return { data: result.value };
+      return { success: true, data: result.value };
     } catch (error) {
-      console.error('Storage download error:', error);
-      return { 
-        data: null,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
-
-  async delete(path: string): Promise<StorageResponse> {
-    try {
-      const result = await this.client.delete(path);
-      if (!result.ok) {
-        throw new Error(result.error);
-      }
-      return { success: true };
-    } catch (error) {
-      console.error('Storage delete error:', error);
-      return { 
+      console.error('Download error:', error);
+      return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
 
-  async list(prefix?: string): Promise<{ files: string[]; error?: string }> {
+  async delete(path: string) {
+    try {
+      const result = await this.client.delete(path);
+      if (!result.ok) {
+        console.error('Delete failed:', result.error);
+        return { success: false, error: result.error };
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('Delete error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  async list(prefix?: string) {
     try {
       const result = await this.client.list(prefix);
       if (!result.ok) {
-        throw new Error(result.error);
+        console.error('List failed:', result.error);
+        return { success: false, error: result.error, files: [] };
       }
       return { 
+        success: true, 
         files: result.value.map(file => file.name)
       };
     } catch (error) {
-      console.error('Storage list error:', error);
-      return { 
-        files: [],
-        error: error instanceof Error ? error.message : 'Unknown error'
+      console.error('List error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        files: []
       };
     }
   }
 }
 
+// Export a singleton instance
 export const storage = new ObjectStorage();
