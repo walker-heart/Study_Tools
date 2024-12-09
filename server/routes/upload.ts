@@ -22,11 +22,18 @@ interface AuthenticatedRequest extends Request {
 
 const router = Router();
 
-// Configure multer for memory storage
+// Configure multer for memory storage with proper file type validation
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: (_req, file, cb) => {
+    if (!file.originalname.toLowerCase().endsWith('.csv')) {
+      cb(new Error('Only CSV files are allowed'));
+      return;
+    }
+    cb(null, true);
   }
 });
 
@@ -80,17 +87,32 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
     });
     const nextId = (lastSet?.id || 0) + 1;
 
-    // Create URL path: firstname-lastname/set-id (URL safe format)
-    const urlPath = `${user.firstName.toLowerCase()}-${user.lastName.toLowerCase()}/set-${nextId}`;
+    // Create unique file path for Replit Object Storage
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const safeFilename = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `flashcards/${req.session.user.id}/${timestamp}_${safeFilename}`;
 
-    // Create flashcard set in database
+    // Upload to Replit Object Storage first
+    console.log('Uploading file to Object Storage:', {
+      path: filePath,
+      size: req.file.buffer.length,
+      type: req.file.mimetype
+    });
+
+    const uploadResult = await storage.uploadFile(filePath, req.file.buffer);
+    if (uploadResult.error) {
+      throw new Error(`Storage upload failed: ${uploadResult.error}`);
+    }
+
+    // Create flashcard set in database after successful upload
     const [newSet] = await db.insert(flashcardSets).values({
       userId: req.session.user.id,
-      title: req.file.originalname.replace(/\.[^/.]+$/, ""), // Remove file extension
+      title: req.file.originalname.replace(/\.[^/.]+$/, ""),
       isPublic: false,
-      tags: [],
-      urlPath,
-      filePath: null // Will be updated after storage upload
+      tags: [], 
+      urlPath: `${user.firstName.toLowerCase()}-${user.lastName.toLowerCase()}/set-${nextId}`,
+      filePath, // Store the Object Storage path
+      createdAt: new Date()
     }).returning();
 
     // Map cards data to match schema
@@ -103,43 +125,17 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       position: index + 1
     }));
 
-    // Create unique file path
-    const filePath = `flashcards/${req.session.user.id}/${newSet.id}/${req.file.originalname}`;
-    
-    // Upload file to storage
-    console.log('Attempting to upload file:', { filePath, fileSize: req.file.buffer.length });
-    const uploadResult = await storage.uploadFile(filePath, req.file.buffer);
-    console.log('Upload result:', uploadResult);
-    
-    if (uploadResult.error) {
-      console.error('File upload failed:', uploadResult.error);
-      // Cleanup the database entry if file upload fails
-      await db.delete(flashcardSets).where(eq(flashcardSets.id, newSet.id));
-      throw new Error(uploadResult.error);
-    }
-
-    console.log('File uploaded successfully, updating database record');
-    // Update set with file path
-    const [updatedSet] = await db.update(flashcardSets)
-      .set({ filePath })
-      .where(eq(flashcardSets.id, newSet.id))
-      .returning();
-    
-    console.log('Database record updated:', updatedSet);
-
     // Insert flashcards
     await db.insert(flashcards).values(cardValues);
 
-    await db.insert(flashcards).values(cardValues);
-
-    // Prepare the response to match client expectations
+    // Prepare the response
     res.status(201).json({
       message: 'File uploaded successfully',
       flashcardSet: {
         id: newSet.id,
         title: newSet.title,
         filePath: filePath,
-        urlPath: urlPath,
+        urlPath: newSet.urlPath,
         createdAt: newSet.createdAt
       }
     });
