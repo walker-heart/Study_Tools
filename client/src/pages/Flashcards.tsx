@@ -119,7 +119,8 @@ export default function Flashcards() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to upload file');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload file');
       }
 
       const { flashcardSet } = await response.json();
@@ -128,8 +129,8 @@ export default function Flashcards() {
         description: "File uploaded successfully!",
       });
 
-      // Navigate to preview page
-      window.location.href = `/preview/${flashcardSet.id}`;
+      // Navigate to preview page using React router
+      setLocation(`/preview/${flashcardSet.id}`);
     } catch (error) {
       console.error('Error uploading file:', error);
       toast({

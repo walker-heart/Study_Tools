@@ -1,18 +1,21 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { storageService } from '../services/storage';
+import { storage } from '../lib/storage';
 import { db } from '../db';
-import { flashcardSets } from '../../db/schema/flashcards';
+import { flashcardSets, flashcards } from '@db/schema/flashcards';
 import { eq } from 'drizzle-orm';
 import { Request } from 'express';
-
 import { Session } from 'express-session';
+import { parse } from 'csv-parse';
 
 interface AuthenticatedRequest extends Request {
   session: Session & {
     user?: {
       id: number;
+      email?: string;
+      isAdmin?: boolean;
     };
+    authenticated?: boolean;
   };
 }
 
@@ -33,7 +36,6 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const { title } = req.body;
     if (!req.session?.user?.id) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
@@ -42,7 +44,7 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
     const csvContent = req.file.buffer.toString('utf-8');
     const cards = await new Promise<any[]>((resolve, reject) => {
       const results: any[] = [];
-      require('csv-parse').parse(csvContent, {
+      parse(csvContent, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
@@ -52,81 +54,62 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       .on('end', () => resolve(results));
     });
 
-    // Create flashcard set object with proper vocabulary structure
-    const flashcardSet = {
-      id: Date.now(), // Use timestamp as temporary ID
-      userId: req.session.user.id,
-      title: title || req.file.originalname,
-      cards: cards.map(card => ({
-        vocabWord: card['Vocab Word'],
-        partOfSpeech: card['Identifying Part Of Speach'],
-        definition: card['Definition'],
-        exampleSentence: card['Example Sentance'],
-        createdAt: new Date().toISOString()
-      })).filter(card => card.vocabWord && card.partOfSpeech && card.definition),
-      createdAt: new Date().toISOString()
-    };
+    // Validate required columns
+    const requiredColumns = ['Vocab Word', 'Identifying Part Of Speach', 'Definition', 'Example Sentance'];
+    const missingColumns = requiredColumns.filter(col => !cards[0] || !(col in cards[0]));
+    
+    if (missingColumns.length > 0) {
+      return res.status(400).json({ 
+        error: `Missing required columns: ${missingColumns.join(', ')}`
+      });
+    }
 
-    // Save flashcard set to file storage
-    await storageService.saveFlashcardSet(flashcardSet.id, flashcardSet);
+    // Create flashcard set in database
+    const [newSet] = await db.insert(flashcardSets).values({
+      userId: req.session.user.id,
+      title: req.file.originalname,
+      isPublic: false,
+      tags: []
+    }).returning();
+
+    // Create unique file path
+    const filePath = `flashcards/${req.session.user.id}/${newSet.id}/${req.file.originalname}`;
+    
+    // Upload file to storage
+    const uploadResult = await storage.uploadFile(filePath, req.file.buffer);
+    if (uploadResult.error) {
+      // Cleanup the database entry if file upload fails
+      await db.delete(flashcardSets).where(eq(flashcardSets.id, newSet.id));
+      throw new Error(uploadResult.error);
+    }
+
+    // Update set with file path
+    const [updatedSet] = await db.update(flashcardSets)
+      .set({ filePath })
+      .where(eq(flashcardSets.id, newSet.id))
+      .returning();
+
+    // Insert flashcards
+    const cardValues = cards.map((card, index) => ({
+      setId: newSet.id,
+      vocabWord: card['Vocab Word'],
+      partOfSpeech: card['Identifying Part Of Speach'],
+      definition: card['Definition'],
+      exampleSentence: card['Example Sentance'],
+      position: index + 1
+    }));
+
+    await db.insert(flashcards).values(cardValues);
 
     res.status(201).json({
-      id: flashcardSet.id,
-      title: flashcardSet.title,
-      createdAt: flashcardSet.createdAt,
-      cardCount: flashcardSet.cards.length
+      message: 'File uploaded successfully',
+      flashcardSet: updatedSet
     });
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ 
-      error: 'Failed to process upload',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : 'Failed to process upload'
     });
-  }
-});
-
-// Get flashcard set data
-router.get('/:setId', async (req: AuthenticatedRequest, res) => {
-  try {
-    const setId = parseInt(req.params.setId);
-    if (!req.session?.user?.id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const flashcardSet = await storageService.getFlashcardSet(setId);
-    
-    if (flashcardSet.userId !== req.session.user.id) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    res.json(flashcardSet);
-  } catch (error) {
-    console.error('Error getting flashcard set:', error);
-    res.status(500).json({ error: 'Failed to get flashcard set' });
-  }
-});
-
-// List all flashcard sets for user
-router.get('/', async (req: AuthenticatedRequest, res) => {
-  try {
-    if (!req.session?.user?.id) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const setIds = await storageService.listFlashcardSets(req.session.user.id);
-    const sets = await Promise.all(
-      setIds.map(id => storageService.getFlashcardSet(id))
-    );
-
-    res.json(sets.map(set => ({
-      id: set.id,
-      title: set.title,
-      createdAt: set.createdAt,
-      cardCount: set.cards.length
-    })));
-  } catch (error) {
-    console.error('Error listing flashcard sets:', error);
-    res.status(500).json({ error: 'Failed to list flashcard sets' });
   }
 });
 
