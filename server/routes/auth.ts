@@ -54,7 +54,12 @@ export async function signIn(req: Request, res: Response) {
     const { email, password } = req.body;
 
     // Find user
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    const [user] = await db.select({
+      id: users.id,
+      email: users.email,
+      passwordHash: users.passwordHash,
+      isAdmin: users.isAdmin
+    }).from(users).where(eq(users.email, email));
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
