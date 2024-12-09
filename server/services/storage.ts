@@ -5,6 +5,7 @@ interface StorageService {
   getFlashcardSet(userId: number, filePath: string): Promise<Buffer>;
   deleteFlashcardSet(userId: number, filePath: string): Promise<void>;
   listFlashcardSets(userId: number): Promise<{ files: string[]; success: boolean; error?: string; }>;
+  savePdfPreview(setId: number, pdfData: Buffer): Promise<string>;
 }
 
 class ReplitStorageService implements StorageService {
@@ -99,6 +100,28 @@ class ReplitStorageService implements StorageService {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to list flashcard sets'
       };
+    }
+  }
+
+  async savePdfPreview(setId: number, pdfData: Buffer): Promise<string> {
+    try {
+      const pdfPath = `storage/flashcards/previews/${setId}/preview.pdf`;
+      const result = await storage.upload(pdfPath, pdfData);
+      
+      if (!result.success) {
+        throw new Error(`Failed to save PDF preview: ${result.error}`);
+      }
+      
+      return pdfPath;
+    } catch (error) {
+      console.error(`Error saving PDF preview:`, {
+        error: error instanceof Error ? error.message : String(error),
+        context: {
+          setId,
+          timestamp: new Date().toISOString()
+        }
+      });
+      throw new Error('Failed to save PDF preview');
     }
   }
 }

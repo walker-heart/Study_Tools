@@ -8,7 +8,7 @@ import { createServer } from "http";
 import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import { db } from "./db";
+import { db, testDatabaseConnection } from "./db";
 import pkg from 'pg';
 import { env } from "./lib/env";
 import { existsSync, mkdirSync } from 'fs';
