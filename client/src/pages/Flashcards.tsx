@@ -113,7 +113,7 @@ export default function Flashcards() {
       }
       
       // Redirect to the set's preview page
-      const previewUrl = `/preview/${data.flashcardSet.id}`;
+      const previewUrl = data.flashcardSet.urlPath;
       console.log('Redirecting to:', previewUrl);
       setLocation(previewUrl);
       toast({

@@ -25,7 +25,7 @@ interface FlashcardSet {
 
 export default function PreviewPage() {
   const [, setLocation] = useLocation();
-  const [, params] = useRoute("/preview/:setId");
+  const [, params] = useRoute("/flashcards/:userSlug/:setId");
   const [isLoading, setIsLoading] = useState(true);
   const [flashcardSet, setFlashcardSet] = useState<FlashcardSet | null>(null);
   const [previewCards, setPreviewCards] = useState<VocabCard[]>([]);
