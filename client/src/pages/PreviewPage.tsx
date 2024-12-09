@@ -76,16 +76,10 @@ export default function PreviewPage() {
       
       const { downloadUrl, contentType } = await response.json();
       
-      // For images, open in new tab
-      if (contentType?.startsWith('image/')) {
-        window.open(downloadUrl, '_blank');
-        return;
-      }
-      
-      // For other files, trigger download
+      // For CSV files, trigger direct download
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = flashcardSet.title || 'download';
+      link.download = `${flashcardSet.title || 'flashcards'}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
