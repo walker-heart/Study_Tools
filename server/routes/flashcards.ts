@@ -21,6 +21,11 @@ interface AuthenticatedRequest extends Request {
 
 const router = Router();
 const upload = multer();
+interface CSVUploadResponse {
+  message: string;
+  flashcardSet: FlashcardSet;
+}
+
 // Handle file upload for flashcard sets
 router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequest, res) => {
   try {
@@ -28,12 +33,23 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // Validate file type
+    if (!req.file.originalname.toLowerCase().endsWith('.csv')) {
+      return res.status(400).json({ error: 'Invalid file type. Only CSV files are allowed.' });
+    }
+
+    // Validate file size (5MB limit)
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+    if (req.file.size > MAX_FILE_SIZE) {
+      return res.status(400).json({ error: 'File size exceeds 5MB limit.' });
+    }
+
     const userId = req.session.user?.id;
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Upload file to storage
+    // Upload file to storage with proper error handling
     const fileBuffer = req.file.buffer;
     const fileName = `flashcards/${userId}/${Date.now()}-${req.file.originalname}`;
     const uploadResult = await storage.uploadFile(fileName, fileBuffer);
@@ -42,7 +58,7 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       throw new Error(uploadResult.error);
     }
 
-    // Store file reference in database
+    // Store file reference in database with proper type safety
     const [flashcardSet] = await db.insert(flashcardSets).values({
       userId,
       title: req.file.originalname,
