@@ -122,7 +122,10 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
 
     res.status(201).json({
       message: 'File uploaded successfully',
-      flashcardSet: updatedSet
+      flashcardSet: {
+        ...updatedSet,
+        urlPath: updatedSet.urlPath
+      }
     });
   } catch (error) {
     console.error('Upload error:', error);
