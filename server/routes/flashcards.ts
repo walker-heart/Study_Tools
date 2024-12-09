@@ -53,6 +53,7 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       tags: [], // PostgreSQL array
       createdAt: new Date(),
       updatedAt: new Date(),
+      urlPath: `/preview/${Date.now()}`, // Add URL path for frontend routing
       filePath: null // Will be updated after successful upload
     }).returning();
 
@@ -288,6 +289,114 @@ router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
   } catch (error) {
     console.error('Error downloading file:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to download file' });
+  }
+});
+
+// Get preview data for a set
+// Get preview data for a set
+router.get('/sets/:setId/preview', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { setId } = req.params;
+    const userId = req.session.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get the flashcard set with its cards
+    const set = await db.query.flashcardSets.findFirst({
+      where: eq(flashcardSets.id, parseInt(setId)),
+      with: {
+        cards: {
+          orderBy: (cards, { asc }) => [asc(cards.position)]
+        }
+      }
+    });
+
+    if (!set) {
+      return res.status(404).json({ error: 'Set not found' });
+    }
+
+    if (set.userId !== userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Get download URL if there's a file
+    let downloadUrl = null;
+    if (set.filePath) {
+      try {
+        const downloadResult = await storage.download(set.filePath);
+        if (downloadResult.success && downloadResult.presignedUrl) {
+          downloadUrl = downloadResult.presignedUrl;
+        }
+      } catch (err) {
+        console.error('Error generating download URL:', err);
+      }
+    }
+
+    console.log('Preview data:', {
+      setId,
+      userId,
+      hasFile: !!set.filePath,
+      downloadUrl: !!downloadUrl
+    });
+
+    res.json({ 
+      set: {
+        ...set,
+        downloadUrl
+      },
+      cards: set.cards 
+    });
+  } catch (error) {
+    console.error('Error getting preview:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to get preview' });
+  }
+});
+
+// Handle file downloads
+router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { setId } = req.params;
+    const userId = req.session.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const set = await db.query.flashcardSets.findFirst({
+      where: eq(flashcardSets.id, parseInt(setId))
+    });
+
+    if (!set) {
+      return res.status(404).json({ error: 'Set not found' });
+    }
+
+    if (set.userId !== userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (!set.filePath) {
+      return res.status(404).json({ error: 'No file associated with this set' });
+    }
+
+    const downloadResult = await storage.download(set.filePath);
+    if (!downloadResult.success || !downloadResult.presignedUrl) {
+      throw new Error('Failed to generate download URL');
+    }
+
+    // Determine content type based on file extension
+    const contentType = set.filePath.toLowerCase().endsWith('.png') ? 'image/png' :
+                       set.filePath.toLowerCase().endsWith('.jpg') ? 'image/jpeg' :
+                       'application/octet-stream';
+
+    res.json({ 
+      downloadUrl: downloadResult.presignedUrl,
+      contentType
+    });
+  } catch (error) {
+    console.error('Download error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to process download' });
   }
 });
 
