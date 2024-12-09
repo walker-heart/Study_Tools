@@ -16,6 +16,13 @@ interface FileListProps {
 }
 
 export default function FileList({ files, onFileSelect, onDelete }: FileListProps) {
+  const handleDelete = async (setId: number) => {
+    try {
+      await onDelete(setId);
+    } catch (error) {
+      console.error('Error deleting file:', error);
+    }
+  };
   return (
     <Card className="p-6">
       <div className="space-y-4">
@@ -39,7 +46,7 @@ export default function FileList({ files, onFileSelect, onDelete }: FileListProp
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={() => onDelete(file.id)}
+                  onClick={() => handleDelete(file.id)}
                   disabled={!file.filePath}
                 >
                   Delete

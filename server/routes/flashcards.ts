@@ -470,40 +470,64 @@ router.delete('/sets/:setId', async (req: AuthenticatedRequest, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Get the flashcard set
+    console.log('Delete request received for set:', setId, 'from user:', userId);
+
+    // Get the flashcard set with its related data
     const set = await db.query.flashcardSets.findFirst({
-      where: eq(flashcardSets.id, parseInt(setId))
+      where: eq(flashcardSets.id, parseInt(setId)),
+      with: {
+        flashcards: true,
+        memorizationSessions: true
+      }
     });
 
     if (!set) {
+      console.log('Set not found:', setId);
       return res.status(404).json({ error: 'Set not found' });
     }
 
     if (set.userId !== userId) {
+      console.log('Unauthorized delete attempt - User:', userId, 'Set owner:', set.userId);
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Delete the file from storage if it exists
-    if (set.filePath) {
-      const deleteResult = await storage.delete(set.filePath);
-      if (!deleteResult.success) {
-        console.error('Failed to delete file:', deleteResult.error);
+    try {
+      // Delete associated memorization sessions first
+      await db.delete(memorizationSessions)
+        .where(eq(memorizationSessions.setId, parseInt(setId)));
+      console.log('Deleted memorization sessions for set:', setId);
+
+      // Delete associated flashcards
+      await db.delete(flashcards)
+        .where(eq(flashcards.setId, parseInt(setId)));
+      console.log('Deleted flashcards for set:', setId);
+
+      // Delete the file from storage if it exists
+      if (set.filePath) {
+        const deleteResult = await storage.delete(set.filePath);
+        if (!deleteResult.success) {
+          console.error('Failed to delete file from storage:', deleteResult.error);
+          // Continue with deletion even if file removal fails
+        } else {
+          console.log('Deleted file from storage:', set.filePath);
+        }
       }
+
+      // Finally, delete the set itself
+      await db.delete(flashcardSets)
+        .where(eq(flashcardSets.id, parseInt(setId)));
+
+      console.log('Successfully deleted set:', setId);
+      res.json({ success: true });
+    } catch (deleteError) {
+      console.error('Error during deletion process:', deleteError);
+      throw deleteError; // Re-throw to be caught by outer try-catch
     }
-
-    // Delete associated flashcards first
-    await db.delete(flashcards)
-      .where(eq(flashcards.setId, parseInt(setId)));
-
-    // Delete the set
-    await db.delete(flashcardSets)
-      .where(eq(flashcardSets.id, parseInt(setId)));
-
-    res.json({ success: true });
   } catch (error) {
     console.error('Error deleting flashcard set:', error);
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to delete flashcard set' 
+      error: error instanceof Error ? error.message : 'Failed to delete flashcard set',
+      details: process.env.NODE_ENV === 'development' ? error : undefined
     });
   }
 });

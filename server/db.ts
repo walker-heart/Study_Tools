@@ -14,11 +14,13 @@ const connectionConfig = {
   max: 20,
   idle_timeout: 20,
   connect_timeout: 10,
-  ssl: {
-    rejectUnauthorized: false
-  },
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
   debug: env.NODE_ENV === 'development',
-  onnotice: () => {}, // Ignore notice messages
+  onnotice: (notice) => {
+    if (env.NODE_ENV === 'development') {
+      console.log('Database Notice:', notice.message);
+    }
+  },
   connection: {
     application_name: 'flashcard-app'
   },
@@ -26,10 +28,10 @@ const connectionConfig = {
     undefined: null,
   },
   host: process.env.PGHOST,
-  port: parseInt(process.env.PGPORT || '5432'),
+  port: parseInt(process.env.PGPORT || '5432', 10),
+  database: process.env.PGDATABASE,
   user: process.env.PGUSER,
-  password: process.env.PGPASSWORD,
-  database: process.env.PGDATABASE
+  password: process.env.PGPASSWORD
 };
 
 // Create the client with SSL configuration
@@ -51,8 +53,25 @@ export const sql = client;
 // Test database connection function
 export async function testDatabaseConnection() {
   try {
+    console.log('Testing database connection...');
     const result = await sql`SELECT NOW()`;
-    console.log('Database connection successful:', result[0].now);
+    console.log('Initial database connection successful:', result[0].now);
+    
+    // Verify required tables exist
+    const tables = ['users', 'flashcard_sets', 'flashcards', 'memorization_sessions'];
+    for (const table of tables) {
+      const exists = await sql`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public'
+          AND table_name = ${table}
+        );
+      `;
+      console.log(`Table "${table}" exists:`, exists[0].exists);
+      if (!exists[0].exists) {
+        throw new Error(`Required table "${table}" does not exist`);
+      }
+    }
     
     // Test session table creation
     await sql`
@@ -64,6 +83,7 @@ export async function testDatabaseConnection() {
       )
     `;
     console.log('Session table verified');
+    
     return true;
   } catch (error) {
     console.error('Database connection error:', error);
@@ -74,6 +94,11 @@ export async function testDatabaseConnection() {
       user: process.env.PGUSER,
       ssl: env.NODE_ENV === 'production'
     });
-    throw error;
+    
+    if (error instanceof Error) {
+      console.error('Error stack:', error.stack);
+    }
+    
+    throw new Error(`Database connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
