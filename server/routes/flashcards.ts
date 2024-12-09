@@ -61,7 +61,7 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       const fileName = `flashcards/${userId}/${flashcardSet.id}/${req.file.originalname}`;
       
       // Upload file using storage service
-      const uploadResult = await storage.uploadFile(fileName, req.file.buffer);
+      const uploadResult = await storage.upload(fileName, req.file.buffer);
       
       if (uploadResult.error) {
         throw new Error(uploadResult.error);

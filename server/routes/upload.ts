@@ -82,8 +82,8 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       timestamp: new Date().toISOString()
     });
 
-    const uploadResult = await storage.uploadFile(filePath, req.file.buffer);
-    if (uploadResult.error) {
+    const uploadResult = await storage.upload(filePath, req.file.buffer);
+    if (!uploadResult.success) {
       throw new Error(`Storage upload failed: ${uploadResult.error}`);
     }
 
@@ -114,7 +114,7 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       await db.insert(flashcards).values(cardValues);
 
       // Generate download URL for immediate access
-      const downloadResult = await storage.downloadFile(filePath);
+      const downloadResult = await storage.download(filePath);
       
       res.status(201).json({
         message: 'File uploaded successfully',
@@ -129,7 +129,7 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       });
     } catch (error) {
       // Cleanup on failure
-      await storage.deleteFile(filePath).catch(err => 
+      await storage.delete(filePath).catch(err => 
         console.error('Cleanup error:', err)
       );
       throw error;
