@@ -4,7 +4,7 @@ import { storage } from '../lib/storage';
 import { db } from '../db';
 import { flashcardSets, flashcards } from '@db/schema/flashcards';
 import { users } from '@db/schema/users';
-import { eq, desc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { Request } from 'express';
 import { Session } from 'express-session';
 import { parse } from 'csv-parse';
@@ -70,31 +70,12 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       });
     }
 
-    // Get user information
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, req.session.user.id)
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Create flashcard set first to get the ID
-    const [newSet] = await db.insert(flashcardSets).values({
-      userId: req.session.user.id,
-      title: req.file.originalname.replace(/\.[^/.]+$/, ""),
-      isPublic: false,
-      tags: [],
-      urlPath: `${user.firstName.toLowerCase()}-${user.lastName.toLowerCase()}/set-${Date.now()}`,
-      filePath: null, // Will be updated after storage upload
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }).returning();
-
     // Create unique file path for Object Storage
-    const filePath = `flashcards/${req.session.user.id}/${newSet.id}/${req.file.originalname}`;
+    const timestamp = Date.now();
+    const sanitizedFilename = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const filePath = `flashcards/${req.session.user.id}/${timestamp}_${sanitizedFilename}`;
 
-    // Upload to Replit Object Storage
+    // Upload to Object Storage
     console.log('Uploading to Object Storage:', {
       path: filePath,
       size: req.file.buffer.length,
@@ -103,43 +84,56 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
 
     const uploadResult = await storage.uploadFile(filePath, req.file.buffer);
     if (uploadResult.error) {
-      // If upload fails, delete the flashcard set and return error
-      await db.delete(flashcardSets).where(eq(flashcardSets.id, newSet.id));
       throw new Error(`Storage upload failed: ${uploadResult.error}`);
     }
 
-    // Update flashcard set with file path
-    const [updatedSet] = await db.update(flashcardSets)
-      .set({ 
-        filePath,
-        updatedAt: new Date()
-      })
-      .where(eq(flashcardSets.id, newSet.id))
-      .returning();
+    // Create flashcard set
+    const [newSet] = await db.insert(flashcardSets).values({
+      userId: req.session.user.id,
+      title: req.file.originalname.replace(/\.[^/.]+$/, ""),
+      isPublic: false,
+      tags: '{}', // Empty PostgreSQL array
+      urlPath: `sets/${timestamp}`,
+      filePath: filePath,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
 
-    // Map cards data to match schema
-    const cardValues = cards.map((card, index) => ({
-      setId: newSet.id,
-      vocabWord: card['Vocab Word'],
-      partOfSpeech: card['Identifying Part Of Speach'],
-      definition: card['Definition'],
-      exampleSentence: card['Example Sentance'],
-      position: index + 1
-    }));
+    try {
+      // Map cards data to schema
+      const cardValues = cards.map((card, index) => ({
+        setId: newSet.id,
+        vocabWord: card['Vocab Word'],
+        partOfSpeech: card['Identifying Part Of Speach'],
+        definition: card['Definition'],
+        exampleSentence: card['Example Sentance'],
+        position: index + 1
+      }));
 
-    // Insert flashcards
-    await db.insert(flashcards).values(cardValues);
+      // Insert flashcards
+      await db.insert(flashcards).values(cardValues);
 
-    res.status(201).json({
-      message: 'File uploaded successfully',
-      flashcardSet: {
-        id: updatedSet.id,
-        title: updatedSet.title,
-        filePath: updatedSet.filePath,
-        urlPath: updatedSet.urlPath,
-        createdAt: updatedSet.createdAt
-      }
-    });
+      // Generate download URL for immediate access
+      const downloadResult = await storage.downloadFile(filePath);
+      
+      res.status(201).json({
+        message: 'File uploaded successfully',
+        flashcardSet: {
+          id: newSet.id,
+          title: newSet.title,
+          filePath: filePath,
+          urlPath: newSet.urlPath,
+          downloadUrl: downloadResult.presignedUrl,
+          createdAt: newSet.createdAt
+        }
+      });
+    } catch (error) {
+      // Cleanup on failure
+      await storage.deleteFile(filePath).catch(err => 
+        console.error('Cleanup error:', err)
+      );
+      throw error;
+    }
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ 
