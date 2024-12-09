@@ -138,6 +138,48 @@ class ReplitStorageService implements StorageService {
       };
     }
   }
+
+  async savePdfPreview(setId: number, pdfData: Buffer): Promise<string> {
+    try {
+      const pdfPath = `flashcards/${setId}/preview.pdf`;
+      const result = await storage.upload(pdfPath, pdfData);
+      
+      if (!result.success) {
+        throw new Error(`Failed to upload PDF preview: ${result.error}`);
+      }
+      
+      return pdfPath;
+    } catch (error) {
+      console.error(`Error saving PDF preview for set ${setId}:`, {
+        error: error instanceof Error ? error.message : String(error),
+        context: {
+          setId,
+          fileSize: pdfData.length,
+          timestamp: new Date().toISOString()
+        }
+      });
+      throw new Error(`Failed to save PDF preview: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async getPdfPreview(setId: number): Promise<Buffer> {
+    try {
+      const pdfPath = `flashcards/${setId}/preview.pdf`;
+      const result = await storage.download(pdfPath);
+      
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to download PDF preview');
+      }
+      
+      return result.data;
+    } catch (error) {
+      console.error(`Error reading PDF preview:`, {
+        error: error instanceof Error ? error.message : String(error),
+        context: { setId }
+      });
+      throw new Error('Failed to read PDF preview');
+    }
+  }
 }
 
 // Export singleton instance
