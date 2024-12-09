@@ -4,7 +4,7 @@ import multer from 'multer';
 import { body, validationResult } from 'express-validator';
 import { db, query } from '@db/index';
 import { flashcardSets, flashcards, memorizationSessions } from '@db/schema/flashcards';
-import type { FlashcardSet, Flashcard, MemorizationSession } from '@db/schema/flashcards';
+import type { FlashcardSet, Flashcard, MemorizationSession } from '@db/index';
 import { storage } from '../lib/storage';
 
 // Extend Express Request type to include user
