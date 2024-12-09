@@ -9,7 +9,7 @@ class ObjectStorage {
 
   async upload(path: string, data: Buffer) {
     try {
-      const result = await this.client.upload(path, data);
+      const result = await this.client.putObject(path, data);
       if (!result.ok) {
         console.error('Upload failed:', result.error);
         return { success: false, error: result.error };
