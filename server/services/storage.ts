@@ -1,8 +1,5 @@
 import { Client } from '@replit/object-storage';
 
-// Initialize the Object Storage client
-const client = new Client();
-
 export interface StorageService {
   uploadFile(file: Buffer, fileName: string): Promise<string>;
   getFileUrl(filePath: string): Promise<string>;
@@ -21,7 +18,15 @@ export class ReplitStorageService implements StorageService {
     const uniqueFileName = `${timestamp}-${fileName}`;
     
     try {
-      await this.client.putObject(uniqueFileName, file);
+      const isTextFile = fileName.toLowerCase().endsWith('.csv') || fileName.toLowerCase().endsWith('.json');
+      
+      if (isTextFile) {
+        const textContent = file.toString('utf-8');
+        await this.client.uploadFromText(uniqueFileName, textContent);
+      } else {
+        await this.client.uploadFromBytes(uniqueFileName, file);
+      }
+      
       console.log(`Successfully uploaded file: ${uniqueFileName}`);
       return uniqueFileName;
     } catch (error) {
@@ -32,10 +37,26 @@ export class ReplitStorageService implements StorageService {
 
   async getFileUrl(filePath: string): Promise<string> {
     try {
-      // Get a signed URL that expires in 1 hour (3600 seconds)
-      const signedUrl = await this.client.getSignedUrl('GET', filePath, 3600);
-      console.log(`Generated signed URL for file: ${filePath}`);
-      return signedUrl;
+      // Use downloadAsText for text files (CSV, JSON) and downloadAsBytes for binary files
+      const isTextFile = filePath.toLowerCase().endsWith('.csv') || filePath.toLowerCase().endsWith('.json');
+      
+      let content: string | Uint8Array;
+      if (isTextFile) {
+        const { ok, value: textValue, error } = await this.client.downloadAsText(filePath);
+        if (!ok) throw error || new Error('Failed to download file');
+        content = textValue;
+      } else {
+        const { ok, value: bytesValue, error } = await this.client.downloadAsBytes(filePath);
+        if (!ok) throw error || new Error('Failed to download file');
+        content = bytesValue;
+      }
+
+      const contentType = this.getContentType(filePath);
+      if (isTextFile) {
+        return `data:${contentType};charset=utf-8,${encodeURIComponent(content as string)}`;
+      } else {
+        return `data:${contentType};base64,${Buffer.from(content as Uint8Array).toString('base64')}`;
+      }
     } catch (error) {
       console.error('Error getting file URL:', error);
       throw new Error(`Failed to get file URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -48,6 +69,20 @@ export class ReplitStorageService implements StorageService {
     } catch (error) {
       console.error('Error deleting file:', error);
       throw new Error('Failed to delete file from storage');
+    }
+  }
+
+  private getContentType(filePath: string): string {
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'csv':
+        return 'text/csv';
+      case 'json':
+        return 'application/json';
+      case 'pdf':
+        return 'application/pdf';
+      default:
+        return 'application/octet-stream';
     }
   }
 }
