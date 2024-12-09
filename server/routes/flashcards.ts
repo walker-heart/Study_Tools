@@ -131,7 +131,7 @@ router.post('/sets',
         title,
         description,
         isPublic: isPublic || false,
-        tags: tags || [],
+        tags: tags ? `{${tags.map(t => `"${t}"`).join(',')}}` : '{}',
         createdAt: new Date(),
         updatedAt: new Date()
       }).returning();
