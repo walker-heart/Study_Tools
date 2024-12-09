@@ -308,7 +308,7 @@ router.get('/sets/:setId/preview', async (req: AuthenticatedRequest, res) => {
       where: eq(flashcardSets.id, parseInt(setId)),
       with: {
         cards: {
-          orderBy: (cards, { asc }) => [asc(cards.position)]
+          orderBy: (cards: { position: number }, { asc }: { asc: any }) => [asc(cards.position)]
         }
       }
     });

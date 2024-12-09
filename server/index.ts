@@ -251,7 +251,7 @@ app.use((req, res, next) => {
           resolve(true);
         });
 
-        serverInstance.on('error', (err) => {
+        serverInstance.on('error', (err: NodeJS.ErrnoException) => {
           log(`Server startup error: ${err.message}`);
           if (err.code === 'EADDRINUSE') {
             log(`Port ${PORT} is already in use`);
