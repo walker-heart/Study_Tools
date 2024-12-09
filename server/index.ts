@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes/index";
+import uploadRouter from "./routes/upload";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 import cors from "cors";
@@ -204,6 +205,7 @@ app.use((req, res, next) => {
 
     // Register routes before error handling
     registerRoutes(app);
+    app.use('/api/upload', uploadRouter);
     
     const server = createServer(app);
 
