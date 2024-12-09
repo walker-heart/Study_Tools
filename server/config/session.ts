@@ -32,10 +32,26 @@ try {
     pool,
     tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15 // Prune every 15 minutes
+    pruneSessionInterval: 60 * 15, // Prune every 15 minutes
+    errorLog: (err) => {
+      console.error('Session store error:', {
+        error: err instanceof Error ? err.message : String(err),
+        timestamp: new Date().toISOString(),
+        stack: err instanceof Error ? err.stack : undefined
+      });
+    }
+  });
+  
+  // Test connection
+  pool.query('SELECT NOW()', (err) => {
+    if (err) {
+      console.error('Session store database connection error:', err);
+    } else {
+      console.log('Session store database connection successful');
+    }
   });
 } catch (error) {
-  console.warn('Failed to create PostgreSQL session store, falling back to MemoryStore');
+  console.warn('Failed to create PostgreSQL session store, falling back to MemoryStore:', error);
   sessionStore = new MemoryStoreSession({
     checkPeriod: 86400000 // Prune expired entries every 24h
   });
@@ -48,15 +64,15 @@ export const sessionConfig = {
   saveUninitialized: false,
   rolling: true,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: false, // Set to false for development
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     sameSite: 'lax' as const,
     path: '/',
   },
   name: 'sid',
-  proxy: process.env.NODE_ENV === 'production',
+  proxy: false, // Set to false for development
 };
 
-// Remove store from config as it's set in index.ts
+// Export store separately
 export const getSessionStore = () => sessionStore;

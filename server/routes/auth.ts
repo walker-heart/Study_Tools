@@ -154,7 +154,16 @@ export async function signIn(req: Request, res: Response) {
 
     console.log('Authentication successful for user:', user.id);
 
-    // Set up session
+    // Set up session with more detailed logging
+    console.log('Setting up session for user:', {
+      userId: user.id,
+      sessionId: req.session.id,
+      beforeState: {
+        user: req.session.user,
+        authenticated: req.session.authenticated
+      }
+    });
+
     req.session.user = {
       id: user.id,
       email: user.email,
@@ -164,21 +173,35 @@ export async function signIn(req: Request, res: Response) {
     };
     req.session.authenticated = true;
 
-    // Save session explicitly
-    await new Promise<void>((resolve, reject) => {
-      req.session.save((err) => {
-        if (err) {
-          console.error('Session save error:', err);
-          reject(err);
-        } else {
-          console.log('Session saved successfully:', {
-            sessionId: req.session.id,
-            userId: user.id
-          });
-          resolve();
-        }
+    // Save session explicitly with enhanced error handling
+    try {
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err) => {
+          if (err) {
+            console.error('Session save error:', {
+              error: err instanceof Error ? err.message : String(err),
+              stack: err instanceof Error ? err.stack : undefined,
+              sessionId: req.session.id,
+              userId: user.id
+            });
+            reject(err);
+          } else {
+            console.log('Session saved successfully:', {
+              sessionId: req.session.id,
+              userId: user.id,
+              afterState: {
+                user: req.session.user,
+                authenticated: req.session.authenticated
+              }
+            });
+            resolve();
+          }
+        });
       });
-    });
+    } catch (sessionError) {
+      console.error('Failed to save session:', sessionError);
+      throw new Error('Failed to establish session');
+    }
 
     // Generate JWT token
     const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
