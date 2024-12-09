@@ -21,28 +21,30 @@ export class ReplitStorageService implements StorageService {
     const uniqueFileName = `${timestamp}-${fileName}`;
     
     try {
-      await this.client.put(uniqueFileName, file);
+      await this.client.putObject(uniqueFileName, file);
+      console.log(`Successfully uploaded file: ${uniqueFileName}`);
       return uniqueFileName;
     } catch (error) {
       console.error('Error uploading file:', error);
-      throw new Error('Failed to upload file to storage');
+      throw new Error(`Failed to upload file: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   async getFileUrl(filePath: string): Promise<string> {
     try {
-      // Get a signed URL that expires in 1 hour
-      const url = await this.client.getSignedUrl(filePath);
-      return url;
+      // Get a signed URL that expires in 1 hour (3600 seconds)
+      const signedUrl = await this.client.getSignedUrl('GET', filePath, 3600);
+      console.log(`Generated signed URL for file: ${filePath}`);
+      return signedUrl;
     } catch (error) {
       console.error('Error getting file URL:', error);
-      throw new Error('Failed to get file URL');
+      throw new Error(`Failed to get file URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   async deleteFile(filePath: string): Promise<void> {
     try {
-      await this.client.delete(filePath);
+      await this.client.deleteObject(filePath);
     } catch (error) {
       console.error('Error deleting file:', error);
       throw new Error('Failed to delete file from storage');

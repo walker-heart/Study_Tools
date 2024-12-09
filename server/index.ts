@@ -183,14 +183,28 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Verify database connection
-    try {
-      await db.execute(sql`SELECT 1`);
-      log('Database connection successful');
-    } catch (error) {
-      log('Error connecting to database: ' + error);
-      process.exit(1);
-    }
+    // Initialize critical services
+    const initializeServices = async () => {
+      // Verify database connection
+      try {
+        const result = await db.execute(sql`SELECT 1`);
+        log('Database connection successful');
+      } catch (error) {
+        throw new Error(`Database connection failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+
+      // Verify Object Storage is accessible
+      try {
+        const { Client } = await import('@replit/object-storage');
+        const client = new Client();
+        await client.list(); // Test if we can list objects
+        log('Object Storage connection successful');
+      } catch (error) {
+        throw new Error(`Object Storage connection failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
+
+    await initializeServices();
 
     // Check for required environment variables
     if (!process.env.JWT_SECRET) {
@@ -236,13 +250,22 @@ app.use((req, res, next) => {
 
     // Get port from environment or default to 5000
     const PORT = parseInt(process.env.PORT || '5000', 10);
-    server.listen({
-      port: PORT,
-      host: '0.0.0.0'
-    }, () => {
-      log(`Server running in ${app.get("env")} mode on port ${PORT}`);
-      log(`APP_URL: ${env.APP_URL}`);
+    
+    // Start server with proper error handling
+    const startServer = () => new Promise((resolve, reject) => {
+      server.listen({
+        port: PORT,
+        host: '0.0.0.0'
+      }, () => {
+        log(`Server running in ${app.get("env")} mode on port ${PORT}`);
+        log(`APP_URL: ${env.APP_URL}`);
+        resolve(true);
+      }).on('error', (err) => {
+        reject(new Error(`Failed to start server: ${err.message}`));
+      });
     });
+
+    await startServer();
   } catch (error) {
     log(`Fatal error: ${error}`);
     process.exit(1);

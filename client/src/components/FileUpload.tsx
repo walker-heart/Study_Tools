@@ -17,13 +17,14 @@ interface FileUploadResponse {
 interface FileUploadProps {
   onFileSelect: (file: File) => Promise<void>;
   isProcessing: boolean;
+  setSelectedFile: (file: File | null) => void;
 }
 
 interface FileValidationError extends Error {
   code: 'FILE_SIZE' | 'FILE_TYPE' | 'FILE_CONTENT';
 }
 
-export default function FileUpload({ onFileSelect, isProcessing }: FileUploadProps) {
+export default function FileUpload({ onFileSelect, isProcessing, setSelectedFile }: FileUploadProps) {
   const { toast } = useToast();
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -48,6 +49,7 @@ export default function FileUpload({ onFileSelect, isProcessing }: FileUploadPro
     try {
       validateFile(file);
       setUploadProgress(0);
+      setSelectedFile(file);
       await onFileSelect(file);
       setUploadProgress(100);
       toast({
