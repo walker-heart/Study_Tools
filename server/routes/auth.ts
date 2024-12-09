@@ -42,19 +42,31 @@ export async function signUp(req: Request, res: Response) {
 
 // Add session check endpoint
 export async function checkAuth(req: Request, res: Response) {
-  console.log('Auth check - Session data:', {
-    sessionId: req.session.id,
-    sessionUser: req.session.user,
-    authenticated: req.session.authenticated
-  });
+  try {
+    console.log('Auth check - Session data:', {
+      sessionId: req.session.id,
+      sessionUser: req.session.user,
+      authenticated: req.session.authenticated,
+      cookie: req.session.cookie
+    });
 
-  if (req.session.user?.id && req.session.authenticated) {
+    if (!req.session) {
+      console.log('No session found');
+      return res.status(401).json({ authenticated: false, error: 'No session' });
+    }
+
+    if (!req.session.user?.id) {
+      console.log('No user in session');
+      return res.status(401).json({ authenticated: false, error: 'No user in session' });
+    }
+
     // Verify user still exists in database
     const [user] = await db
       .select({
         id: users.id,
         email: users.email,
-        isAdmin: users.isAdmin
+        isAdmin: users.isAdmin,
+        theme: users.theme
       })
       .from(users)
       .where(eq(users.id, req.session.user.id))
@@ -65,8 +77,29 @@ export async function checkAuth(req: Request, res: Response) {
       req.session.destroy((err) => {
         if (err) console.error('Session destruction error:', err);
       });
-      return res.status(401).json({ authenticated: false });
+      return res.status(401).json({ authenticated: false, error: 'User not found' });
     }
+
+    // Update session data
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      isAdmin: user.isAdmin
+    };
+    req.session.authenticated = true;
+
+    // Save session explicitly
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          reject(err);
+        } else {
+          console.log('Session saved successfully');
+          resolve();
+        }
+      });
+    });
 
     console.log('Auth check successful for user:', user.id);
     res.json({ 
@@ -74,12 +107,16 @@ export async function checkAuth(req: Request, res: Response) {
       user: { 
         id: user.id, 
         email: user.email,
-        isAdmin: user.isAdmin 
+        isAdmin: user.isAdmin,
+        theme: user.theme || 'light'
       } 
     });
-  } else {
-    console.log('Auth check failed - No valid session');
-    res.status(401).json({ authenticated: false });
+  } catch (error) {
+    console.error('Auth check error:', error);
+    res.status(500).json({ 
+      authenticated: false, 
+      error: 'Internal server error during auth check' 
+    });
   }
 }
 
