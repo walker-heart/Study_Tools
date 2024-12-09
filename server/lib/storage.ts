@@ -35,6 +35,13 @@ class ObjectStorage {
 
   async uploadFile(path: string, fileData: Buffer): Promise<StorageResponse> {
     try {
+      console.log(`Attempting to upload file to path: ${path}`);
+      
+      // Validate input
+      if (!path || !fileData) {
+        throw new Error('Invalid upload parameters: path and file data are required');
+      }
+
       // Get upload URL
       const uploadResponse = await fetch(`${this.API_BASE}/generate-presigned-url`, {
         method: 'POST',
@@ -51,6 +58,7 @@ class ObjectStorage {
 
       if (!uploadResponse.ok) {
         const errorData = await uploadResponse.json() as ReplitStorageError;
+        console.error('Failed to get upload URL:', errorData);
         throw new Error(errorData.message || 'Failed to get upload URL');
       }
 

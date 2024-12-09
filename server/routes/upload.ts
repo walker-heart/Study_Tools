@@ -52,15 +52,18 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       .on('end', () => resolve(results));
     });
 
-    // Create flashcard set object with simplified structure
+    // Create flashcard set object with proper vocabulary structure
     const flashcardSet = {
       id: Date.now(), // Use timestamp as temporary ID
       userId: req.session.user.id,
       title: title || req.file.originalname,
       cards: cards.map(card => ({
-        text: card['Text'],
+        vocabWord: card['Vocab Word'],
+        partOfSpeech: card['Identifying Part Of Speach'],
+        definition: card['Definition'],
+        exampleSentence: card['Example Sentance'],
         createdAt: new Date().toISOString()
-      })),
+      })).filter(card => card.vocabWord && card.partOfSpeech && card.definition),
       createdAt: new Date().toISOString()
     };
 
