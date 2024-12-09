@@ -6,7 +6,17 @@ import { createServer } from "http";
 import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import { db, sql } from "./db";
+import { db } from "./db";
+import pkg from 'pg';
+const { Pool } = pkg;
+
+// Create a proper pool for session handling
+const sessionPool = new Pool({
+  connectionString: env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 import { env } from "./lib/env";
 import { storageService } from './services/storage';
 import { existsSync, mkdirSync } from 'fs';
@@ -123,7 +133,7 @@ app.use(express.urlencoded({ extended: false }));
 // Configure session middleware with proper error handling
 app.use(session({
   store: new pgSession({
-    pool: sql,
+    pool: sessionPool,
     tableName: 'session',
     createTableIfMissing: true,
     pruneSessionInterval: 60 * 15, // Cleanup every 15 minutes
