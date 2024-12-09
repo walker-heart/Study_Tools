@@ -2,6 +2,7 @@ import { Router, Request } from 'express';
 import { eq } from 'drizzle-orm';
 import multer from 'multer';
 import { body, validationResult } from 'express-validator';
+import { createSlug } from '../utils/slug';
 import { db, query } from '@db/index';
 import { flashcardSets, flashcards, memorizationSessions } from '@db/schema/flashcards';
 import type { FlashcardSet, Flashcard, MemorizationSession } from '@db/index';
@@ -53,7 +54,7 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       tags: [], // PostgreSQL array
       createdAt: new Date(),
       updatedAt: new Date(),
-      urlPath: `/preview/${Date.now()}`, // Add URL path for frontend routing
+      urlPath: `/flashcards/${createSlug(`${req.session.user?.firstName || 'user'}-${req.session.user?.lastName || ''}`)}/${Date.now()}`,
       filePath: null // Will be updated after successful upload
     }).returning();
 
