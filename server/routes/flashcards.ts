@@ -21,10 +21,6 @@ interface AuthenticatedRequest extends Request {
 
 const router = Router();
 const upload = multer();
-interface CSVUploadResponse {
-  message: string;
-  flashcardSet: FlashcardSet;
-}
 
 // Handle file upload for flashcard sets
 router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequest, res) => {
@@ -52,37 +48,61 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
     // Create flashcard set first to get the setId
     const [flashcardSet] = await db.insert(flashcardSets).values({
       userId,
-      title: req.file.originalname,
+      title: req.file.originalname.replace(/\.[^/.]+$/, ""), // Remove file extension
       isPublic: false,
-      tags: [],
+      tags: [], // PostgreSQL array
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      filePath: null // Will be updated after successful upload
     }).returning();
 
-    // Upload file to storage with proper error handling using setId in path
-    const fileBuffer = req.file.buffer;
-    const fileName = `flashcards/${userId}/${flashcardSet.id}/${req.file.originalname}`;
-    const uploadResult = await storage.uploadFile(fileName, fileBuffer);
+    try {
+      // Create a unique file path for storage
+      const fileName = `flashcards/${userId}/${flashcardSet.id}/${req.file.originalname}`;
+      
+      // Upload file using storage service
+      const uploadResult = await storage.uploadFile(fileName, req.file.buffer);
+      
+      if (uploadResult.error) {
+        throw new Error(uploadResult.error);
+      }
 
-    if (uploadResult.error) {
+      // Update the set with the file path after successful upload
+      const [updatedSet] = await db.update(flashcardSets)
+        .set({ 
+          filePath: fileName,
+          updatedAt: new Date()
+        })
+        .where(eq(flashcardSets.id, flashcardSet.id))
+        .returning();
+
+      if (!updatedSet) {
+        throw new Error('Failed to update flashcard set with file path');
+      }
+
+      res.status(201).json({ 
+        message: 'File uploaded successfully',
+        flashcardSet: updatedSet
+      });
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      
       // Cleanup the created set if upload fails
-      await db.delete(flashcardSets).where(eq(flashcardSets.id, flashcardSet.id));
-      throw new Error(uploadResult.error);
+      if (flashcardSet?.id) {
+        await db.delete(flashcardSets)
+          .where(eq(flashcardSets.id, flashcardSet.id))
+          .catch(err => console.error('Cleanup error:', err));
+      }
+      
+      res.status(500).json({ 
+        error: error instanceof Error ? error.message : 'Failed to upload file'
+      });
     }
-
-    // Update the set with the file path
-    const [updatedSet] = await db.update(flashcardSets)
-      .set({ filePath: fileName })
-      .where(eq(flashcardSets.id, flashcardSet.id))
-      .returning();
-
-    res.status(201).json({ 
-      message: 'File uploaded successfully',
-      flashcardSet
-    });
   } catch (error) {
-    console.error('Error uploading file:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to upload file' });
+    console.error('Error handling upload:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to process upload'
+    });
   }
 });
 
@@ -111,7 +131,9 @@ router.post('/sets',
         title,
         description,
         isPublic: isPublic || false,
-        tags: tags || []
+        tags: tags || [],
+        createdAt: new Date(),
+        updatedAt: new Date()
       }).returning();
 
       res.status(201).json(newSet);
@@ -173,96 +195,6 @@ router.post('/sets/:setId/cards',
     }
 });
 
-// Start a memorization session
-router.post('/sets/:setId/memorize', async (req: AuthenticatedRequest, res) => {
-  try {
-    const { setId } = req.params;
-    const userId = req.session.user?.id;
-
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    // Get all cards in the set
-    const cards = await query.flashcards.findBySet(parseInt(setId));
-
-    if (!cards.length) {
-      return res.status(404).json({ error: 'No cards found in this set' });
-    }
-
-    // Create new memorization session
-    const [session] = await db.insert(memorizationSessions).values({
-      userId,
-      setId: parseInt(setId),
-      progress: {
-        completed: [],
-        incorrect: [],
-        remainingCards: cards.map((card: { id: number }) => card.id)
-      }
-    }).returning();
-
-    res.status(201).json(session);
-  } catch (error) {
-    console.error('Error starting memorization session:', error);
-    res.status(500).json({ error: 'Failed to start memorization session' });
-  }
-});
-
-// Update memorization session progress
-router.put('/memorize/:sessionId', 
-  body('cardId').isInt(),
-  body('correct').isBoolean(),
-  async (req: AuthenticatedRequest, res) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-
-      const { sessionId } = req.params;
-      const { cardId, correct } = req.body;
-      const userId = req.session.user?.id;
-
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-
-      // Get current session
-      const session = await db.query.memorizationSessions.findFirst({
-        where: eq(memorizationSessions.id, parseInt(sessionId)),
-        columns: {
-          id: true,
-          userId: true,
-          progress: true
-        }
-      });
-
-      if (!session || session.userId !== userId) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
-      const progress = session.progress;
-      const remainingCards = progress.remainingCards.filter((id: number) => id !== cardId);
-      
-      if (correct) {
-        progress.completed.push(cardId);
-      } else {
-        progress.incorrect.push(cardId);
-        remainingCards.push(cardId);
-      }
-
-      // Update session
-      const [updatedSession] = await db.update(memorizationSessions)
-        .set({
-          progress: {
-            ...progress,
-            remainingCards
-          },
-          completedAt: remainingCards.length === 0 ? new Date() : null,
-          score: (progress.completed.length / (progress.completed.length + progress.incorrect.length)) * 100
-        })
-        .where(eq(memorizationSessions.id, parseInt(sessionId)))
-        .returning();
 // Get user's uploaded files
 router.get('/sets/files', async (req: AuthenticatedRequest, res) => {
   try {
@@ -343,60 +275,6 @@ router.get('/sets/:setId/download', async (req: AuthenticatedRequest, res) => {
   } catch (error) {
     console.error('Error downloading file:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to download file' });
-  }
-});
-
-      res.json(updatedSession);
-    } catch (error) {
-      console.error('Error updating memorization session:', error);
-      res.status(500).json({ error: 'Failed to update memorization session' });
-    }
-});
-
-// Get preview data for a flashcard set
-router.get('/sets/:setId/preview', async (req: AuthenticatedRequest, res) => {
-  try {
-    const { setId } = req.params;
-    const userId = req.session.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    // Get the flashcard set
-    const set = await db.query.flashcardSets.findFirst({
-      where: eq(flashcardSets.id, parseInt(setId)),
-    });
-
-    if (!set || set.userId !== userId) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-
-    // Get all cards in the set
-    const cards = await query.flashcards.findBySet(parseInt(setId));
-
-    // Get download URL if file exists
-    let downloadUrl = null;
-    if (set.filePath) {
-      const downloadResult = await storage.downloadFile(set.filePath);
-      if (!downloadResult.error && downloadResult.presignedUrl) {
-        downloadUrl = downloadResult.presignedUrl;
-      }
-    }
-
-    res.json({
-      set: { ...set, downloadUrl },
-      cards: cards.map(card => ({
-        'Vocab Word': card.vocabWord,
-        'Identifying Part Of Speach': card.partOfSpeech,
-        'Definition': card.definition,
-        'Example Sentance': card.exampleSentence,
-        lineNumber: card.position
-      }))
-    });
-  } catch (error) {
-    console.error('Error getting preview data:', error);
-    res.status(500).json({ error: 'Failed to get preview data' });
   }
 });
 

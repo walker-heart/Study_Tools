@@ -231,33 +231,17 @@ app.use((req, res, next) => {
         await testDatabaseConnection();
         log('Database connection established successfully');
 
-        // Initialize storage service - it will create directory if needed
-        const storageDir = join(process.cwd(), 'storage', 'files');
-        if (!existsSync(storageDir)) {
-          mkdirSync(storageDir, { recursive: true });
-        }
-        log('File storage system initialized successfully');
-
-        // Test storage service by creating and deleting a test flashcard set
+        // Test Object Storage service
         try {
-          const testSet = {
-            id: 999999,
-            userId: 1,
-            title: "Test Set",
-            cards: [{
-              text: "Test flashcard",
-              createdAt: new Date().toISOString()
-            }],
-            createdAt: new Date().toISOString()
-          };
+          const testPath = 'test/storage-check.txt';
+          const testContent = Buffer.from('Storage test');
           
-          await storageService.saveFlashcardSet(testSet.id, testSet);
-          await storageService.getFlashcardSet(testSet.id);
-          await storageService.deleteFlashcardSet(testSet.id);
-          log('Storage service verified successfully');
+          await storage.uploadFile(testPath, testContent);
+          await storage.deleteFile(testPath);
+          log('Object Storage service verified successfully');
         } catch (testError) {
-          log(`Warning: Storage service test failed: ${testError instanceof Error ? testError.message : String(testError)}`);
-          // Don't throw here, allow server to start even if test fails
+          log(`Warning: Object Storage test failed: ${testError instanceof Error ? testError.message : String(testError)}`);
+          // Don't throw here, allow server to start with degraded functionality
         }
       } catch (error) {
         log(`Warning: Failed to initialize services: ${error instanceof Error ? error.message : String(error)}`);
