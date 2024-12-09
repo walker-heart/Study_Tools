@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { users } from "./schema/users";
-import { flashcardSets, flashcards, memorizationSessions } from "./schema/flashcards";
+import { users } from "../db/schema/users";
+import { flashcardSets, flashcards, memorizationSessions } from "../db/schema/flashcards";
 import { env } from "./lib/env";
 
 // Validate environment variables
@@ -10,13 +10,22 @@ if (!env.DATABASE_URL) {
 }
 
 // Configure PostgreSQL client with proper connection options
-const client = postgres(env.DATABASE_URL, {
+const connectionConfig = {
   max: 20,
   idle_timeout: 20,
   connect_timeout: 10,
-  ssl: env.NODE_ENV === 'production',
+  ssl: env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: false
+  } : false,
   debug: env.NODE_ENV === 'development',
-});
+  onnotice: () => {}, // Ignore notice messages
+  connection: {
+    application_name: 'flashcard-app'
+  }
+};
+
+// Create the client with SSL configuration
+const client = postgres(env.DATABASE_URL, connectionConfig);
 
 // Initialize Drizzle ORM with schema
 export const db = drizzle(client, {
@@ -28,5 +37,17 @@ export const db = drizzle(client, {
   },
 });
 
-// Export the raw client for transactions and complex queries
+// Export the SQL interface for raw queries
 export const sql = client;
+
+// Test database connection function
+export async function testDatabaseConnection() {
+  try {
+    await sql`SELECT NOW()`;
+    console.log('Database connection successful');
+    return true;
+  } catch (error) {
+    console.error('Database connection error:', error);
+    throw error;
+  }
+}
