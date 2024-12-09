@@ -1,4 +1,13 @@
 import { Client } from '@replit/object-storage';
+import { Readable } from 'stream';
+
+interface StorageResult<T> {
+  success: boolean;
+  error?: string;
+  data?: T;
+  presignedUrl?: string;
+  files?: string[];
+}
 
 class ObjectStorage {
   private client: Client;
@@ -7,39 +16,49 @@ class ObjectStorage {
     this.client = new Client();
   }
 
-  async upload(path: string, data: Buffer) {
+  async upload(path: string, data: Buffer): Promise<StorageResult<void>> {
     try {
-      const result = await this.client.put(path, data);
-      if (!result.ok) {
-        console.error('Upload failed:', result.error);
-        return { success: false, error: result.error };
-      }
-      console.log('Upload successful:', path);
+      await this.client.putObject({
+        key: path,
+        body: data
+      });
       return { success: true };
     } catch (error) {
       console.error('Upload error:', error);
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error' 
       };
     }
   }
 
-  async download(path: string) {
+  async download(path: string): Promise<StorageResult<Buffer>> {
     try {
-      const result = await this.client.getObject(path);
-      if (!result.ok) {
-        console.error('Download failed:', result.error);
-        return { success: false, error: result.error };
+      const result = await this.client.getObject({
+        key: path
+      });
+      
+      if (!result) {
+        throw new Error('File not found');
       }
-      
-      // Get presigned URL for temporary access
-      const presignedResult = await this.client.getPresignedUrl(path, { expires: 3600 }); // 1 hour expiry
-      
+
+      // Convert the response to a buffer
+      const chunks: Buffer[] = [];
+      for await (const chunk of result.body) {
+        chunks.push(Buffer.from(chunk));
+      }
+      const data = Buffer.concat(chunks);
+
+      // Get presigned URL
+      const presignedUrl = await this.client.getSignedUrl({
+        key: path,
+        expiresIn: 3600 // 1 hour
+      });
+
       return { 
         success: true, 
-        data: result.value,
-        presignedUrl: presignedResult.ok ? presignedResult.value : undefined
+        data,
+        presignedUrl
       };
     } catch (error) {
       console.error('Download error:', error);
@@ -50,13 +69,11 @@ class ObjectStorage {
     }
   }
 
-  async delete(path: string) {
+  async delete(path: string): Promise<StorageResult<void>> {
     try {
-      const result = await this.client.deleteObject(path);
-      if (!result.ok) {
-        console.error('Delete failed:', result.error);
-        return { success: false, error: result.error };
-      }
+      await this.client.deleteObject({
+        key: path
+      });
       return { success: true };
     } catch (error) {
       console.error('Delete error:', error);
@@ -67,16 +84,15 @@ class ObjectStorage {
     }
   }
 
-  async list(prefix?: string) {
+  async list(prefix?: string): Promise<StorageResult<string[]>> {
     try {
-      const result = await this.client.list(prefix);
-      if (!result.ok) {
-        console.error('List failed:', result.error);
-        return { success: false, error: result.error, files: [] };
-      }
+      const result = await this.client.listObjects({
+        prefix: prefix || ''
+      });
+
       return { 
         success: true, 
-        files: result.value.map(file => file.key)
+        files: result.objects.map(obj => obj.key)
       };
     } catch (error) {
       console.error('List error:', error);
@@ -89,5 +105,5 @@ class ObjectStorage {
   }
 }
 
-// Export a singleton instance
+// Export singleton instance
 export const storage = new ObjectStorage();
