@@ -4,7 +4,8 @@ import multer from 'multer';
 import { body, validationResult } from 'express-validator';
 import { db } from '../db';
 import { flashcardSets, flashcards, memorizationSessions } from '@db/schema/flashcards';
-import type { FlashcardSet, Flashcard, MemorizationSession } from '@db/schema/flashcards';
+import type { FlashcardSet, Flashcard, MemorizationSession } from '../db';
+import { storage } from '../lib/storage';
 
 // Extend Express Request type to include user
 interface AuthenticatedRequest extends Request {
@@ -20,6 +21,45 @@ interface AuthenticatedRequest extends Request {
 
 const router = Router();
 const upload = multer();
+// Handle file upload for flashcard sets
+router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequest, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const userId = req.session.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Upload file to storage
+    const fileBuffer = req.file.buffer;
+    const fileName = `flashcards/${userId}/${Date.now()}-${req.file.originalname}`;
+    const uploadResult = await storage.uploadFile(fileName, fileBuffer);
+
+    if (uploadResult.error) {
+      throw new Error(uploadResult.error);
+    }
+
+    // Store file reference in database
+    const [flashcardSet] = await db.insert(flashcardSets).values({
+      userId,
+      title: req.file.originalname,
+      filePath: fileName,
+      isPublic: false,
+      tags: []
+    }).returning();
+
+    res.status(201).json({ 
+      message: 'File uploaded successfully',
+      flashcardSet
+    });
+  } catch (error) {
+    console.error('Error uploading file:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to upload file' });
+  }
+});
 
 // Create a new flashcard set
 router.post('/sets', 
@@ -79,9 +119,13 @@ router.post('/sets/:setId/cards',
       }
 
       // Verify set ownership
-      const [set] = await db.select().from(flashcardSets)
-        .where(eq(flashcardSets.id, parseInt(setId)))
-        .limit(1);
+      const set = await db.query.flashcardSets.findFirst({
+        where: eq(flashcardSets.id, parseInt(setId)),
+        columns: {
+          id: true,
+          userId: true
+        }
+      });
 
       if (!set || set.userId !== userId) {
         return res.status(403).json({ error: 'Forbidden' });
@@ -121,9 +165,13 @@ router.post('/sets/:setId/memorize', async (req: AuthenticatedRequest, res) => {
     }
 
     // Get all cards in the set
-    const cards = await db.select().from(flashcards)
-      .where(eq(flashcards.setId, parseInt(setId)))
-      .orderBy(flashcards.position);
+    const cards = await db.query.flashcards.findMany({
+      where: eq(flashcards.setId, parseInt(setId)),
+      orderBy: flashcards.position,
+      columns: {
+        id: true
+      }
+    });
 
     if (!cards.length) {
       return res.status(404).json({ error: 'No cards found in this set' });
@@ -136,7 +184,7 @@ router.post('/sets/:setId/memorize', async (req: AuthenticatedRequest, res) => {
       progress: {
         completed: [],
         incorrect: [],
-        remainingCards: cards.map((card: Flashcard) => card.id)
+        remainingCards: cards.map((card: { id: number }) => card.id)
       }
     }).returning();
 
@@ -167,9 +215,14 @@ router.put('/memorize/:sessionId',
       }
 
       // Get current session
-      const [session] = await db.select().from(memorizationSessions)
-        .where(eq(memorizationSessions.id, parseInt(sessionId)))
-        .limit(1);
+      const session = await db.query.memorizationSessions.findFirst({
+        where: eq(memorizationSessions.id, parseInt(sessionId)),
+        columns: {
+          id: true,
+          userId: true,
+          progress: true
+        }
+      });
 
       if (!session || session.userId !== userId) {
         return res.status(403).json({ error: 'Forbidden' });
