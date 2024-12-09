@@ -35,7 +35,11 @@ class ObjectStorage {
 
   async uploadFile(path: string, fileData: Buffer): Promise<StorageResponse> {
     try {
-      console.log(`Attempting to upload file to path: ${path}`);
+      console.log('Storage Service - Upload request:', {
+        path,
+        fileSize: fileData.length,
+        timestamp: new Date().toISOString()
+      });
       
       // Validate input
       if (!path || !fileData) {
