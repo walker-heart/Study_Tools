@@ -12,16 +12,39 @@ interface StorageService {
 class ReplitStorageService implements StorageService {
   async saveFlashcardSet(setId: number, filePath: string, fileData: Buffer): Promise<string> {
     try {
-      const result = await storage.upload(filePath, fileData);
+      // Ensure proper file path format
+      const sanitizedPath = filePath.replace(/\/{2,}/g, '/').replace(/^\//, '');
+      
+      console.log('Attempting to save flashcard set:', {
+        setId,
+        path: sanitizedPath,
+        fileSize: fileData.length,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Attempt upload
+      const result = await storage.upload(sanitizedPath, fileData);
       
       if (!result.success) {
+        console.error('Storage upload failed:', {
+          error: result.error,
+          setId,
+          path: sanitizedPath
+        });
         throw new Error(`Failed to save flashcard set: ${result.error}`);
       }
       
-      return filePath;
+      console.log('Successfully saved flashcard set:', {
+        setId,
+        path: sanitizedPath,
+        timestamp: new Date().toISOString()
+      });
+      
+      return sanitizedPath;
     } catch (error) {
       console.error(`Error saving flashcard set ${setId}:`, {
         error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
         context: {
           setId,
           filePath,
@@ -29,7 +52,7 @@ class ReplitStorageService implements StorageService {
           timestamp: new Date().toISOString()
         }
       });
-      throw new Error('Failed to save flashcard set');
+      throw new Error(`Failed to save flashcard set: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
