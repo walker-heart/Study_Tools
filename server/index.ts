@@ -8,7 +8,7 @@ import { createServer } from "http";
 import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import { db } from "./db";
+import { db, initializeDatabase } from "./db";
 import pkg from 'pg';
 import { env } from "./lib/env";
 import { existsSync, mkdirSync } from 'fs';
@@ -230,35 +230,48 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Verify database connection with detailed logging
-    for (let i = 0; i < 3; i++) {
-      log('Verifying database connection...');
-      try {
-        const isDatabaseConnected = await verifyDatabaseConnection();
-        if (isDatabaseConnected) {
-          log('Database connection verified successfully');
-          break;
-        }
-        if (i === 2) {
-          throw new Error('Failed to establish database connection after 3 attempts');
-        }
-        log('Retrying database connection in 2 seconds...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (dbError) {
-        log(`Database connection attempt ${i + 1} failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
-        if (i === 2) throw dbError;
-        await new Promise(resolve => setTimeout(resolve, 2000));
+    log('Starting server initialization...');
+    
+    // Initialize database connection
+    try {
+      const dbInitialized = await initializeDatabase();
+      if (!dbInitialized) {
+        log('Database initialization failed. Please check database configuration and migrations.');
+        process.exit(1);
       }
+      log('Database initialized successfully');
+    } catch (dbError) {
+      log(`Fatal error: Database initialization failed: ${dbError.message}`);
+      process.exit(1);
     }
-
-    // Verify session table exists
-    await testDatabaseConnection();
-    log('Database and session table verified');
+    
+    // Initialize session store
+    try {
+      await new Promise((resolve, reject) => {
+        sessionStore.get('test', (err) => {
+          if (err) reject(err);
+          resolve(true);
+        });
+      });
+      log('Session store initialized successfully');
+    } catch (sessionError) {
+      log(`Fatal error: Session store initialization failed: ${sessionError.message}`);
+      process.exit(1);
+    }
 
     // Initialize services
     const initializeServices = async () => {
       try {
         log('Initializing services...');
+        
+        // Test database connection
+        try {
+          await db.execute(sql`SELECT 1`);
+          log('Database connection successful');
+        } catch (error) {
+          log('Database connection failed:', error);
+          throw error;
+        }
 
         // Verify database tables exist
         const tableCheck = await db.execute(sql`
@@ -269,8 +282,8 @@ app.use((req, res, next) => {
         `);
         
         if (!tableCheck[0].exists) {
-          log('Running database migrations...');
-          // Add migration execution here if needed
+          log('Required tables not found');
+          throw new Error('Required database tables are missing');
         }
 
         // Test storage service

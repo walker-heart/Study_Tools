@@ -52,22 +52,27 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
     const timestamp = Date.now();
     const urlPath = `flashcards/${req.session.user?.firstName?.toLowerCase() || 'user'}/${timestamp}`;
     
-    // Create flashcard set first to get the setId
-    const [flashcardSet] = await db.insert(flashcardSets).values({
-      userId,
-      title: req.file.originalname.replace(/\.[^/.]+$/, ""), // Remove file extension
-      isPublic: false,
-      tags: [], // PostgreSQL array
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      urlPath: urlPath,
-      filePath: null // Will be updated after successful upload
-    }).returning();
-
+    let flashcardSet;
     try {
+      // Create flashcard set first to get the setId
+      [flashcardSet] = await db.insert(flashcardSets).values({
+        userId,
+        title: req.file.originalname.replace(/\.[^/.]+$/, ""), // Remove file extension
+        isPublic: false,
+        tags: [], // PostgreSQL array
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        urlPath: urlPath,
+        filePath: null // Will be updated after successful upload
+      }).returning();
+
+      if (!flashcardSet) {
+        throw new Error('Failed to create flashcard set');
+      }
+
       // Create a unique file path for storage using timestamp
       const sanitizedFilename = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const fileName = `flashcards/${userId}/${flashcardSet.id}/${timestamp}_${sanitizedFilename}`;
+      const fileName = `flashcards/${userId}/${timestamp}_${sanitizedFilename}`;
       
       console.log('Uploading file:', {
         path: fileName,
