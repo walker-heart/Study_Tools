@@ -74,8 +74,21 @@ export default function PreviewPage() {
         throw new Error('Failed to get download URL');
       }
       
-      const { downloadUrl } = await response.json();
-      window.open(downloadUrl, '_blank');
+      const { downloadUrl, contentType } = await response.json();
+      
+      // For images, open in new tab
+      if (contentType?.startsWith('image/')) {
+        window.open(downloadUrl, '_blank');
+        return;
+      }
+      
+      // For other files, trigger download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = flashcardSet.title || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (error) {
       console.error('Error downloading file:', error);
       toast({
