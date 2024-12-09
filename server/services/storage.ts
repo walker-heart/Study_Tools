@@ -1,100 +1,75 @@
-import { mkdir, writeFile, readFile, unlink, readdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
+import { storage } from '../lib/storage';
 
 interface FlashcardSet {
   id: number;
   userId: number;
   title: string;
-  cards: Array<{
-    text: string;
-    createdAt: string;
-  }>;
+  filePath: string;
   createdAt: string;
 }
 
 interface StorageService {
-  saveFlashcardSet(setId: number, data: FlashcardSet): Promise<void>;
-  getFlashcardSet(setId: number): Promise<FlashcardSet>;
-  deleteFlashcardSet(setId: number): Promise<void>;
-  listFlashcardSets(userId: number): Promise<number[]>;
+  saveFlashcardSet(setId: number, filePath: string, fileData: Buffer): Promise<string>;
+  getFlashcardSet(setId: number, filePath: string): Promise<Buffer>;
+  deleteFlashcardSet(setId: number, filePath: string): Promise<void>;
+  listFlashcardSets(userId: number): Promise<string[]>;
 }
 
-class FileStorageService implements StorageService {
-  private readonly storageDir: string;
-
-  constructor() {
-    this.storageDir = join(process.cwd(), 'storage', 'flashcards');
-    this.initializeStorage().catch(console.error);
-  }
-
-  private async initializeStorage(): Promise<void> {
-    if (!existsSync(this.storageDir)) {
-      await mkdir(this.storageDir, { recursive: true });
-    }
-  }
-
-  private getSetFilePath(setId: number): string {
-    return join(this.storageDir, `set_${setId}.json`);
-  }
-
-  async saveFlashcardSet(setId: number, data: FlashcardSet): Promise<void> {
+class ReplitStorageService implements StorageService {
+  async saveFlashcardSet(setId: number, filePath: string, fileData: Buffer): Promise<string> {
     try {
-      const filePath = this.getSetFilePath(setId);
-      await writeFile(filePath, JSON.stringify(data, null, 2));
-      console.log(`Flashcard set ${setId} saved successfully`);
+      const uploadResult = await storage.uploadFile(filePath, fileData);
+      if (uploadResult.error) {
+        throw new Error(`Failed to upload file: ${uploadResult.error}`);
+      }
+      return filePath;
     } catch (error) {
       console.error(`Error saving flashcard set ${setId}:`, error);
       throw new Error('Failed to save flashcard set');
     }
   }
 
-  async getFlashcardSet(setId: number): Promise<FlashcardSet> {
+  async getFlashcardSet(setId: number, filePath: string): Promise<Buffer> {
     try {
-      const filePath = this.getSetFilePath(setId);
-      const fileContent = await readFile(filePath, 'utf-8');
-      return JSON.parse(fileContent);
+      const downloadResult = await storage.downloadFile(filePath);
+      if (downloadResult.error) {
+        throw new Error(`Failed to download file: ${downloadResult.error}`);
+      }
+
+      const response = await fetch(downloadResult.presignedUrl!);
+      if (!response.ok) {
+        throw new Error('Failed to download file content');
+      }
+
+      return Buffer.from(await response.arrayBuffer());
     } catch (error) {
       console.error(`Error reading flashcard set ${setId}:`, error);
       throw new Error('Failed to read flashcard set');
     }
   }
 
-  async deleteFlashcardSet(setId: number): Promise<void> {
+  async deleteFlashcardSet(setId: number, filePath: string): Promise<void> {
     try {
-      const filePath = this.getSetFilePath(setId);
-      await unlink(filePath);
-      console.log(`Flashcard set ${setId} deleted successfully`);
+      const deleteResult = await storage.deleteFile(filePath);
+      if (deleteResult.error) {
+        throw new Error(`Failed to delete file: ${deleteResult.error}`);
+      }
     } catch (error) {
       console.error(`Error deleting flashcard set ${setId}:`, error);
       throw new Error('Failed to delete flashcard set');
     }
   }
 
-  async listFlashcardSets(userId: number): Promise<number[]> {
+  async listFlashcardSets(userId: number): Promise<string[]> {
     try {
-      const files = await readdir(this.storageDir);
-      const setIds = files
-        .filter(file => file.startsWith('set_') && file.endsWith('.json'))
-        .map(file => {
-          const match = file.match(/set_(\d+)\.json/);
-          return match ? parseInt(match[1], 10) : null;
-        })
-        .filter((id): id is number => id !== null);
-      
-      // Filter sets by userId by reading each file
-      const userSets = await Promise.all(
-        setIds.map(async id => {
-          try {
-            const set = await this.getFlashcardSet(id);
-            return set.userId === userId ? id : null;
-          } catch {
-            return null;
-          }
-        })
-      );
-      
-      return userSets.filter((id): id is number => id !== null);
+      const prefix = `flashcards/${userId}/`;
+      const listResult = await storage.listFiles(prefix);
+
+      if (listResult.error) {
+        throw new Error(`Failed to list files: ${listResult.error}`);
+      }
+
+      return listResult.files?.map(file => file.path) || [];
     } catch (error) {
       console.error('Error listing flashcard sets:', error);
       throw new Error('Failed to list flashcard sets');
@@ -103,4 +78,4 @@ class FileStorageService implements StorageService {
 }
 
 // Export singleton instance
-export const storageService = new FileStorageService();
+export const storageService = new ReplitStorageService();

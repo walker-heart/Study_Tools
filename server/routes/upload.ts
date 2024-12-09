@@ -22,7 +22,7 @@ interface AuthenticatedRequest extends Request {
 
 const router = Router();
 
-// Configure multer for memory storage with proper file type validation
+// Configure multer for memory storage
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: {
@@ -51,15 +51,13 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
     // Parse CSV file
     const csvContent = req.file.buffer.toString('utf-8');
     const cards = await new Promise<any[]>((resolve, reject) => {
-      const results: any[] = [];
       parse(csvContent, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
       })
-      .on('data', (data: any) => results.push(data))
-      .on('error', (error: Error) => reject(error))
-      .on('end', () => resolve(results));
+      .on('data', (data) => resolve([data]))
+      .on('error', (error) => reject(error));
     });
 
     // Validate required columns
@@ -72,7 +70,7 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       });
     }
 
-    // Get user information for URL path
+    // Get user information
     const user = await db.query.users.findFirst({
       where: eq(users.id, req.session.user.id)
     });
@@ -81,39 +79,43 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Get the next ID for the set
-    const lastSet = await db.query.flashcardSets.findFirst({
-      orderBy: [desc(flashcardSets.id)],
-    });
-    const nextId = (lastSet?.id || 0) + 1;
-
-    // Create unique file path for Replit Object Storage
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const safeFilename = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filePath = `flashcards/${req.session.user.id}/${timestamp}_${safeFilename}`;
-
-    // Upload to Replit Object Storage first
-    console.log('Uploading file to Object Storage:', {
-      path: filePath,
-      size: req.file.buffer.length,
-      type: req.file.mimetype
-    });
-
-    const uploadResult = await storage.uploadFile(filePath, req.file.buffer);
-    if (uploadResult.error) {
-      throw new Error(`Storage upload failed: ${uploadResult.error}`);
-    }
-
-    // Create flashcard set in database after successful upload
+    // Create flashcard set first to get the ID
     const [newSet] = await db.insert(flashcardSets).values({
       userId: req.session.user.id,
       title: req.file.originalname.replace(/\.[^/.]+$/, ""),
       isPublic: false,
-      tags: [], 
-      urlPath: `${user.firstName.toLowerCase()}-${user.lastName.toLowerCase()}/set-${nextId}`,
-      filePath, // Store the Object Storage path
-      createdAt: new Date()
+      tags: [],
+      urlPath: `${user.firstName.toLowerCase()}-${user.lastName.toLowerCase()}/set-${Date.now()}`,
+      filePath: null, // Will be updated after storage upload
+      createdAt: new Date(),
+      updatedAt: new Date()
     }).returning();
+
+    // Create unique file path for Object Storage
+    const filePath = `flashcards/${req.session.user.id}/${newSet.id}/${req.file.originalname}`;
+
+    // Upload to Replit Object Storage
+    console.log('Uploading to Object Storage:', {
+      path: filePath,
+      size: req.file.buffer.length,
+      timestamp: new Date().toISOString()
+    });
+
+    const uploadResult = await storage.uploadFile(filePath, req.file.buffer);
+    if (uploadResult.error) {
+      // If upload fails, delete the flashcard set and return error
+      await db.delete(flashcardSets).where(eq(flashcardSets.id, newSet.id));
+      throw new Error(`Storage upload failed: ${uploadResult.error}`);
+    }
+
+    // Update flashcard set with file path
+    const [updatedSet] = await db.update(flashcardSets)
+      .set({ 
+        filePath,
+        updatedAt: new Date()
+      })
+      .where(eq(flashcardSets.id, newSet.id))
+      .returning();
 
     // Map cards data to match schema
     const cardValues = cards.map((card, index) => ({
@@ -128,15 +130,14 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
     // Insert flashcards
     await db.insert(flashcards).values(cardValues);
 
-    // Prepare the response
     res.status(201).json({
       message: 'File uploaded successfully',
       flashcardSet: {
-        id: newSet.id,
-        title: newSet.title,
-        filePath: filePath,
-        urlPath: newSet.urlPath,
-        createdAt: newSet.createdAt
+        id: updatedSet.id,
+        title: updatedSet.title,
+        filePath: updatedSet.filePath,
+        urlPath: updatedSet.urlPath,
+        createdAt: updatedSet.createdAt
       }
     });
   } catch (error) {
