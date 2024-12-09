@@ -148,11 +148,12 @@ app.use(session({
   saveUninitialized: false,
   rolling: true, // Refresh session with each request
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: false, // Set to false for development
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     sameSite: 'lax',
-    path: '/'
+    path: '/',
+    domain: process.env.NODE_ENV === 'production' ? process.env.DOMAIN : undefined
   }
 }));
 

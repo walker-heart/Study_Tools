@@ -44,7 +44,6 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }, [setLocation]);
 
   // We'll show nothing until we verify the authentication
-  return <>{children}</>;
-
+  // Only render children after we've verified authentication
   return <>{children}</>;
 }
