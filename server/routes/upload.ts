@@ -3,8 +3,9 @@ import multer from 'multer';
 import { storage } from '../lib/storage';
 import { db } from '../db';
 import { flashcardSets, flashcards } from '@db/schema/flashcards';
-import { users } from '@db/schema/users';
+import { users } from '../schema/users';
 import { eq } from 'drizzle-orm';
+import { generateSetUrl } from '../utils/slug';
 import { Request } from 'express';
 import { Session } from 'express-session';
 import { parse } from 'csv-parse';
@@ -82,10 +83,25 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       timestamp: new Date().toISOString()
     });
 
-    const uploadResult = await storage.upload(filePath, req.file.buffer);
-    if (!uploadResult.success) {
-      throw new Error(`Storage upload failed: ${uploadResult.error}`);
+    // Get user info for URL path
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, req.session.user.id)
+    });
+
+    if (!user) {
+      throw new Error('User not found');
     }
+
+    // Create URL-friendly path using user's name
+    const urlPath = generateSetUrl(user.firstName || 'user', user.lastName || 'unknown', timestamp);
+    const uploadPath = `${timestamp}_${sanitizedFilename}`;
+    
+    // Save file to storage
+    const fullPath = await storageService.saveFlashcardSet(
+      req.session.user.id,
+      uploadPath,
+      req.file.buffer
+    );
 
     // Create flashcard set
     const [newSet] = await db.insert(flashcardSets).values({
@@ -93,8 +109,8 @@ router.post('/', upload.single('file'), async (req: AuthenticatedRequest, res) =
       title: req.file.originalname.replace(/\.[^/.]+$/, ""),
       isPublic: false,
       tags: [] as string[],
-      urlPath: `sets/${timestamp}`,
-      filePath: filePath,
+      urlPath: urlPath,
+      filePath: fullPath,
       createdAt: new Date(),
       updatedAt: new Date()
     }).returning();
