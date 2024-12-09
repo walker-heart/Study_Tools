@@ -18,6 +18,9 @@ if (!process.env.DATABASE_URL) {
 // Create PostgreSQL pool and session store
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 const pgSession = connectPgSimple(session);
@@ -29,6 +32,7 @@ try {
     pool,
     tableName: 'session',
     createTableIfMissing: true,
+    pruneSessionInterval: 60 * 15 // Prune every 15 minutes
   });
 } catch (error) {
   console.warn('Failed to create PostgreSQL session store, falling back to MemoryStore');
@@ -39,18 +43,20 @@ try {
 
 // Export session configuration
 export const sessionConfig = {
-  store: sessionStore,
   secret: process.env.JWT_SECRET,
-  resave: true, // Required for rolling sessions
+  resave: false,
   saveUninitialized: false,
-  rolling: true, // Refresh session with each request
+  rolling: true,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    httpOnly: true, // Prevent JavaScript access to the cookie
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    sameSite: (process.env.NODE_ENV === 'production' ? 'strict' : 'lax') as 'strict' | 'lax',
-    path: '/', // Cookie is available for all paths
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: 'lax' as const,
+    path: '/',
   },
-  name: 'sessionId',
-  proxy: process.env.NODE_ENV === 'production', // Trust proxy in production
+  name: 'sid',
+  proxy: process.env.NODE_ENV === 'production',
 };
+
+// Remove store from config as it's set in index.ts
+export const getSessionStore = () => sessionStore;

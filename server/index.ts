@@ -26,7 +26,7 @@ if (!existsSync(storageDir)) {
   mkdirSync(storageDir, { recursive: true });
 }
 
-// Create PostgreSQL pool
+// Create PostgreSQL pool with proper SSL config
 const sessionPool = new Pool({
   connectionString: env.DATABASE_URL,
   ssl: {
@@ -34,6 +34,32 @@ const sessionPool = new Pool({
   }
 });
 
+// Verify database connection with detailed logging
+async function verifyDatabaseConnection() {
+  let client;
+  try {
+    console.log('Attempting database connection...');
+    client = await sessionPool.connect();
+    console.log('Connected to database, testing query...');
+    await client.query('SELECT NOW()');
+    console.log('Database query successful');
+    return true;
+  } catch (error) {
+    console.error('Database connection error:', {
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString(),
+      database: env.DATABASE_URL?.split('@')[1] // Log only host part for security
+    });
+    return false;
+  } finally {
+    if (client) {
+      console.log('Releasing database connection');
+      client.release();
+    }
+  }
+}
+
+// Initialize session store with SSL support
 const pgSession = connectPgSimple(session);
 
 function log(message: string) {
@@ -81,30 +107,46 @@ app.use((req, res, next) => {
 
 app.options('*', cors());
 
-// Session configuration
+// Import session config
+import { sessionConfig } from './config/session';
+
+// Session configuration with enhanced error handling and logging
 app.use(session({
+  ...sessionConfig,
   store: new pgSession({
     pool: sessionPool,
     tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15,
+    pruneSessionInterval: 60 * 15, // Prune every 15 minutes
     errorLog: (err) => {
-      console.error('Session store error:', err);
+      console.error('Session store error:', {
+        error: err instanceof Error ? err.message : String(err),
+        timestamp: new Date().toISOString(),
+        stack: err instanceof Error ? err.stack : undefined
+      });
     }
   }),
-  name: 'sid',
-  secret: env.JWT_SECRET!,
-  resave: true,
-  saveUninitialized: true,
-  rolling: true,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000,
+    ...sessionConfig.cookie,
+    secure: process.env.NODE_ENV === 'production', // Only use secure in production
     sameSite: 'lax',
-    path: '/'
-  }
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  },
+  rolling: true, // Refresh session with each request
+  saveUninitialized: false, // Don't create session until something stored
+  resave: false // Don't save session if unmodified
 }));
+
+// Debug logging for session
+app.use((req, _res, next) => {
+  console.log('Session Debug:', {
+    id: req.session.id,
+    user: req.session.user,
+    authenticated: req.session.authenticated,
+    cookie: req.session.cookie
+  });
+  next();
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -175,13 +217,25 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
+    // Verify database connection
+    for (let i = 0; i < 3; i++) {
+      log('Verifying database connection...');
+      const isDatabaseConnected = await verifyDatabaseConnection();
+      if (isDatabaseConnected) {
+        log('Database connection verified successfully');
+        break;
+      }
+      if (i === 2) {
+        throw new Error('Failed to establish database connection after 3 attempts');
+      }
+      log('Retrying database connection in 2 seconds...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
     // Initialize services
     const initializeServices = async () => {
       try {
-        log('Initializing database connection...');
-        const { testDatabaseConnection } = await import('./db');
-        await testDatabaseConnection();
-        log('Database connection established successfully');
+        log('Initializing services...');
 
         // Test storage service
         try {
