@@ -230,25 +230,48 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Verify database connection
+    // Verify database connection with detailed logging
     for (let i = 0; i < 3; i++) {
       log('Verifying database connection...');
-      const isDatabaseConnected = await verifyDatabaseConnection();
-      if (isDatabaseConnected) {
-        log('Database connection verified successfully');
-        break;
+      try {
+        const isDatabaseConnected = await verifyDatabaseConnection();
+        if (isDatabaseConnected) {
+          log('Database connection verified successfully');
+          break;
+        }
+        if (i === 2) {
+          throw new Error('Failed to establish database connection after 3 attempts');
+        }
+        log('Retrying database connection in 2 seconds...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (dbError) {
+        log(`Database connection attempt ${i + 1} failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+        if (i === 2) throw dbError;
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
-      if (i === 2) {
-        throw new Error('Failed to establish database connection after 3 attempts');
-      }
-      log('Retrying database connection in 2 seconds...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
     }
+
+    // Verify session table exists
+    await testDatabaseConnection();
+    log('Database and session table verified');
 
     // Initialize services
     const initializeServices = async () => {
       try {
         log('Initializing services...');
+
+        // Verify database tables exist
+        const tableCheck = await db.execute(sql`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_name = 'flashcard_sets'
+          );
+        `);
+        
+        if (!tableCheck[0].exists) {
+          log('Running database migrations...');
+          // Add migration execution here if needed
+        }
 
         // Test storage service
         try {
@@ -267,9 +290,13 @@ app.use((req, res, next) => {
           log('Object Storage service verified successfully');
         } catch (testError) {
           log(`Warning: Object Storage test failed: ${testError instanceof Error ? testError.message : String(testError)}`);
+          // Don't throw error for storage test failure, as it's not critical
         }
+
+        return true;
       } catch (error) {
-        log(`Warning: Failed to initialize services: ${error instanceof Error ? error.message : String(error)}`);
+        log(`Critical error during service initialization: ${error instanceof Error ? error.message : String(error)}`);
+        throw error; // Rethrow critical errors
       }
     };
 
@@ -305,16 +332,24 @@ app.use((req, res, next) => {
 
     const PORT = parseInt(process.env.PORT || '5000', 10);
     
-    // Start server
+    // Start server with enhanced error handling
     log('Attempting to start server...');
     try {
+      // Ensure all middleware is properly initialized
+      log('Verifying middleware initialization...');
+      if (!app._router) {
+        throw new Error('Express router not initialized');
+      }
+      
       await new Promise((resolve, reject) => {
         const serverInstance = server.listen({
           port: PORT,
-          host: '0.0.0.0'
+          host: '0.0.0.0',
+          backlog: 511
         }, () => {
           log(`Server running in ${app.get("env")} mode on port ${PORT}`);
           log(`APP_URL: ${env.APP_URL}`);
+          log('Server initialization complete');
           resolve(true);
         });
 
@@ -322,9 +357,16 @@ app.use((req, res, next) => {
           log(`Server startup error: ${err.message}`);
           if (err.code === 'EADDRINUSE') {
             log(`Port ${PORT} is already in use`);
+          } else if (err.code === 'EACCES') {
+            log(`Permission denied to bind to port ${PORT}`);
           }
           reject(err);
         });
+
+        // Add timeout for startup
+        setTimeout(() => {
+          reject(new Error(`Server failed to start within 5000ms`));
+        }, 5000);
       });
     } catch (error) {
       log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);

@@ -48,6 +48,10 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    // Generate a timestamp for unique identification
+    const timestamp = Date.now();
+    const urlPath = `flashcards/${req.session.user?.firstName?.toLowerCase() || 'user'}/${timestamp}`;
+    
     // Create flashcard set first to get the setId
     const [flashcardSet] = await db.insert(flashcardSets).values({
       userId,
@@ -56,16 +60,28 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
       tags: [], // PostgreSQL array
       createdAt: new Date(),
       updatedAt: new Date(),
-      urlPath: `flashcards/${req.session.user?.firstName?.toLowerCase() || 'user'}/${flashcardSet.id}`,
+      urlPath: urlPath,
       filePath: null // Will be updated after successful upload
     }).returning();
 
     try {
-      // Create a unique file path for storage
-      const fileName = `flashcards/${userId}/${flashcardSet.id}/${req.file.originalname}`;
+      // Create a unique file path for storage using timestamp
+      const sanitizedFilename = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `flashcards/${userId}/${flashcardSet.id}/${timestamp}_${sanitizedFilename}`;
       
+      console.log('Uploading file:', {
+        path: fileName,
+        setId: flashcardSet.id,
+        userId: userId,
+        timestamp: new Date().toISOString()
+      });
+
       // Upload file using storage service
-      await storage.upload(fileName, req.file.buffer);
+      const uploadResult = await storage.upload(fileName, req.file.buffer);
+      
+      if (!uploadResult.success) {
+        throw new Error(`Storage upload failed: ${uploadResult.error}`);
+      }
 
       // Update the set with the file path after successful upload
       const [updatedSet] = await db.update(flashcardSets)
@@ -80,9 +96,15 @@ router.post('/sets/upload', upload.single('file'), async (req: AuthenticatedRequ
         throw new Error('Failed to update flashcard set with file path');
       }
 
+      // Generate download URL for immediate access
+      const downloadResult = await storage.download(fileName);
+      
       res.status(201).json({ 
         message: 'File uploaded successfully',
-        flashcardSet: updatedSet
+        flashcardSet: {
+          ...updatedSet,
+          downloadUrl: downloadResult.presignedUrl
+        }
       });
     } catch (error) {
       console.error('Error uploading file:', error);
