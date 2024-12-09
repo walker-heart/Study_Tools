@@ -4,6 +4,7 @@ import multer from 'multer';
 import { body, validationResult } from 'express-validator';
 import { db } from '../db';
 import { flashcardSets, flashcards, memorizationSessions } from '@db/schema/flashcards';
+import type { FlashcardSet, Flashcard, MemorizationSession } from '@db/schema/flashcards';
 
 // Extend Express Request type to include user
 interface AuthenticatedRequest extends Request {
@@ -78,9 +79,9 @@ router.post('/sets/:setId/cards',
       }
 
       // Verify set ownership
-      const set = await db.query.flashcardSets.findFirst({
-        where: eq(flashcardSets.id, parseInt(setId)),
-      });
+      const [set] = await db.select().from(flashcardSets)
+        .where(eq(flashcardSets.id, parseInt(setId)))
+        .limit(1);
 
       if (!set || set.userId !== userId) {
         return res.status(403).json({ error: 'Forbidden' });
@@ -120,10 +121,9 @@ router.post('/sets/:setId/memorize', async (req: AuthenticatedRequest, res) => {
     }
 
     // Get all cards in the set
-    const cards = await db.query.flashcards.findMany({
-      where: eq(flashcards.setId, parseInt(setId)),
-      orderBy: flashcards.position,
-    });
+    const cards = await db.select().from(flashcards)
+      .where(eq(flashcards.setId, parseInt(setId)))
+      .orderBy(flashcards.position);
 
     if (!cards.length) {
       return res.status(404).json({ error: 'No cards found in this set' });
@@ -136,7 +136,7 @@ router.post('/sets/:setId/memorize', async (req: AuthenticatedRequest, res) => {
       progress: {
         completed: [],
         incorrect: [],
-        remainingCards: cards.map((card) => card.id)
+        remainingCards: cards.map((card: Flashcard) => card.id)
       }
     }).returning();
 
@@ -167,9 +167,9 @@ router.put('/memorize/:sessionId',
       }
 
       // Get current session
-      const session = await db.query.memorizationSessions.findFirst({
-        where: eq(memorizationSessions.id, parseInt(sessionId)),
-      });
+      const [session] = await db.select().from(memorizationSessions)
+        .where(eq(memorizationSessions.id, parseInt(sessionId)))
+        .limit(1);
 
       if (!session || session.userId !== userId) {
         return res.status(403).json({ error: 'Forbidden' });
@@ -182,7 +182,6 @@ router.put('/memorize/:sessionId',
         progress.completed.push(cardId);
       } else {
         progress.incorrect.push(cardId);
-        // Add back to remaining cards if incorrect
         remainingCards.push(cardId);
       }
 
