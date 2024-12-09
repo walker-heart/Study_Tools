@@ -122,12 +122,7 @@ export async function checkAuth(req: Request, res: Response) {
 
 export async function signIn(req: Request, res: Response) {
   try {
-    console.log('Sign in attempt:', { email: req.body.email });
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
-    }
 
     // Find user
     const [user] = await db.select({
@@ -135,114 +130,66 @@ export async function signIn(req: Request, res: Response) {
       email: users.email,
       passwordHash: users.passwordHash,
       isAdmin: users.isAdmin,
-      theme: users.theme,
-      firstName: users.firstName,
-      lastName: users.lastName
+      theme: users.theme
     }).from(users).where(eq(users.email, email));
-
     if (!user) {
-      console.log('User not found:', email);
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.passwordHash);
     if (!isValidPassword) {
-      console.log('Invalid password for user:', email);
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    console.log('Authentication successful for user:', user.id);
-
-    // Set up session with more detailed logging
-    console.log('Setting up session for user:', {
-      userId: user.id,
-      sessionId: req.session.id,
-      beforeState: {
-        user: req.session.user,
-        authenticated: req.session.authenticated
-      }
-    });
-
-    req.session.user = {
-      id: user.id,
-      email: user.email,
-      isAdmin: user.isAdmin,
-      firstName: user.firstName,
-      lastName: user.lastName
-    };
-    req.session.authenticated = true;
-
-    // Set up session with proper error handling
     try {
+      console.log('Setting up session for user:', user.id);
+      
+      // Set user session
+      req.session.user = {
+        id: user.id,
+        email: user.email,
+        isAdmin: user.isAdmin
+      };
+      req.session.authenticated = true;
+      
+      console.log('Session data before save:', req.session);
+      
+      // Save session before responding
       await new Promise<void>((resolve, reject) => {
-        req.session.regenerate((err: Error | null) => {
+        req.session.save((err: Error | null) => {
           if (err) {
-            console.error('Session regeneration error:', err);
-            reject(new Error('Failed to establish session'));
-            return;
-          }
-
-          // Set session data after regeneration
-          req.session.user = {
-            id: user.id,
-            email: user.email,
-            isAdmin: user.isAdmin,
-            firstName: user.firstName,
-            lastName: user.lastName
-          };
-          req.session.authenticated = true;
-
-          // Save session and resolve
-          req.session.save((saveErr: Error | null) => {
-            if (saveErr) {
-              console.error('Session save error:', {
-                error: saveErr instanceof Error ? saveErr.message : String(saveErr),
-                stack: saveErr instanceof Error ? saveErr.stack : undefined,
-                sessionId: req.session.id,
-                userId: user.id
-              });
-              reject(new Error('Failed to save session'));
-              return;
-            }
-
-            console.log('Session saved successfully:', {
-              sessionId: req.session.id,
-              userId: user.id,
-              state: {
-                user: req.session.user,
-                authenticated: req.session.authenticated
-              }
-            });
-
-            // Generate JWT token and send response
-            const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
-            res.json({
-              token,
-              user: {
-                id: user.id,
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                theme: user.theme || 'light',
-                isAdmin: user.isAdmin || false
-              }
-            });
-            
+            console.error('Session save error:', err);
+            reject(err);
+          } else {
+            console.log('Session saved successfully');
             resolve();
-          });
+          }
         });
       });
-    } catch (error) {
-      console.error('Sign in process error:', error);
-      if (!res.headersSent) {
-        res.status(500).json({ message: "Failed to establish session" });
-      }
+      
+      console.log('Final session state:', {
+        id: req.session.id,
+        user: req.session.user,
+        authenticated: req.session.authenticated
+      });
+    } catch (sessionError) {
+      console.error('Session creation error:', sessionError);
+      return res.status(500).json({ message: "Error creating session" });
     }
+    
+    // Also send JWT token for API authentication
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
 
-    console.log('Sign in complete:', {
-      userId: user.id,
-      sessionId: req.session.id
+    // Include theme in the response
+    res.json({ 
+      token, 
+      user: { 
+        id: user.id, 
+        email: user.email,
+        theme: user.theme || 'light',
+        isAdmin: user.isAdmin || false
+      } 
     });
   } catch (error) {
     console.error('Sign in error:', error);

@@ -8,7 +8,7 @@ import { createServer } from "http";
 import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import { db, sql } from "./db";
+import { db } from "./db";
 import pkg from 'pg';
 import { env } from "./lib/env";
 import { existsSync, mkdirSync } from 'fs';
@@ -26,7 +26,7 @@ if (!existsSync(storageDir)) {
   mkdirSync(storageDir, { recursive: true });
 }
 
-// Create PostgreSQL pool with proper SSL config
+// Create PostgreSQL pool
 const sessionPool = new Pool({
   connectionString: env.DATABASE_URL,
   ssl: {
@@ -34,9 +34,7 @@ const sessionPool = new Pool({
   }
 });
 
-// Initialize session store with SSL support and logging
 const pgSession = connectPgSimple(session);
-console.log('Session store initialized');
 
 function log(message: string) {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -81,139 +79,132 @@ app.use((req, res, next) => {
   next();
 });
 
-// Import session config
-import { sessionConfig } from './config/session';
+app.options('*', cors());
 
-// Configure session middleware with detailed error logging
-const sessionStore = new pgSession({
-  pool: sessionPool,
-  tableName: 'session',
-  createTableIfMissing: true,
-  pruneSessionInterval: 60 * 15,
-  errorLog: (err: unknown) => {
-    console.error('Session store error:', {
-      error: err instanceof Error ? err.message : String(err),
-      timestamp: new Date().toISOString(),
-      stack: err instanceof Error ? err.stack : undefined
-    });
+// Session configuration
+app.use(session({
+  store: new pgSession({
+    pool: sessionPool,
+    tableName: 'session',
+    createTableIfMissing: true,
+    pruneSessionInterval: 60 * 15,
+    errorLog: (err) => {
+      console.error('Session store error:', err);
+    }
+  }),
+  name: 'sid',
+  secret: env.JWT_SECRET!,
+  resave: true,
+  saveUninitialized: true,
+  rolling: true,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000,
+    sameSite: 'lax',
+    path: '/'
   }
+}));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
+// Serve uploaded files
+app.use('/storage', express.static(storageDir, {
+  maxAge: '1h',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res: Response) => {
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Range');
+    res.setHeader('Access-Control-Expose-Headers', 'Accept-Ranges, Content-Range, Content-Length');
+  }
+}));
+
+// Handle storage directory access
+app.use('/api/storage/:userId/:filename', (req, res, next) => {
+  const { userId, filename } = req.params;
+  if (!req.session?.user?.id || req.session.user.id !== parseInt(userId)) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  next();
 });
 
-// Initialize database and verify connection
-async function initializeDatabase() {
-  try {
-    log('Testing database connection...');
-    const result = await sql`SELECT NOW()`;
-    log(`Database connection successful: ${result[0].now}`);
+// Debug logging
+app.use((req, _res, next) => {
+  console.log('Session Debug:', {
+    id: req.session.id,
+    user: req.session.user,
+    authenticated: req.session.authenticated,
+    cookie: req.session.cookie
+  });
+  next();
+});
 
-    // Verify essential tables
-    const [{ exists }] = await sql`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_schema = 'public' AND table_name = 'flashcard_sets'
-      );
-    `;
+// Request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-    if (!exists) {
-      log('Required tables not found. Please ensure migrations have been run.');
-      return false;
+  const originalResJson = res.json;
+  res.json = function (bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path.startsWith("/api")) {
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
+      }
+      log(logLine);
     }
+  });
 
-    // Verify and create session table if needed
-    await sql`
-      CREATE TABLE IF NOT EXISTS "session" (
-        "sid" varchar NOT NULL COLLATE "default",
-        "sess" json NOT NULL,
-        "expire" timestamp(6) NOT NULL,
-        CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
-      )
-    `;
-
-    log('Database initialization completed successfully');
-    return true;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log(`Database initialization failed: ${errorMessage}`);
-    console.error('Database initialization error:', {
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString()
-    });
-    throw error;
-  }
-}
-
-// Initialize and verify all services
-async function initializeServices() {
-  try {
-    log('Initializing services...');
-    
-    // Database has already been verified in initializeDatabase()
-    // Now test storage service
-    try {
-      const testPath = 'test/storage-check.txt';
-      const testContent = Buffer.from('Storage test');
-      
-      await storageService.saveFlashcardSet(0, testPath, testContent);
-      log('Storage test upload successful');
-
-      await storageService.getFlashcardSet(0, testPath);
-      log('Storage test download successful');
-
-      await storageService.deleteFlashcardSet(0, testPath);
-      log('Storage test delete successful');
-
-      log('Object Storage service verified successfully');
-    } catch (testError) {
-      // Non-fatal error - log warning but continue
-      const errorMessage = testError instanceof Error ? testError.message : String(testError);
-      log(`Warning: Object Storage test failed: ${errorMessage}`);
-      console.warn('Storage service warning:', {
-        error: errorMessage,
-        stack: testError instanceof Error ? testError.stack : undefined,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    log('Services initialization completed');
-    return true;
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log(`Critical error during service initialization: ${errorMessage}`);
-    console.error('Service initialization error:', {
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString()
-    });
-    throw error;
-  }
-}
+  next();
+});
 
 (async () => {
   try {
-    log('Starting server initialization...');
-    
-    // Initialize database connection
-    const dbInitialized = await initializeDatabase();
-    if (!dbInitialized) {
-      log('Database initialization failed. Please check database configuration and migrations.');
-      process.exit(1);
-    }
-    log('Database initialized successfully');
-    
-    // Initialize session store
-    try {
-      await new Promise<void>((resolve, reject) => {
-        sessionStore.get('test', (err) => {
-          if (err) reject(err);
-          resolve();
-        });
-      });
-      log('Session store initialized successfully');
-    } catch (sessionError) {
-      log(`Fatal error: Session store initialization failed: ${sessionError instanceof Error ? sessionError.message : String(sessionError)}`);
-      process.exit(1);
-    }
+    // Initialize services
+    const initializeServices = async () => {
+      try {
+        log('Initializing database connection...');
+        const { testDatabaseConnection } = await import('./db');
+        await testDatabaseConnection();
+        log('Database connection established successfully');
+
+        // Test storage service
+        try {
+          const testPath = 'test/storage-check.txt';
+          const testContent = Buffer.from('Storage test');
+          
+          await storageService.saveFlashcardSet(0, testPath, testContent);
+          log('Storage test upload successful');
+
+          await storageService.getFlashcardSet(0, testPath);
+          log('Storage test download successful');
+
+          await storageService.deleteFlashcardSet(0, testPath);
+          log('Storage test delete successful');
+
+          log('Object Storage service verified successfully');
+        } catch (testError) {
+          log(`Warning: Object Storage test failed: ${testError instanceof Error ? testError.message : String(testError)}`);
+        }
+      } catch (error) {
+        log(`Warning: Failed to initialize services: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
 
     await initializeServices();
 
@@ -222,25 +213,6 @@ async function initializeServices() {
       process.exit(1);
     }
 
-    // Configure app middleware
-    app.use(session({
-      ...sessionConfig,
-      store: sessionStore,
-      cookie: {
-        ...sessionConfig.cookie,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 24 * 60 * 60 * 1000
-      },
-      rolling: true,
-      saveUninitialized: false,
-      resave: false
-    }));
-
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: false }));
-
-    // Register routes
     registerRoutes(app);
     app.use('/api/upload', uploadRouter);
     
@@ -248,12 +220,13 @@ async function initializeServices() {
 
     // Error handling
     app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
+      const status = (err.status || err.statusCode || 500);
       const message = err.message || "Internal Server Error";
       log(`Error: ${message}`);
       res.status(status).json({ message });
     });
 
+    // Environment specific configuration
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
@@ -265,33 +238,31 @@ async function initializeServices() {
 
     const PORT = parseInt(process.env.PORT || '5000', 10);
     
-    await new Promise<void>((resolve, reject) => {
-      const serverInstance = server.listen({
-        port: PORT,
-        host: '0.0.0.0',
-        backlog: 511
-      }, () => {
-        log(`Server running in ${app.get("env")} mode on port ${PORT}`);
-        log(`APP_URL: ${env.APP_URL}`);
-        log('Server initialization complete');
-        resolve();
-      });
+    // Start server
+    log('Attempting to start server...');
+    try {
+      await new Promise((resolve, reject) => {
+        const serverInstance = server.listen({
+          port: PORT,
+          host: '0.0.0.0'
+        }, () => {
+          log(`Server running in ${app.get("env")} mode on port ${PORT}`);
+          log(`APP_URL: ${env.APP_URL}`);
+          resolve(true);
+        });
 
-      serverInstance.on('error', (err: NodeJS.ErrnoException) => {
-        log(`Server startup error: ${err.message}`);
-        if (err.code === 'EADDRINUSE') {
-          log(`Port ${PORT} is already in use`);
-        } else if (err.code === 'EACCES') {
-          log(`Permission denied to bind to port ${PORT}`);
-        }
-        reject(err);
+        serverInstance.on('error', (err: NodeJS.ErrnoException) => {
+          log(`Server startup error: ${err.message}`);
+          if (err.code === 'EADDRINUSE') {
+            log(`Port ${PORT} is already in use`);
+          }
+          reject(err);
+        });
       });
-
-      // Add timeout for startup
-      setTimeout(() => {
-        reject(new Error(`Server failed to start within 5000ms`));
-      }, 5000);
-    });
+    } catch (error) {
+      log(`Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
   } catch (error) {
     log(`Fatal error during initialization: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
@@ -300,5 +271,3 @@ async function initializeServices() {
   log(`Unhandled error: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });
-
-export default app;

@@ -2,7 +2,9 @@ import { storage } from '../lib/storage';
 
 interface StorageService {
   saveFlashcardSet(setId: number, filePath: string, fileData: Buffer): Promise<string>;
+  savePdfPreview(setId: number, pdfData: Buffer): Promise<string>;
   getFlashcardSet(setId: number, filePath: string): Promise<Buffer>;
+  getPdfPreview(setId: number): Promise<Buffer>;
   deleteFlashcardSet(setId: number, filePath: string): Promise<void>;
   listFlashcardSets(userId: number): Promise<{ files: string[]; success: boolean; error?: string; }>;
 }
@@ -10,39 +12,16 @@ interface StorageService {
 class ReplitStorageService implements StorageService {
   async saveFlashcardSet(setId: number, filePath: string, fileData: Buffer): Promise<string> {
     try {
-      // Ensure proper file path format
-      const sanitizedPath = filePath.replace(/\/{2,}/g, '/').replace(/^\//, '');
-      
-      console.log('Attempting to save flashcard set:', {
-        setId,
-        path: sanitizedPath,
-        fileSize: fileData.length,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Attempt upload
-      const result = await storage.upload(sanitizedPath, fileData);
+      const result = await storage.upload(filePath, fileData);
       
       if (!result.success) {
-        console.error('Storage upload failed:', {
-          error: result.error,
-          setId,
-          path: sanitizedPath
-        });
         throw new Error(`Failed to save flashcard set: ${result.error}`);
       }
       
-      console.log('Successfully saved flashcard set:', {
-        setId,
-        path: sanitizedPath,
-        timestamp: new Date().toISOString()
-      });
-      
-      return sanitizedPath;
+      return filePath;
     } catch (error) {
       console.error(`Error saving flashcard set ${setId}:`, {
         error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
         context: {
           setId,
           filePath,
@@ -50,7 +29,7 @@ class ReplitStorageService implements StorageService {
           timestamp: new Date().toISOString()
         }
       });
-      throw new Error(`Failed to save flashcard set: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error('Failed to save flashcard set');
     }
   }
 
@@ -85,6 +64,48 @@ class ReplitStorageService implements StorageService {
         context: { setId, filePath }
       });
       throw new Error('Failed to delete flashcard set');
+    }
+  }
+
+  async savePdfPreview(setId: number, pdfData: Buffer): Promise<string> {
+    try {
+      const pdfPath = `flashcards/${setId}/preview.pdf`;
+      const result = await storage.upload(pdfPath, pdfData);
+      
+      if (!result.success) {
+        throw new Error(`Failed to upload PDF preview: ${result.error}`);
+      }
+      
+      return pdfPath;
+    } catch (error) {
+      console.error(`Error saving PDF preview for set ${setId}:`, {
+        error: error instanceof Error ? error.message : String(error),
+        context: {
+          setId,
+          fileSize: pdfData.length,
+          timestamp: new Date().toISOString()
+        }
+      });
+      throw new Error(`Failed to save PDF preview: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async getPdfPreview(setId: number): Promise<Buffer> {
+    try {
+      const pdfPath = `flashcards/${setId}/preview.pdf`;
+      const result = await storage.download(pdfPath);
+      
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to download PDF preview');
+      }
+      
+      return result.data;
+    } catch (error) {
+      console.error(`Error reading PDF preview:`, {
+        error: error instanceof Error ? error.message : String(error),
+        context: { setId }
+      });
+      throw new Error('Failed to read PDF preview');
     }
   }
 

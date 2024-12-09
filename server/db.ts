@@ -11,65 +11,31 @@ if (!env.DATABASE_URL) {
 
 // Configure PostgreSQL client with proper connection options
 const connectionConfig = {
-  max: 1, // Start with single connection for reliability
-  idle_timeout: 20, // Shorter idle timeout
-  connect_timeout: 10, // Shorter connect timeout
+  max: 20,
+  idle_timeout: 20,
+  connect_timeout: 10,
   ssl: {
     rejectUnauthorized: false
   },
   debug: env.NODE_ENV === 'development',
-  onnotice: (notice: any) => {
-    console.log('Database notice:', notice.message);
+  onnotice: () => {}, // Ignore notice messages
+  connection: {
+    application_name: 'flashcard-app'
   },
   transform: {
     undefined: null,
-  }
+  },
+  host: process.env.PGHOST,
+  port: parseInt(process.env.PGPORT || '5432'),
+  user: process.env.PGUSER,
+  password: process.env.PGPASSWORD,
+  database: process.env.PGDATABASE
 };
 
-// Log database connection attempt
-console.log('Attempting to connect to database with URL:', env.DATABASE_URL?.split('@')[1]);
+// Create the client with SSL configuration
+const client = postgres(env.DATABASE_URL, connectionConfig);
 
-// Create the client with SSL configuration and retry logic
-const createClient = () => {
-  const retries = 3;
-  let lastError;
-
-  for (let i = 0; i < retries; i++) {
-    try {
-      console.log(`Creating database client (attempt ${i + 1}/${retries})...`);
-      const client = postgres(env.DATABASE_URL, {
-        ...connectionConfig,
-        max: 1, // Start with a single connection for initialization
-        connect_timeout: 10,
-      });
-      
-      // Test the connection immediately
-      client.unsafe('SELECT 1');
-      console.log('Database client created successfully');
-      return client;
-    } catch (error) {
-      console.error(`Database client creation attempt ${i + 1} failed:`, error);
-      lastError = error;
-      if (i < retries - 1) {
-        console.log('Waiting before retry...');
-        // Wait 2 seconds before retrying
-        new Promise(resolve => setTimeout(resolve, 2000));
-      }
-    }
-  }
-  
-  throw new Error(`Failed to create database client after ${retries} attempts: ${lastError}`);
-};
-
-let client;
-try {
-  client = createClient();
-} catch (error) {
-  console.error('Fatal: Could not establish database connection:', error);
-  process.exit(1);
-}
-
-// Initialize Drizzle ORM with schema and connection handling
+// Initialize Drizzle ORM with schema
 export const db = drizzle(client, {
   schema: {
     users,
@@ -82,27 +48,13 @@ export const db = drizzle(client, {
 // Export the SQL interface for raw queries
 export const sql = client;
 
-// Initialize database connection
-export async function initializeDatabase() {
+// Test database connection function
+export async function testDatabaseConnection() {
   try {
-    console.log('Testing database connection...');
     const result = await sql`SELECT NOW()`;
     console.log('Database connection successful:', result[0].now);
-
-    // Verify essential tables
-    const tableCheck = await sql`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'flashcard_sets'
-      );
-    `;
     
-    if (!tableCheck[0].exists) {
-      console.error('Required tables not found. Please ensure migrations have been run.');
-      return false;
-    }
-
-    // Verify session table
+    // Test session table creation
     await sql`
       CREATE TABLE IF NOT EXISTS "session" (
         "sid" varchar NOT NULL COLLATE "default",
@@ -111,13 +63,16 @@ export async function initializeDatabase() {
         CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
       )
     `;
-
+    console.log('Session table verified');
     return true;
   } catch (error) {
-    console.error('Database initialization failed:', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString()
+    console.error('Database connection error:', error);
+    console.error('Connection details:', {
+      host: process.env.PGHOST,
+      port: process.env.PGPORT,
+      database: process.env.PGDATABASE,
+      user: process.env.PGUSER,
+      ssl: env.NODE_ENV === 'production'
     });
     throw error;
   }

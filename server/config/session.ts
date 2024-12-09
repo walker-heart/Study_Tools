@@ -18,9 +18,6 @@ if (!process.env.DATABASE_URL) {
 // Create PostgreSQL pool and session store
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
 });
 
 const pgSession = connectPgSimple(session);
@@ -32,26 +29,9 @@ try {
     pool,
     tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15, // Prune every 15 minutes
-    errorLog: (err) => {
-      console.error('Session store error:', {
-        error: err instanceof Error ? err.message : String(err),
-        timestamp: new Date().toISOString(),
-        stack: err instanceof Error ? err.stack : undefined
-      });
-    }
-  });
-  
-  // Test connection
-  pool.query('SELECT NOW()', (err) => {
-    if (err) {
-      console.error('Session store database connection error:', err);
-    } else {
-      console.log('Session store database connection successful');
-    }
   });
 } catch (error) {
-  console.warn('Failed to create PostgreSQL session store, falling back to MemoryStore:', error);
+  console.warn('Failed to create PostgreSQL session store, falling back to MemoryStore');
   sessionStore = new MemoryStoreSession({
     checkPeriod: 86400000 // Prune expired entries every 24h
   });
@@ -59,20 +39,18 @@ try {
 
 // Export session configuration
 export const sessionConfig = {
+  store: sessionStore,
   secret: process.env.JWT_SECRET,
-  resave: false,  // Don't save session if unmodified
-  saveUninitialized: false, // Don't create session until something stored
+  resave: true, // Required for rolling sessions
+  saveUninitialized: false,
   rolling: true, // Refresh session with each request
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    sameSite: 'lax' as const,
-    path: '/',
+    httpOnly: true, // Prevent JavaScript access to the cookie
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    sameSite: (process.env.NODE_ENV === 'production' ? 'strict' : 'lax') as 'strict' | 'lax',
+    path: '/', // Cookie is available for all paths
   },
-  name: 'connect.sid',
-  proxy: process.env.NODE_ENV === 'production'
+  name: 'sessionId',
+  proxy: process.env.NODE_ENV === 'production', // Trust proxy in production
 };
-
-// Export store separately
-export const getSessionStore = () => sessionStore;
