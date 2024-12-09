@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import Papa from 'papaparse';
 import FileUpload from "../components/FileUpload";
 import { generatePDF } from "../lib/pdfGenerator";
-import CardPreview from "../components/CardPreview";
+import FileList from "../components/FileList";
 
 interface VocabCard {
   'Vocab Word': string;
@@ -24,9 +25,11 @@ interface FlashcardSet {
 }
 
 export default function Flashcards() {
+  const [, setLocation] = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [previewCards, setPreviewCards] = useState<VocabCard[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<FlashcardSet[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -84,33 +87,12 @@ export default function Flashcards() {
 
   const handleFileSelect = async (file: File) => {
     try {
+      setIsProcessing(true);
       const cards = await parseCSV(file);
       setPreviewCards(cards);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to parse CSV file",
-        variant: "destructive",
-      });
-    }
-  };
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-  const handleGeneratePDF = async () => {
-    if (previewCards.length === 0 || !selectedFile) {
-      toast({
-        title: "Error",
-        description: "Please upload a CSV file first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
       const formData = new FormData();
-      formData.append('file', selectedFile);
+      formData.append('file', file);
       
       const response = await fetch('/api/flashcards/sets/upload', {
         method: 'POST',
@@ -124,71 +106,23 @@ export default function Flashcards() {
       }
 
       const { flashcardSet } = await response.json();
-      toast({
-        title: "Success",
-        description: "File uploaded successfully!",
-      });
-
-      // Navigate to preview page using React router
+      
+      // Redirect to preview page
       setLocation(`/preview/${flashcardSet.id}`);
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('Error handling file:', error);
       toast({
         title: "Error",
-        description: "Failed to upload file",
+        description: error instanceof Error ? error.message : "Failed to process file",
         variant: "destructive",
       });
     } finally {
       setIsProcessing(false);
-            {uploadedFiles.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold mb-3">Uploaded Files</h3>
-                <div className="space-y-2">
-                  {uploadedFiles.map((file) => (
-                    <div key={file.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                      <div>
-                        <p className="font-medium">{file.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(file.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        onClick={() => handleDownload(file.id)}
-                        disabled={!file.filePath}
-                      >
-                        Download
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
     }
   };
 
-  const handleDownload = async (setId: number) => {
-    try {
-      const response = await fetch(`/api/flashcards/sets/${setId}/download`, {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to get download URL');
-      }
-      
-      const { downloadUrl } = await response.json();
-      
-      // Open download URL in new tab
-      window.open(downloadUrl, '_blank');
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      toast({
-        title: "Error",
-        description: "Failed to download file",
-        variant: "destructive",
-      });
-    }
+  const handleFileClick = (setId: number) => {
+    setLocation(`/preview/${setId}`);
   };
 
   return (
@@ -226,47 +160,10 @@ export default function Flashcards() {
         </Card>
 
         {uploadedFiles.length > 0 && (
-          <Card className="p-6">
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold">Uploaded Files</h2>
-              <div className="space-y-2">
-                {uploadedFiles.map((file) => (
-                  <div key={file.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium">{file.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(file.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleDownload(file.id)}
-                      disabled={!file.filePath}
-                    >
-                      Download
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {previewCards.length > 0 && (
-          <Card className="p-6">
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">Preview Cards</h2>
-                <Button 
-                  onClick={handleGeneratePDF}
-                  disabled={isProcessing}
-                >
-                  {isProcessing ? "Generating PDF..." : "Generate PDF"}
-                </Button>
-              </div>
-              <CardPreview cards={previewCards} />
-            </div>
-          </Card>
+          <FileList 
+            files={uploadedFiles}
+            onFileSelect={handleFileClick}
+          />
         )}
       </div>
     </div>
