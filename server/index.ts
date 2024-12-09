@@ -8,7 +8,9 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { db } from "./db";
 import { env } from "./lib/env";
-import { Client } from '@replit/object-storage';
+import { storageService } from './services/storage';
+import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
@@ -36,7 +38,8 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Content-Length', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials']
+  exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials'],
+  maxAge: 86400 // Cache preflight requests for 24 hours
 };
 
 app.use(cors(corsOptions));
@@ -185,13 +188,27 @@ app.use((req, res, next) => {
   try {
     // Initialize critical services
     const initializeServices = async () => {
-      // Verify Object Storage is accessible
       try {
-        const client = new Client();
-        await client.list(); // Test if we can list objects
-        log('Object Storage connection successful');
+        // Initialize storage service - it will create directory if needed
+        const storageDir = join(process.cwd(), 'storage', 'files');
+        if (!existsSync(storageDir)) {
+          mkdirSync(storageDir, { recursive: true });
+        }
+        log('File storage system initialized successfully');
+
+        // Test storage service by writing and deleting a test file
+        try {
+          const testBuffer = Buffer.from('test');
+          const testFile = await storageService.uploadFile(testBuffer, 'test.txt');
+          await storageService.deleteFile(testFile);
+          log('Storage service verified successfully');
+        } catch (testError) {
+          log(`Warning: Storage service test failed: ${testError instanceof Error ? testError.message : String(testError)}`);
+          // Don't throw here, allow server to start even if test fails
+        }
       } catch (error) {
-        throw new Error(`Object Storage connection failed: ${error instanceof Error ? error.message : String(error)}`);
+        log(`Warning: Failed to initialize services: ${error instanceof Error ? error.message : String(error)}`);
+        // Don't throw here, allow server to start with degraded functionality
       }
     };
 
