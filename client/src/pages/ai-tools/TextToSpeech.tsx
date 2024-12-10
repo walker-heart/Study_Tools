@@ -46,7 +46,14 @@ export default function TextToSpeech() {
   };
 
   const handleGenerate = async () => {
-    if (!textToRead.trim()) return;
+    if (!textToRead.trim()) {
+      showNotification({
+        message: 'Please enter some text to convert to speech',
+        type: 'error'
+      });
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const response = await fetch('/api/user/generate-speech', {
@@ -65,13 +72,33 @@ export default function TextToSpeech() {
         throw new Error(error.message || 'Failed to generate speech');
       }
 
-      // Get the audio blob
+      // Get the audio blob and create URL
       const audioBlob = await response.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
 
-      // Create and play audio
+      // Create and configure audio element
       const audio = new Audio(audioUrl);
-      audio.play();
+      
+      // Add error handling for audio playback
+      audio.onerror = (e) => {
+        console.error('Audio playback error:', e);
+        showNotification({
+          message: 'Error playing the generated audio',
+          type: 'error'
+        });
+      };
+
+      // Play the audio
+      try {
+        await audio.play();
+        showNotification({
+          message: 'Playing generated speech',
+          type: 'success'
+        });
+      } catch (playError) {
+        console.error('Playback error:', playError);
+        throw new Error('Failed to play the generated audio');
+      }
 
       // Clean up the URL after playback
       audio.onended = () => {

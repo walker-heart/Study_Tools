@@ -210,33 +210,42 @@ export async function generateSpeech(req: Request, res: Response) {
 
     const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
 
-    // Generate speech
-    const mp3 = await openai.audio.speech.create({
-      model: "tts-1",
-      voice,
-      input: text,
-    });
+    // Generate speech using OpenAI's TTS API
+    try {
+      const mp3 = await openai.audio.speech.create({
+        model: "tts-1",
+        voice,
+        input: text,
+      });
 
-    // Get the audio data as a Buffer
-    const audioData = await mp3.arrayBuffer();
-    const buffer = Buffer.from(audioData);
+      // Get the audio data as a Buffer
+      const audioData = await mp3.arrayBuffer();
+      const buffer = Buffer.from(audioData);
 
-    // Log the API usage
-    await logAPIUsage({
-      userId: req.session.user.id,
-      endpoint: "/api/user/generate-speech",
-      tokensUsed: Math.ceil(text.length / 4), // Approximate token count
-      cost: 0.015 * (text.length / 1000), // $0.015 per 1K characters
-      success: true,
-      resourceType: 'speech'
-    });
+      // Log successful API usage
+      await logAPIUsage({
+        userId: req.session.user.id,
+        endpoint: "/api/user/generate-speech",
+        tokensUsed: Math.ceil(text.length / 4), // Approximate token count
+        cost: 0.015 * (text.length / 1000), // $0.015 per 1K characters
+        success: true,
+        resourceType: 'speech'
+      });
 
-    // Send audio file
-    res.set({
-      'Content-Type': 'audio/mpeg',
-      'Content-Length': buffer.length,
-    });
-    res.send(buffer);
+      // Set proper headers for audio streaming
+      res.set({
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': buffer.length,
+        'Cache-Control': 'no-cache',
+        'Content-Disposition': 'attachment; filename="speech.mp3"'
+      });
+      
+      // Send the audio buffer
+      res.send(buffer);
+    } catch (err) {
+      console.error('Speech generation error:', err);
+      throw new Error(err instanceof Error ? err.message : 'Failed to generate speech');
+    }
   } catch (error) {
     console.error('Speech generation error:', error);
     
