@@ -219,8 +219,8 @@ export async function generateSpeech(req: Request, res: Response) {
         response_format: "mp3",
       });
 
-      // Get the audio data as a Buffer
-      const audioData = Buffer.from(await mp3.arrayBuffer());
+      // Get the audio data as a buffer
+      const buffer = Buffer.from(await mp3.arrayBuffer());
 
       // Log successful API usage
       await logAPIUsage({
@@ -235,14 +235,12 @@ export async function generateSpeech(req: Request, res: Response) {
       // Set proper headers for audio response
       res.set({
         'Content-Type': 'audio/mpeg',
-        'Content-Length': audioData.length,
-        'Accept-Ranges': 'bytes',
-        'Cache-Control': 'no-cache',
-        'Content-Range': `bytes 0-${audioData.length - 1}/${audioData.length}`
+        'Content-Length': buffer.length,
+        'Content-Disposition': 'attachment; filename="speech.mp3"'
       });
       
-      // Send the audio buffer
-      res.status(200).send(Buffer.from(audioData));
+      // Send the audio buffer directly
+      res.status(200).send(buffer);
     } catch (err) {
       console.error('Speech generation error:', err);
       
