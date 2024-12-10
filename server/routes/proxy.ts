@@ -11,7 +11,7 @@ function checkAuthentication(req: any) {
                   req.cookies?.dsers_token || 
                   req.cookies?.auth_token ||
                   (req.session?.user?.token);
-                  
+                   
     console.log('Authentication check:', {
       hasAuthHeader: !!req.headers.authorization,
       hasDsersToken: !!req.cookies?.dsers_token,
@@ -27,10 +27,22 @@ function checkAuthentication(req: any) {
         message: 'No authentication token found in headers, cookies, or session'
       };
     }
+
+    // Ensure token is properly formatted with Bearer prefix
+    let formattedToken = token;
+    if (token.startsWith('Bearer ')) {
+      formattedToken = token;
+    } else if (token.startsWith('"') || token.startsWith("'")) {
+      // Handle quoted tokens
+      const unquotedToken = token.slice(1, -1);
+      formattedToken = `Bearer ${unquotedToken}`;
+    } else {
+      formattedToken = `Bearer ${token}`;
+    }
     
     return {
       isAuthenticated: true,
-      token: token.startsWith('Bearer ') ? token : `Bearer ${token}`
+      token: formattedToken
     };
   } catch (error) {
     console.error('Error during authentication check:', error);
@@ -67,13 +79,19 @@ router.get('/api/proxy/dsers/stores', async (req, res) => {
     if (origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Cache-Control, Origin');
+      res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie, Access-Control-Allow-Origin, Access-Control-Allow-Credentials');
       res.setHeader('Vary', 'Origin');
+      
+      // Additional security headers
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Timing-Allow-Origin', origin);
     }
 
-    // Handle preflight requests
+    // Handle preflight requests with proper CORS headers
     if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
       res.status(204).end();
       return;
     }
