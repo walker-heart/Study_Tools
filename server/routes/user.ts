@@ -195,11 +195,13 @@ export async function generateSpeech(req: Request, res: Response) {
 
     const { text, voice } = req.body;
     if (!text || !voice) {
+      console.error('Missing required fields:', { text: !!text, voice: !!voice });
       return res.status(400).json({ message: "Missing required fields" });
     }
 
     console.log('Generating speech for text:', text.substring(0, 50) + '...');
     console.log('Selected voice:', voice);
+    console.log('Request body:', req.body); // Added logging for request body
 
     // Get user's OpenAI API key
     const result = await db
@@ -213,6 +215,7 @@ export async function generateSpeech(req: Request, res: Response) {
     }
 
     const apiKey = result[0].openaiApiKey;
+    console.log('API Key used:', apiKey); // Added logging for API key
     if (!apiKey.startsWith('sk-')) {
       console.error('Invalid OpenAI API key format');
       return res.status(400).json({ message: "Invalid API key format" });
