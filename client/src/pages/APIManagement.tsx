@@ -12,7 +12,7 @@ export default function APIManagement() {
   const { showNotification } = useNotification();
   const [apiKey, setApiKey] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const [apiStats, setApiStats] = useState({
     total_requests: 0,
     total_tokens: 0,
@@ -87,16 +87,16 @@ export default function APIManagement() {
         <Button
           variant="outline"
           onClick={() => setLocation("/settings")}
-          className={`w-32 ${location === "/settings" 
-            ? theme === 'dark' ? "bg-white text-black hover:bg-gray-100" : "bg-gray-900 text-white hover:bg-gray-800"
-            : theme === 'dark' ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-white text-black hover:bg-gray-100"}`}
+          className={`w-32 ${location[0] === "/settings" 
+            ? theme === 'dark' ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-white text-black hover:bg-gray-100"
+            : theme === 'dark' ? "bg-white text-black hover:bg-gray-100" : "bg-gray-900 text-white hover:bg-gray-800"}`}
         >
           General
         </Button>
         <Button
           variant="outline"
           onClick={() => setLocation("/settings/api")}
-          className={`w-32 ${location === "/settings/api" 
+          className={`w-32 ${location[0] === "/settings/api" 
             ? theme === 'dark' ? "bg-white text-black hover:bg-gray-100" : "bg-gray-900 text-white hover:bg-gray-800"
             : theme === 'dark' ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-white text-black hover:bg-gray-100"}`}
         >
@@ -188,7 +188,7 @@ export default function APIManagement() {
                   </div>
                 </div>
               </div>
-              <div className="mt-4">
+              <div className="mt-4 space-y-2">
                 <Button
                   variant="outline"
                   className="w-full"
@@ -196,6 +196,38 @@ export default function APIManagement() {
                   disabled={isLoadingStats}
                 >
                   {isLoadingStats ? "Refreshing..." : "Refresh Statistics"}
+                </Button>
+                <Button
+                  variant="default"
+                  className="w-full"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/user/test-openai', {
+                        method: 'POST',
+                        credentials: 'include'
+                      });
+                      
+                      if (!response.ok) {
+                        throw new Error('Failed to test API');
+                      }
+                      
+                      const data = await response.json();
+                      showNotification({
+                        message: `Test successful! Response: ${data.response}. Tokens used: ${data.tokensUsed}`,
+                        type: 'success'
+                      });
+                      
+                      // Refresh stats after successful test
+                      fetchApiStats();
+                    } catch (error) {
+                      showNotification({
+                        message: 'Failed to test OpenAI API',
+                        type: 'error'
+                      });
+                    }
+                  }}
+                >
+                  Test API Call
                 </Button>
               </div>
             </div>
