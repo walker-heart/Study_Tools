@@ -49,9 +49,11 @@ export default function SignIn() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         credentials: 'include', // Important for cookies
         body: JSON.stringify(formData),
+        mode: 'cors', // Explicitly set CORS mode
       });
       
       if (!response.ok) {
