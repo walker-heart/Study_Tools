@@ -75,7 +75,7 @@ export async function signIn(req: Request, res: Response) {
     
     // Save session explicitly
     await new Promise<void>((resolve, reject) => {
-      req.session.save((err) => {
+      req.session.save((err: Error | null) => {
         if (err) reject(err);
         else resolve();
       });
