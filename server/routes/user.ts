@@ -212,17 +212,17 @@ export async function generateSpeech(req: Request, res: Response) {
 
     // Generate speech using OpenAI's TTS API
     try {
-      const mp3 = await openai.audio.speech.create({
+      const response = await openai.audio.speech.create({
         model: "tts-1",
         voice,
         input: text,
+        response_format: "mp3",
       });
 
-      // Get the audio data as a Buffer
-      const audioData = await mp3.arrayBuffer();
-      const buffer = Buffer.from(audioData);
+      // Get the response as a readable stream
+      const stream = response.body;
 
-      // Log successful API usage
+      // Log successful API usage before starting stream
       await logAPIUsage({
         userId: req.session.user.id,
         endpoint: "/api/user/generate-speech",
@@ -232,16 +232,16 @@ export async function generateSpeech(req: Request, res: Response) {
         resourceType: 'speech'
       });
 
-      // Set proper headers for audio streaming
+      // Set headers for audio streaming
       res.set({
         'Content-Type': 'audio/mpeg',
-        'Content-Length': buffer.length,
+        'Transfer-Encoding': 'chunked',
         'Cache-Control': 'no-cache',
-        'Content-Disposition': 'attachment; filename="speech.mp3"'
+        'Connection': 'keep-alive',
       });
       
-      // Send the audio buffer
-      res.send(buffer);
+      // Pipe the stream directly to response
+      stream.pipe(res);
     } catch (err) {
       console.error('Speech generation error:', err);
       

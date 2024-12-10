@@ -72,40 +72,53 @@ export default function TextToSpeech() {
         throw new Error(error.message || 'Failed to generate speech');
       }
 
-      // Get the audio blob and create URL
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to generate speech');
+      }
+
+      // Create a blob from the response
       const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-
-      // Create and configure audio element
-      const audio = new Audio(audioUrl);
       
-      // Add error handling for audio playback
-      audio.onerror = (e) => {
-        console.error('Audio playback error:', e);
-        showNotification({
-          message: 'Error playing the generated audio',
-          type: 'error'
-        });
-        URL.revokeObjectURL(audioUrl); // Clean up on error
-      };
-
-      // Play the audio
+      // Create a URL for the blob
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      // Create audio element
+      const audio = new Audio();
+      
+      // Set up promise to handle audio loading
+      const audioLoaded = new Promise((resolve, reject) => {
+        audio.onloadeddata = resolve;
+        audio.onerror = reject;
+      });
+      
+      // Configure audio
+      audio.src = audioUrl;
+      
       try {
+        // Wait for audio to load
+        await audioLoaded;
+        
+        // Play audio
         await audio.play();
+        
         showNotification({
           message: 'Playing generated speech',
           type: 'success'
         });
-      } catch (playError) {
-        console.error('Playback error:', playError);
-        URL.revokeObjectURL(audioUrl); // Clean up on error
-        throw new Error('Failed to play the generated audio');
-      }
-
-      // Clean up the URL after playback
-      audio.onended = () => {
+        
+        // Clean up when done
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl);
+        };
+      } catch (error) {
         URL.revokeObjectURL(audioUrl);
-      };
+        console.error('Audio playback error:', error);
+        showNotification({
+          message: 'Error playing the generated audio',
+          type: 'error'
+        });
+      }
     } catch (error) {
       console.error("Failed to generate speech:", error);
       showNotification({
