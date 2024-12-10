@@ -1,5 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes/index";
+import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 import cors from "cors";
@@ -241,7 +241,7 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Verify database connection
+    // Verify database connection first
     try {
       await db.execute(sql`SELECT 1`);
       log('Database connection successful');
@@ -261,12 +261,7 @@ app.use((req, res, next) => {
       process.exit(1);
     }
 
-    // Register routes before error handling
-    registerRoutes(app);
-    
-    const server = createServer(app);
-
-    // Error handling middleware
+    // Set up error handling middleware first
     app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
       const status = (err.status || err.statusCode || 500);
       const message = err.message || "Internal Server Error";
@@ -275,23 +270,22 @@ app.use((req, res, next) => {
       res.status(status).json({ message });
     });
 
-    // importantly only setup vite in development and after
-    // setting up all the other routes so the catch-all route
-    // doesn't interfere with the other routes
-    // Configure server based on environment
+    // Register routes after error handling is set up
+    registerRoutes(app);
+    
+    const server = createServer(app);
+
+    // Configure environment-specific settings
     if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
-      // Ensure static files are served in production
       serveStatic(app);
-      
-      // Add catch-all route to serve index.html for client-side routing
       app.get('*', (_req, res) => {
         res.sendFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'));
       });
     }
 
-    // Get port from environment or default to 5000
+    // Start the server
     const PORT = parseInt(process.env.PORT || '5000', 10);
     server.listen({
       port: PORT,
@@ -301,7 +295,7 @@ app.use((req, res, next) => {
       log(`APP_URL: ${env.APP_URL}`);
     });
   } catch (error) {
-    log(`Fatal error: ${error}`);
+    log(`Fatal error during server startup: ${error}`);
     process.exit(1);
   }
 })();
