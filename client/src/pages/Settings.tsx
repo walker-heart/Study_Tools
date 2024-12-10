@@ -23,8 +23,8 @@ export default function Settings() {
           variant="outline"
           onClick={() => setLocation("/settings")}
           className={`w-32 ${location === "/settings" 
-            ? "bg-gray-900 text-white hover:bg-gray-800" 
-            : "bg-white text-black hover:bg-gray-100"}`}
+            ? theme === 'dark' ? "bg-white text-black hover:bg-gray-100" : "bg-gray-900 text-white hover:bg-gray-800"
+            : theme === 'dark' ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-white text-black hover:bg-gray-100"}`}
         >
           General
         </Button>
@@ -32,8 +32,8 @@ export default function Settings() {
           variant="outline"
           onClick={() => setLocation("/settings/api")}
           className={`w-32 ${location === "/settings/api" 
-            ? "bg-gray-900 text-white hover:bg-gray-800" 
-            : "bg-white text-black hover:bg-gray-100"}`}
+            ? theme === 'dark' ? "bg-white text-black hover:bg-gray-100" : "bg-gray-900 text-white hover:bg-gray-800"
+            : theme === 'dark' ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-white text-black hover:bg-gray-100"}`}
         >
           API
         </Button>
