@@ -329,51 +329,39 @@ export async function analyzeImage(req: Request, res: Response) {
         ? "Please extract and transcribe any visible text from this image. If there is no visible text, provide a detailed description of what you see." 
         : "Please provide a concise summary of this image's content in 2-3 sentences.";
 
-      const anthropic = new Anthropic({
-        apiKey: result[0].openaiApiKey // Using OpenAI key field temporarily for demo
-      });
-
-      const response = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022", // the newest Anthropic model is "claude-3-5-sonnet-20241022" which was released October 22, 2024
-        max_tokens: mode === 'extract' ? 1000 : 150,
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: prompt
-            },
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: "image/jpeg",
-                data: base64Image
+      const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
+      
+      const response = await openai.chat.completions.create({
+        model: "gpt-4-vision-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: prompt },
+              { 
+                type: "image_url", 
+                image_url: { 
+                  url: `data:image/jpeg;base64,${base64Image}` 
+                } 
               }
-            }
-          ]
-        }]
+            ]
+          }
+        ],
+        max_tokens: mode === 'extract' ? 1000 : 150,
+        temperature: mode === 'extract' ? 0.3 : 0.7
       });
 
-      // Handle Anthropic response content
-      let description = '';
-      if (response.content && response.content.length > 0) {
-        const firstContent = response.content[0];
-        if ('text' in firstContent) {
-          description = firstContent.text;
-        } else {
-          throw new Error('Unexpected response format from Anthropic API');
-        }
-      } else {
-        throw new Error('Empty response from Anthropic API');
+      if (!response.choices?.[0]?.message?.content) {
+        throw new Error('Invalid response from OpenAI API');
       }
 
-      // Log API usage with estimated token usage
+      const description = response.choices[0].message.content;
+
       await logAPIUsage({
         userId: req.session.user.id,
         endpoint: "/api/user/analyze-image",
-        tokensUsed: Math.ceil(description.length / 4), // Rough estimate of token count
-        cost: 0.01, // Fixed cost per image analysis
+        tokensUsed: response.usage?.total_tokens || 0,
+        cost: calculateTokenCost(response.usage?.total_tokens || 0),
         success: true,
         resourceType: 'image'
       });
@@ -395,21 +383,28 @@ export async function analyzeImage(req: Request, res: Response) {
 
       // Type guard for OpenAI API errors
       if (error && typeof error === 'object' && 'status' in error) {
-        const apiError = error as AnthropicAPIError;
+        const apiError = error as OpenAIAPIError;
         if (apiError.status === 401) {
           return res.status(401).json({
             message: "Invalid API key",
-            details: "Please check your API key in settings"
+            details: "Please check your OpenAI API key in settings"
           });
         }
       }
 
-      // Check for model-related errors
-      if (error instanceof Error && error.message.includes('model')) {
-        return res.status(400).json({
-          message: "Model error",
-          details: "There was an error with the image analysis model. Please try again later."
-        });
+      // Check for rate limit or model availability errors
+      if (error instanceof Error) {
+        if (error.message.includes('rate limit')) {
+          return res.status(429).json({
+            message: "Rate limit exceeded",
+            details: "Please try again in a few moments"
+          });
+        } else if (error.message.includes('model')) {
+          return res.status(400).json({
+            message: "Model error",
+            details: "The vision model is temporarily unavailable. Please try again later."
+          });
+        }
       }
 
       return res.status(500).json({ 
