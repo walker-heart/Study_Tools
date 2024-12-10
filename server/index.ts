@@ -31,7 +31,23 @@ function log(message: string) {
 const app = express();
 // Configure CORS middleware with more permissive settings for development
 const corsOptions = {
-  origin: true, // Allow all origins
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      'https://wtoolsw.com',
+      'http://localhost:3000',
+      'http://localhost:5000'
+    ];
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Content-Length', 'X-Requested-With', 'Accept', 'Origin'],
@@ -43,15 +59,22 @@ app.use(cors(corsOptions));
 // Add CORS headers for all responses
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+  
+  // Only set Allow-Origin header if origin is in our allowed list
+  if (origin && corsOptions.origin !== false) {
+    if (typeof corsOptions.origin === 'function') {
+      corsOptions.origin(origin, (err, allowed) => {
+        if (allowed) {
+          res.setHeader('Access-Control-Allow-Origin', origin);
+        }
+      });
+    }
   }
+  
   res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Vary', 'Origin');
   
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -132,11 +155,12 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: env.NODE_ENV === 'production',
+    secure: true, // Always use secure cookies in production
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    sameSite: 'lax',
-    path: '/'
+    sameSite: 'none', // Required for cross-origin requests
+    path: '/',
+    domain: process.env.NODE_ENV === 'production' ? '.dsers.com' : undefined // Adjust domain for production
   }
 }));
 
