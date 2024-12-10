@@ -97,15 +97,28 @@ export default function TextToSpeech() {
       // Get array buffer from response
       const arrayBuffer = await response.arrayBuffer();
       
-      // Create a blob with explicit MIME type
-      const audioBlob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+      // Create a blob with explicit MIME type and codec info
+      const audioBlob = new Blob([arrayBuffer], { 
+        type: 'audio/mpeg; codecs="mp3"'
+      });
       
       if (audioBlob.size === 0) {
         throw new Error('Received empty audio data');
       }
       
-      // Create a URL for the blob
+      // Create a URL for the blob and verify it's valid
       const newAudioUrl = URL.createObjectURL(audioBlob);
+      
+      // Validate the audio URL
+      const audio = new Audio();
+      audio.src = newAudioUrl;
+      
+      // Only set the URL if the audio loads successfully
+      await new Promise((resolve, reject) => {
+        audio.addEventListener('loadeddata', () => resolve(true));
+        audio.addEventListener('error', reject);
+        audio.load();
+      });
       
       // Update the audio URL state
       setAudioUrl(newAudioUrl);
