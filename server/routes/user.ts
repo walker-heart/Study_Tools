@@ -8,6 +8,7 @@ import { logAPIUsage, calculateTokenCost } from "../lib/apiMonitoring";
 export async function getTheme(req: Request, res: Response) {
   try {
     if (!req.session.user?.id) {
+      console.log('Theme request without authentication');
       return res.status(401).json({ message: "Not authenticated" });
     }
 
@@ -17,10 +18,13 @@ export async function getTheme(req: Request, res: Response) {
       .where(eq(users.id, req.session.user.id));
 
     if (!result.length) {
+      console.log(`User not found for theme request: ${req.session.user.id}`);
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.json({ theme: result[0].theme });
+    const theme = result[0].theme || 'light'; // Default to light if no theme set
+    console.log(`Theme retrieved for user ${req.session.user.id}: ${theme}`);
+    res.json({ theme });
   } catch (error) {
     console.error('Error getting theme:', error);
     res.status(500).json({ 
@@ -33,20 +37,28 @@ export async function getTheme(req: Request, res: Response) {
 export async function updateTheme(req: Request, res: Response) {
   try {
     if (!req.session.user?.id) {
+      console.log('Theme update attempted without authentication');
       return res.status(401).json({ message: "Not authenticated" });
     }
 
     const { theme } = req.body;
     if (!theme || !['light', 'dark'].includes(theme)) {
+      console.log(`Invalid theme value received: ${theme}`);
       return res.status(400).json({ message: "Invalid theme" });
     }
 
+    console.log(`Updating theme for user ${req.session.user.id} to: ${theme}`);
+    
     await db
       .update(users)
       .set({ theme })
       .where(eq(users.id, req.session.user.id));
 
-    res.json({ message: "Theme updated successfully" });
+    console.log(`Theme successfully updated for user ${req.session.user.id}`);
+    res.json({ 
+      message: "Theme updated successfully",
+      theme 
+    });
   } catch (error) {
     console.error('Error updating theme:', error);
     res.status(500).json({ 

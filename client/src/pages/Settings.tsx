@@ -112,13 +112,7 @@ export default function Settings() {
         <div className="flex justify-center gap-4 items-center">
           <Button
             size="lg"
-            onClick={async () => {
-              try {
-                await setTheme('light');
-              } catch (error) {
-                console.error('Failed to set light theme:', error);
-              }
-            }}
+            onClick={() => setTheme('light')}
             className={`w-32 bg-white text-gray-900 border-2 border-gray-300 hover:bg-gray-100 ${
               theme === 'light' ? 'ring-2 ring-blue-500' : ''
             }`}
@@ -127,13 +121,7 @@ export default function Settings() {
           </Button>
           <Button
             size="lg"
-            onClick={async () => {
-              try {
-                await setTheme('dark');
-              } catch (error) {
-                console.error('Failed to set dark theme:', error);
-              }
-            }}
+            onClick={() => setTheme('dark')}
             className={`w-32 bg-gray-900 text-white hover:bg-gray-800 ${
               theme === 'dark' ? 'ring-2 ring-blue-500' : ''
             }`}
