@@ -71,9 +71,17 @@ export async function getOpenAIKey(req: Request, res: Response) {
       return res.status(404).json({ message: "User not found" });
     }
 
+    const apiKey = result[0].openaiApiKey;
+    if (!apiKey || !apiKey.startsWith('sk-')) {
+      return res.json({ 
+        hasKey: false,
+        key: null
+      });
+    }
+
     res.json({ 
-      hasKey: !!result[0].openaiApiKey,
-      keyPreview: result[0].openaiApiKey ? `sk-...${result[0].openaiApiKey.slice(-4)}` : null
+      hasKey: true,
+      key: apiKey.slice(-4) // Just send the last 4 chars for security
     });
   } catch (error) {
     console.error('Error getting OpenAI key:', error);

@@ -22,13 +22,16 @@ export default function Settings() {
         });
         if (response.ok) {
           const data = await response.json();
-          setHasApiKey(!!data.hasKey);
-          if (data.hasKey && data.key) {
-            setApiKeyPreview(`sk-...${data.key.slice(-4)}`);
+          const hasKey = data.hasKey;
+          setHasApiKey(hasKey);
+          
+          if (hasKey && data.key) {
+            setApiKeyPreview(`sk-...${data.key}`); // data.key is already just the last 4 chars
           } else {
             setApiKeyPreview('');
           }
         } else {
+          console.error('Failed to fetch API key:', response.statusText);
           setHasApiKey(false);
           setApiKeyPreview('');
         }
@@ -39,8 +42,11 @@ export default function Settings() {
       }
     };
     
+    // Set up periodic refresh of API key status
     if (location === "/settings/api") {
       fetchApiKeyStatus();
+      const intervalId = setInterval(fetchApiKeyStatus, 30000);
+      return () => clearInterval(intervalId);
     }
   }, [location]);
 
