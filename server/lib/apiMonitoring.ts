@@ -40,7 +40,7 @@ export async function getAPIUsageStats(userId: number, days: number = 30) {
         MAX(timestamp) as last_used
       FROM api_key_usage 
       WHERE user_id = ${userId}
-      AND timestamp >= NOW() - INTERVAL '${days} days'
+      AND timestamp >= NOW() - INTERVAL ${days || 30} || ' days'
     `);
     
     return stats.rows[0];
