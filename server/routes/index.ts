@@ -1,6 +1,6 @@
 import { Router, type Express } from "express";
 import { signUp, signIn, signOut, checkAuth, checkAdmin, requireAdmin, getUsers, updateUser, updateUserPassword } from "./auth";
-import { updateTheme, getTheme, getOpenAIKey, updateOpenAIKey } from "./user";
+import { updateTheme, getTheme, getOpenAIKey, updateOpenAIKey, getUserAPIStats } from "./user";
 import analyticsRoutes from "./analytics";
 
 export function registerRoutes(app: Express): void {
@@ -18,6 +18,7 @@ export function registerRoutes(app: Express): void {
   router.put('/api/user/theme', updateTheme);
   router.get('/api/user/openai-key', getOpenAIKey);
   router.put('/api/user/openai-key', updateOpenAIKey);
+  router.get('/api/user/api-stats', getUserAPIStats);
 
   // Admin routes
   router.get('/api/admin/users', requireAdmin, getUsers);
