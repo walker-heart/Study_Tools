@@ -18,7 +18,9 @@ export default function APIManagement() {
     total_tokens: 0,
     total_cost: 0,
     failed_requests: 0,
-    success_rate: 100
+    success_rate: 100,
+    text_requests: 0,
+    image_requests: 0
   });
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
@@ -161,12 +163,16 @@ export default function APIManagement() {
 
             {/* API Usage Statistics */}
             <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold mb-4">API Usage Statistics</h3>
+              <h3 className="text-lg font-semibold mb-4">API Usage Statistics (Last 30 Days)</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
                   <div className="text-sm text-gray-500 dark:text-gray-400">Total Requests</div>
                   <div className="text-2xl font-semibold mt-1">
                     {isLoadingStats ? "Loading..." : apiStats.total_requests.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Text: {isLoadingStats ? "..." : (apiStats.text_requests || 0).toLocaleString()} •
+                    Image: {isLoadingStats ? "..." : (apiStats.image_requests || 0).toLocaleString()}
                   </div>
                 </div>
                 <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
@@ -174,17 +180,28 @@ export default function APIManagement() {
                   <div className="text-2xl font-semibold mt-1">
                     {isLoadingStats ? "Loading..." : apiStats.total_tokens.toLocaleString()}
                   </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Average: {isLoadingStats ? "..." : 
+                      Math.round(apiStats.total_tokens / (apiStats.text_requests || 1)).toLocaleString()} tokens/request
+                  </div>
                 </div>
                 <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
                   <div className="text-sm text-gray-500 dark:text-gray-400">Total Cost</div>
                   <div className="text-2xl font-semibold mt-1">
                     {isLoadingStats ? "Loading..." : `$${Number(apiStats.total_cost).toFixed(2)}`}
                   </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Average: ${isLoadingStats ? "..." : 
+                      (apiStats.total_cost / (apiStats.total_requests || 1)).toFixed(4)}/request
+                  </div>
                 </div>
                 <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
                   <div className="text-sm text-gray-500 dark:text-gray-400">Success Rate</div>
                   <div className="text-2xl font-semibold mt-1">
                     {isLoadingStats ? "Loading..." : `${apiStats.success_rate}%`}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Failed: {isLoadingStats ? "..." : apiStats.failed_requests.toLocaleString()} requests
                   </div>
                 </div>
               </div>
