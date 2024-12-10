@@ -240,8 +240,27 @@ export async function generateSpeech(req: Request, res: Response) {
         'Connection': 'keep-alive',
       });
       
-      // Pipe the stream directly to response
-      stream.pipe(res);
+      // Convert ReadableStream to Node readable stream and pipe to response
+      const nodeStream = new ReadableStream({
+        start(controller) {
+          const reader = stream.getReader();
+          return pump();
+          function pump() {
+            return reader.read().then(({done, value}) => {
+              if (done) {
+                controller.close();
+                return;
+              }
+              controller.enqueue(value);
+              return pump();
+            });
+          }
+        }
+      });
+      
+      const { Readable } = require('stream');
+      const nodeReadable = Readable.from(nodeStream);
+      nodeReadable.pipe(res);
     } catch (err) {
       console.error('Speech generation error:', err);
       

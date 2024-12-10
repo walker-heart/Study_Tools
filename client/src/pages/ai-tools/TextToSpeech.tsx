@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSettings } from "@/contexts/SettingsContext";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNotification } from "@/components/ui/notification";
 import {
   Select,
