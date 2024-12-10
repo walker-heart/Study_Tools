@@ -5,12 +5,14 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useNotification } from "@/components/ui/notification";
+import { useLocation } from "wouter";
 
 export default function APIManagement() {
   const { theme } = useSettings();
   const { showNotification } = useNotification();
   const [apiKey, setApiKey] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const [, setLocation] = useLocation();
   const [apiStats, setApiStats] = useState({
     total_requests: 0,
     total_tokens: 0,
@@ -76,9 +78,27 @@ export default function APIManagement() {
 
   return (
     <div className={`container mx-auto px-4 py-8 max-w-4xl ${theme === 'dark' ? 'dark bg-gray-900 text-white' : ''}`}>
-      <h1 className="text-3xl font-bold text-center mb-8">
-        API Management
+      <h1 className="text-3xl font-bold text-center mb-4">
+        Settings
       </h1>
+
+      {/* Navigation Tabs */}
+      <div className="flex justify-center gap-4 mb-8">
+        <Button
+          variant={location === "/settings" ? "default" : "outline"}
+          onClick={() => setLocation("/settings")}
+          className="w-32"
+        >
+          General
+        </Button>
+        <Button
+          variant={location === "/settings/api" ? "default" : "outline"}
+          onClick={() => setLocation("/settings/api")}
+          className="w-32"
+        >
+          API
+        </Button>
+      </div>
 
       <div className="space-y-8">
         <Card className={`p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
