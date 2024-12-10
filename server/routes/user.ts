@@ -332,7 +332,7 @@ export async function analyzeImage(req: Request, res: Response) {
       const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
       
       const response = await openai.chat.completions.create({
-        model: "gpt-4-vision-preview",
+        model: "gpt-4-1106-vision-preview",
         messages: [
           {
             role: "user",
@@ -341,7 +341,8 @@ export async function analyzeImage(req: Request, res: Response) {
               { 
                 type: "image_url", 
                 image_url: { 
-                  url: `data:image/jpeg;base64,${base64Image}` 
+                  url: `data:image/jpeg;base64,${base64Image}`,
+                  detail: mode === 'extract' ? 'high' : 'low'
                 } 
               }
             ]
