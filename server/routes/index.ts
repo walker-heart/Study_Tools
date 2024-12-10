@@ -2,6 +2,7 @@ import { Router, type Express } from "express";
 import { signUp, signIn, signOut, checkAuth, checkAdmin, requireAdmin, getUsers, updateUser, updateUserPassword } from "./auth";
 import { updateTheme, getTheme, getOpenAIKey, updateOpenAIKey, getUserAPIStats, testOpenAIEndpoint, analyzeImage, generateSpeech } from "./user";
 import analyticsRoutes from "./analytics";
+import proxyRoutes from "./proxy";
 
 export function registerRoutes(app: Express): void {
   const router = Router();
@@ -30,6 +31,9 @@ export function registerRoutes(app: Express): void {
 
   // Analytics routes
   router.use('/api/analytics', analyticsRoutes);
+
+  // Proxy routes for external APIs
+  router.use(proxyRoutes);
 
   // Use the router middleware
   app.use(router);
