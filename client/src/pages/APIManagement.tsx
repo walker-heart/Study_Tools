@@ -44,7 +44,10 @@ export default function APIManagement() {
           total_tokens: data.total_tokens || 0,
           total_cost: data.total_cost || 0,
           failed_requests: failedRequests,
-          success_rate: parseFloat(successRate.toString())
+          success_rate: parseFloat(successRate.toString()),
+          text_requests: data.text_requests || 0,
+          image_requests: data.image_requests || 0,
+          speech_requests: data.speech_requests || 0
         });
       }
     } catch (error) {
