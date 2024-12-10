@@ -193,11 +193,11 @@ export default function APIManagement() {
                 <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
                   <div className="text-sm text-gray-500 dark:text-gray-400">Total Cost</div>
                   <div className="text-2xl font-semibold mt-1">
-                    {isLoadingStats ? "Loading..." : `$${Number(apiStats.total_cost).toFixed(2)}`}
+                    {isLoadingStats ? "Loading..." : `$${parseFloat(apiStats.total_cost.toString()).toFixed(2)}`}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                     Average: ${isLoadingStats ? "..." : 
-                      (apiStats.total_cost / (apiStats.total_requests || 1)).toFixed(4)}/request
+                      (parseFloat(apiStats.total_cost.toString()) / (apiStats.total_requests || 1)).toFixed(4)}/request
                   </div>
                 </div>
                 <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
