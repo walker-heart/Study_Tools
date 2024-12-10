@@ -244,7 +244,22 @@ export async function generateSpeech(req: Request, res: Response) {
       res.send(buffer);
     } catch (err) {
       console.error('Speech generation error:', err);
-      throw new Error(err instanceof Error ? err.message : 'Failed to generate speech');
+      
+      // Log failed attempt
+      await logAPIUsage({
+        userId: req.session.user.id,
+        endpoint: "/api/user/generate-speech",
+        tokensUsed: 0,
+        cost: 0,
+        success: false,
+        errorMessage: err instanceof Error ? err.message : "Unknown error",
+        resourceType: 'speech'
+      });
+
+      res.status(500).json({ 
+        message: err instanceof Error ? err.message : "Failed to generate speech"
+      });
+      return;
     }
   } catch (error) {
     console.error('Speech generation error:', error);
