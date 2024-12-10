@@ -86,6 +86,7 @@ export default function TextToSpeech() {
           message: 'Error playing the generated audio',
           type: 'error'
         });
+        URL.revokeObjectURL(audioUrl); // Clean up on error
       };
 
       // Play the audio
@@ -97,6 +98,7 @@ export default function TextToSpeech() {
         });
       } catch (playError) {
         console.error('Playback error:', playError);
+        URL.revokeObjectURL(audioUrl); // Clean up on error
         throw new Error('Failed to play the generated audio');
       }
 
