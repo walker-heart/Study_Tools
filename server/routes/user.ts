@@ -3,13 +3,20 @@ import { db } from "../db";
 import { eq, sql } from "drizzle-orm";
 import { users } from "../db/schema";
 import OpenAI from "openai";
+import Anthropic from '@anthropic-ai/sdk';
 import { logAPIUsage, calculateTokenCost } from "../lib/apiMonitoring";
 
-// Define OpenAI API error interface
+// Define API error interfaces
 interface OpenAIAPIError {
   status?: number;
   message?: string;
   code?: string;
+}
+
+interface AnthropicAPIError {
+  status?: number;
+  message?: string;
+  type?: string;
 }
 
 export async function getTheme(req: Request, res: Response) {
@@ -267,6 +274,11 @@ export async function analyzeImage(req: Request, res: Response) {
       return res.status(400).json({ message: "No image data provided" });
     }
 
+    const mode = req.body.mode || 'extract'; // 'extract' or 'summarize'
+    if (!['extract', 'summarize'].includes(mode)) {
+      return res.status(400).json({ message: "Invalid mode. Use 'extract' or 'summarize'" });
+    }
+
     const result = await db
       .select({ openaiApiKey: users.openaiApiKey })
       .from(users)
@@ -313,18 +325,23 @@ export async function analyzeImage(req: Request, res: Response) {
         });
       }
 
+      const prompt = mode === 'extract' 
+        ? "Please extract and transcribe any visible text from this image. If there is no visible text, provide a detailed description of what you see." 
+        : "Please provide a concise summary of this image's content in 2-3 sentences.";
+
       const response = await openai.chat.completions.create({
         model: "gpt-4-vision-preview",
         messages: [
           {
             role: "user",
             content: [
-              { type: "text", text: "Please analyze this image and extract any visible text or describe what you see in detail." },
+              { type: "text", text: prompt },
               { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
             ]
           }
         ],
-        max_tokens: 500
+        max_tokens: mode === 'extract' ? 1000 : 150,
+        temperature: mode === 'extract' ? 0.3 : 0.7
       });
 
       if (!response.choices?.[0]?.message?.content) {
