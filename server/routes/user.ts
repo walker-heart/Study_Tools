@@ -1,8 +1,69 @@
 import { Request, Response } from "express";
-import { getAPIUsageStats } from "../lib/apiMonitoring";
+import { getAPIUsageStats, logAPIUsage, calculateTokenCost } from "../lib/apiMonitoring";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { users } from "../../db/schema/users";
+import OpenAI from "openai";
+
+// Test endpoint for OpenAI API usage
+export async function testOpenAIEndpoint(req: Request, res: Response) {
+  try {
+    if (!req.session.user?.id) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    // Get user's OpenAI API key
+    const result = await db
+      .select({ openaiApiKey: users.openaiApiKey })
+      .from(users)
+      .where(eq(users.id, req.session.user.id));
+
+    if (!result.length || !result[0].openaiApiKey) {
+      return res.status(400).json({ message: "No API key configured" });
+    }
+
+    const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
+
+    // Make a simple test completion
+    const completion = await openai.chat.completions.create({
+      messages: [{ role: "user", content: "Say hello for testing API monitoring" }],
+      model: "gpt-3.5-turbo",
+    });
+
+    // Log the API usage
+    const tokensUsed = completion.usage?.total_tokens || 0;
+    await logAPIUsage({
+      userId: req.session.user.id,
+      endpoint: "/api/user/test-openai",
+      tokensUsed,
+      cost: calculateTokenCost(tokensUsed, "gpt-3.5-turbo"),
+      success: true
+    });
+
+    res.json({ 
+      message: "Test completed successfully",
+      response: completion.choices[0].message.content,
+      tokensUsed,
+      model: "gpt-3.5-turbo"
+    });
+  } catch (error) {
+    console.error('Test OpenAI endpoint error:', error);
+    
+    // Log failed attempt if authenticated
+    if (req.session.user?.id) {
+      await logAPIUsage({
+        userId: req.session.user.id,
+        endpoint: "/api/user/test-openai",
+        tokensUsed: 0,
+        cost: 0,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+    
+    res.status(500).json({ message: "Error testing OpenAI API" });
+  }
+}
 
 export async function updateTheme(req: Request, res: Response) {
   try {
