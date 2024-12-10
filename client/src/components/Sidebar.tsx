@@ -73,6 +73,11 @@ export default function Sidebar() {
                     🧠 Memorization
                   </Button>
                 </Link>
+                <Link href="/ai-tools">
+                  <Button variant="ghost" className="w-full justify-start">
+                    🤖 AI Tools
+                  </Button>
+                </Link>
               </div>
             )}
           </div>
