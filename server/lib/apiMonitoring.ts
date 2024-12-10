@@ -17,13 +17,31 @@ export async function logAPIUsage({
   tokensUsed,
   cost,
   success,
-  errorMessage
-}: APIUsageLog) {
+  errorMessage,
+  resourceType = 'text'
+}: APIUsageLog & { resourceType?: 'text' | 'image' }) {
   try {
     await db.execute(sql`
-      INSERT INTO api_key_usage (user_id, endpoint, tokens_used, cost, success, error_message)
-      VALUES (${userId}, ${endpoint}, ${tokensUsed}, ${cost}, ${success}, ${errorMessage || null})
+      INSERT INTO api_key_usage (
+        user_id, 
+        endpoint, 
+        tokens_used, 
+        cost, 
+        success, 
+        error_message,
+        resource_type
+      )
+      VALUES (
+        ${userId}, 
+        ${endpoint}, 
+        ${tokensUsed}, 
+        ${cost}, 
+        ${success}, 
+        ${errorMessage || null},
+        ${resourceType}
+      )
     `);
+    console.log(`API usage logged - Endpoint: ${endpoint}, Type: ${resourceType}, Success: ${success}`);
   } catch (error) {
     console.error('Error logging API usage:', error);
   }
@@ -38,7 +56,9 @@ export async function getAPIUsageStats(userId: number, days: number = 30) {
           COALESCE(SUM(tokens_used), 0)::INTEGER as total_tokens,
           COALESCE(SUM(cost), 0)::DECIMAL as total_cost,
           COUNT(CASE WHEN success = false THEN 1 END)::INTEGER as failed_requests,
-          MAX(created_at) as last_used
+          MAX(created_at) as last_used,
+          COUNT(CASE WHEN resource_type = 'image' THEN 1 END)::INTEGER as image_requests,
+          COUNT(CASE WHEN resource_type = 'text' THEN 1 END)::INTEGER as text_requests
         FROM api_key_usage 
         WHERE user_id = ${userId}
         AND created_at >= CURRENT_TIMESTAMP - (${days}::INTEGER * INTERVAL '1 day')
@@ -49,6 +69,8 @@ export async function getAPIUsageStats(userId: number, days: number = 30) {
         total_cost,
         failed_requests,
         last_used,
+        image_requests,
+        text_requests,
         CASE 
           WHEN total_requests > 0 THEN 
             ROUND(((total_requests - failed_requests)::DECIMAL / total_requests::DECIMAL * 100), 1)
