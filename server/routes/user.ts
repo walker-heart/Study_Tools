@@ -212,17 +212,17 @@ export async function generateSpeech(req: Request, res: Response) {
 
     // Generate speech using OpenAI's TTS API
     try {
-      const response = await openai.audio.speech.create({
+      const mp3 = await openai.audio.speech.create({
         model: "tts-1",
         voice,
         input: text,
         response_format: "mp3",
       });
 
-      // Get the response as a readable stream
-      const stream = response.body;
+      // Get the audio data as a Buffer
+      const audioData = Buffer.from(await mp3.arrayBuffer());
 
-      // Log successful API usage before starting stream
+      // Log successful API usage
       await logAPIUsage({
         userId: req.session.user.id,
         endpoint: "/api/user/generate-speech",
@@ -232,35 +232,15 @@ export async function generateSpeech(req: Request, res: Response) {
         resourceType: 'speech'
       });
 
-      // Set headers for audio streaming
+      // Set proper headers for audio response
       res.set({
         'Content-Type': 'audio/mpeg',
-        'Transfer-Encoding': 'chunked',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
+        'Content-Length': audioData.length,
+        'Cache-Control': 'no-cache'
       });
       
-      // Convert ReadableStream to Node readable stream and pipe to response
-      const nodeStream = new ReadableStream({
-        start(controller) {
-          const reader = stream.getReader();
-          return pump();
-          function pump() {
-            return reader.read().then(({done, value}) => {
-              if (done) {
-                controller.close();
-                return;
-              }
-              controller.enqueue(value);
-              return pump();
-            });
-          }
-        }
-      });
-      
-      const { Readable } = require('stream');
-      const nodeReadable = Readable.from(nodeStream);
-      nodeReadable.pipe(res);
+      // Send the audio buffer
+      res.send(audioData);
     } catch (err) {
       console.error('Speech generation error:', err);
       

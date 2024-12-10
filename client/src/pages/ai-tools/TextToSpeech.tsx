@@ -84,11 +84,21 @@ export default function TextToSpeech() {
         URL.revokeObjectURL(audioUrl);
       }
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      
       // Create a blob from the response
       const audioBlob = await response.blob();
+      console.log('Audio blob size:', audioBlob.size);
+      console.log('Audio blob type:', audioBlob.type);
+      
+      if (audioBlob.size === 0) {
+        throw new Error('Received empty audio data');
+      }
       
       // Create a URL for the blob
       const newAudioUrl = URL.createObjectURL(audioBlob);
+      console.log('Created audio URL:', newAudioUrl);
       
       // Update the audio URL state
       setAudioUrl(newAudioUrl);
@@ -169,9 +179,17 @@ export default function TextToSpeech() {
                 className="w-full"
                 src={audioUrl}
                 onError={(e) => {
-                  console.error('Audio playback error:', e);
+                  const audioElement = e.currentTarget as HTMLAudioElement;
+                  console.error('Audio playback error:', {
+                    error: e,
+                    errorCode: audioElement.error?.code,
+                    errorMessage: audioElement.error?.message,
+                    networkState: audioElement.networkState,
+                    readyState: audioElement.readyState,
+                    currentSrc: audioElement.currentSrc,
+                  });
                   showNotification({
-                    message: 'Error playing the generated audio',
+                    message: `Error playing audio: ${audioElement.error?.message || 'Unknown error'}`,
                     type: 'error'
                   });
                 }}
