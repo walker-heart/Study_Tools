@@ -201,7 +201,6 @@ export async function generateSpeech(req: Request, res: Response) {
 
     console.log('Generating speech for text:', text.substring(0, 50) + '...');
     console.log('Selected voice:', voice);
-    console.log('Request body:', req.body); // Added logging for request body
 
     // Get user's OpenAI API key
     console.log('Retrieving OpenAI API key for user:', req.session.user.id);
@@ -229,8 +228,6 @@ export async function generateSpeech(req: Request, res: Response) {
     }
 
     console.log('API key validation passed, initializing OpenAI client...');
-
-    console.log('Initializing OpenAI client...');
     const openai = new OpenAI({ apiKey });
 
     try {
@@ -255,20 +252,21 @@ export async function generateSpeech(req: Request, res: Response) {
         response_format: "mp3",
       });
 
-      console.log('OpenAI API call completed:', {
-        success: !!mp3,
-        responseType: mp3 ? typeof mp3 : 'null'
-      });
+      console.log('OpenAI API call completed successfully');
 
       if (!mp3) {
         throw new Error('No response from OpenAI TTS API');
       }
-      
-      console.log('OpenAI API response received');
+
+      // Verify we got a proper response object
+      if (!mp3.arrayBuffer || typeof mp3.arrayBuffer !== 'function') {
+        console.error('Invalid response type from OpenAI:', typeof mp3);
+        throw new Error('Invalid response format from OpenAI');
+      }
 
       console.log('Converting response to buffer...');
       const arrayBuffer = await mp3.arrayBuffer();
-      console.log('Received array buffer type:', typeof arrayBuffer);
+      console.log('Received array buffer size:', arrayBuffer.byteLength);
       
       const buffer = Buffer.from(arrayBuffer);
       console.log('Converted to Buffer, length:', buffer.length);
@@ -277,8 +275,23 @@ export async function generateSpeech(req: Request, res: Response) {
         throw new Error('Received empty buffer from OpenAI');
       }
 
-      console.log('Audio buffer size:', buffer.length, 'bytes');
-      console.log('Buffer is valid:', buffer.length > 0);
+      // Validate MP3 format before sending
+      const isValidMP3 = buffer.length > 4 && (
+        // Check for MP3 frame header
+        (buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0) ||
+        // Check for ID3 tag
+        (buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33)
+      );
+
+      if (!isValidMP3) {
+        console.error('Invalid MP3 data received from OpenAI:', {
+          firstBytes: Array.from(buffer.slice(0, 4)),
+          length: buffer.length
+        });
+        throw new Error('Invalid audio data received from OpenAI');
+      }
+
+      console.log('Audio buffer validated, size:', buffer.length, 'bytes');
 
       // Log successful API usage
       await logAPIUsage({
@@ -294,23 +307,14 @@ export async function generateSpeech(req: Request, res: Response) {
       res.set({
         'Content-Type': 'audio/mpeg',
         'Content-Length': buffer.length,
-        'Content-Disposition': 'inline',
+        'Content-Disposition': 'attachment; filename="generated_speech.mp3"',
         'Cache-Control': 'no-cache',
         'Accept-Ranges': 'bytes'
       });
       
-      // Verify buffer contains valid MP3 data (should start with ID3 or be a valid MP3 frame)
-      const isValidMP3 = buffer.length > 2 && 
-        ((buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33) || // ID3
-         (buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0)); // MP3 frame
-      
-      if (!isValidMP3) {
-        console.error('Invalid MP3 data detected');
-        throw new Error('Invalid audio data received from OpenAI');
-      }
-      
       console.log('Sending audio response...');
-      res.status(200).send(buffer);
+      return res.status(200).send(buffer);
+
     } catch (err) {
       console.error('OpenAI API Error:', err);
       
@@ -325,11 +329,10 @@ export async function generateSpeech(req: Request, res: Response) {
         resourceType: 'speech'
       });
 
-      res.status(500).json({ 
+      return res.status(500).json({ 
         message: err instanceof Error ? err.message : "Failed to generate speech",
         details: err instanceof Error ? err.message : "Unknown error"
       });
-      return;
     }
   } catch (error) {
     console.error('Server Error:', error);
@@ -347,7 +350,7 @@ export async function generateSpeech(req: Request, res: Response) {
       });
     }
     
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: "Error generating speech",
       details: error instanceof Error ? error.message : "Unknown error"
     });

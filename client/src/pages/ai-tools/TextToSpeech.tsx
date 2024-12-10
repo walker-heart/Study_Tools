@@ -99,13 +99,22 @@ export default function TextToSpeech() {
 
       console.log('Response received, processing audio data...');
 
+      // Check content type
+      const contentType = response.headers.get('content-type');
+      if (!contentType?.includes('audio/mpeg')) {
+        console.error('Unexpected content type:', contentType);
+        const text = await response.text();
+        console.error('Response body:', text);
+        throw new Error('Server returned non-audio data');
+      }
+
       // Process audio response
       const arrayBuffer = await response.arrayBuffer();
       console.log('Received array buffer size:', arrayBuffer.byteLength);
       
       // Create audio blob with specific MIME type for MP3
       const audioBlob = new Blob([arrayBuffer], { 
-        type: 'audio/mpeg; codecs=mp3'
+        type: response.headers.get('content-type') || 'audio/mpeg'
       });
       
       // Validate blob
@@ -113,12 +122,38 @@ export default function TextToSpeech() {
         throw new Error('Received empty audio data');
       }
 
-      // Validate that the blob is actually audio data
+      // Read the first few bytes to validate the audio format
       const firstBytes = new Uint8Array(arrayBuffer.slice(0, 4));
-      const isMP3 = firstBytes[0] === 0xFF && (firstBytes[1] & 0xE0) === 0xE0;
+      
+      // Check if we received an error response (usually starts with '{')
+      if (firstBytes[0] === 0x7B) { // '{' character
+        const text = await new Blob([arrayBuffer]).text();
+        const error = JSON.parse(text);
+        throw new Error(error.message || error.details || 'Server returned error response');
+      }
+      
+      // Check if we received HTML instead of audio
+      if (firstBytes[0] === 0x3C) { // '<' character, likely HTML/XML
+        const text = await new Blob([arrayBuffer]).text();
+        console.error('Received HTML instead of audio:', text);
+        throw new Error('Server returned HTML instead of audio data');
+      }
+      
+      // Validate MP3 format
+      const isMP3 = (
+        // Check for MP3 frame header
+        (firstBytes[0] === 0xFF && (firstBytes[1] & 0xE0) === 0xE0) ||
+        // Check for ID3 tag
+        (firstBytes[0] === 0x49 && firstBytes[1] === 0x44 && firstBytes[2] === 0x33)
+      );
+      
       if (!isMP3) {
-        console.error('Invalid MP3 data received:', firstBytes);
-        throw new Error('Invalid audio data format received');
+        console.error('Invalid MP3 format:', {
+          firstBytes: Array.from(firstBytes),
+          contentType: response.headers.get('content-type'),
+          size: arrayBuffer.byteLength
+        });
+        throw new Error('Server returned invalid audio format');
       }
 
       console.log('Created audio blob, size:', audioBlob.size);
