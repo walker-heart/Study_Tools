@@ -94,10 +94,11 @@ export default function TextToSpeech() {
       console.log('Response status:', response.status);
       console.log('Response headers:', Object.fromEntries(response.headers.entries()));
       
-      // Create a blob from the response
-      const audioBlob = await response.blob();
-      console.log('Audio blob size:', audioBlob.size);
-      console.log('Audio blob type:', audioBlob.type);
+      // Get array buffer from response
+      const arrayBuffer = await response.arrayBuffer();
+      
+      // Create a blob with explicit MIME type
+      const audioBlob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
       
       if (audioBlob.size === 0) {
         throw new Error('Received empty audio data');
@@ -105,7 +106,6 @@ export default function TextToSpeech() {
       
       // Create a URL for the blob
       const newAudioUrl = URL.createObjectURL(audioBlob);
-      console.log('Created audio URL:', newAudioUrl);
       
       // Update the audio URL state
       setAudioUrl(newAudioUrl);
