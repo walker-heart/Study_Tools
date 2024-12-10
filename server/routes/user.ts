@@ -211,14 +211,23 @@ export async function generateSpeech(req: Request, res: Response) {
     const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
 
     // Generate speech
-    const response = await openai.audio.speech.create({
+    const mp3 = await openai.audio.speech.create({
       model: "tts-1",
       voice,
       input: text,
     });
 
-    // Get the audio data as a buffer
-    const buffer = Buffer.from(await response.arrayBuffer());
+    // Convert the ReadableStream to a Buffer
+    const chunks = [];
+    const reader = mp3.getReader();
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    
+    const buffer = Buffer.concat(chunks);
 
     // Log the API usage
     await logAPIUsage({
