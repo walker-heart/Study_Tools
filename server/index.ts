@@ -79,25 +79,21 @@ app.use(cors(corsOptions));
 // Handle OPTIONS preflight requests
 app.options('*', cors(corsOptions));
 
-// Add security headers
+// Add security headers and CORS handling
 app.use((req, res, next) => {
+  // Security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
-  next();
-});
-
-// Apply CORS middleware
-app.use(cors(corsOptions));
-
-// Handle OPTIONS preflight requests
-app.options('*', cors(corsOptions));
-
-// Add security headers
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
+  
+  // Additional CORS headers for specific cases
+  const origin = req.headers.origin;
+  if (origin && isOriginAllowed(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
+  
   next();
 });
 
