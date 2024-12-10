@@ -140,9 +140,9 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // Log static file paths for debugging
 log(`Serving static files from: ${publicPath}`);
 
-// Basic request handlers
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Configure request size limits and parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Configure PostgreSQL pool for session store
 const pool = new Pool({
   connectionString: env.DATABASE_URL,

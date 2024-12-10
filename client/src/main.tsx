@@ -20,7 +20,7 @@ import APIManagement from "./pages/APIManagement";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import AITools from "./pages/AITools";
-import ImageToText from "./pages/ai-tools/ImageToText";
+import ImageToTextTool from "./pages/ai-tools/Image";
 import TextToSpeech from "./pages/ai-tools/TextToSpeech";
 import QuizCreator from "./pages/ai-tools/QuizCreator";
 
@@ -71,7 +71,7 @@ function Router() {
         </Route>
         <Route path="/ai-tools/image">
           <ProtectedRoute>
-            <ImageToText />
+            <ImageToTextTool />
           </ProtectedRoute>
         </Route>
         <Route path="/ai-tools/tts">
