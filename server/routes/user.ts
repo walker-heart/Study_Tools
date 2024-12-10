@@ -236,11 +236,13 @@ export async function generateSpeech(req: Request, res: Response) {
       res.set({
         'Content-Type': 'audio/mpeg',
         'Content-Length': audioData.length,
-        'Cache-Control': 'no-cache'
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-cache',
+        'Content-Range': `bytes 0-${audioData.length - 1}/${audioData.length}`
       });
       
       // Send the audio buffer
-      res.send(audioData);
+      res.status(200).send(Buffer.from(audioData));
     } catch (err) {
       console.error('Speech generation error:', err);
       
