@@ -68,16 +68,20 @@ export default function APIManagement() {
         const response = await fetch('/api/user/openai-key', {
           credentials: 'include'
         });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.hasKey && data.key) {
-            // Always show the last 4 characters in consistent format
-            setApiKey(`sk-...${data.key.slice(-4)}`);
-          } else {
-            setApiKey('');
-          }
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.hasKey && data.key) {
+          setApiKey(`sk-...${data.key}`);
         } else {
           setApiKey('');
+          if (data.error) {
+            console.warn('API key warning:', data.error);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch API key:', error);
@@ -85,9 +89,21 @@ export default function APIManagement() {
       }
       
       // Fetch initial stats
-      fetchApiStats();
+      try {
+        await fetchApiStats();
+      } catch (error) {
+        console.error('Failed to fetch API stats:', error);
+      }
     };
+    
+    // Call fetchInitialData immediately and set up a refresh interval
     fetchInitialData();
+    
+    // Refresh data every 30 seconds
+    const intervalId = setInterval(fetchInitialData, 30000);
+    
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
   }, []);
 
   return (
