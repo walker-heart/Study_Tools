@@ -5,6 +5,7 @@ interface NotificationProps {
   type?: "success" | "error" | "info";
   duration?: number;
   onClose?: () => void;
+  onClick?: () => void;
 }
 
 export function Notification({ message, type = "info", duration = 3000, onClose }: NotificationProps) {
@@ -28,7 +29,12 @@ export function Notification({ message, type = "info", duration = 3000, onClose 
   }[type];
 
   return (
-    <div className={`fixed top-4 right-4 p-4 rounded-md shadow-lg text-white ${bgColor} transition-opacity duration-300 z-50`}>
+    <div 
+      onClick={onClick}
+      className={`fixed top-4 right-4 p-4 rounded-md shadow-lg text-white ${bgColor} transition-opacity duration-300 z-50 ${
+        onClick ? 'cursor-pointer hover:opacity-90' : ''
+      }`}
+    >
       {message}
     </div>
   );

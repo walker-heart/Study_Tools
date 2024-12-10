@@ -115,17 +115,23 @@ export default function APIManagement() {
           <h2 className="text-xl font-semibold mb-4">API Keys</h2>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="openai-api-key">OpenAI API Key</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="openai-api-key">OpenAI API Key</Label>
+                <span className={`text-sm px-2 py-1 rounded ${apiKey ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'}`}>
+                  {apiKey ? 'Configured' : 'Not Configured'}
+                </span>
+              </div>
               <Input
                 id="openai-api-key"
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="sk-..."
-                className="font-mono"
+                className={`font-mono ${!apiKey ? 'border-yellow-500 dark:border-yellow-400' : ''}`}
               />
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Your OpenAI API key will be stored securely and used for AI-powered features
+                Your OpenAI API key will be stored securely and used for AI-powered features. 
+                {!apiKey && <span className="text-yellow-600 dark:text-yellow-400"> Required for AI features.</span>}
               </p>
             </div>
             <Button 
