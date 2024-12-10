@@ -56,7 +56,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "tsx watch --clear-screen=false server/index.ts"
+args = "NODE_ENV=development tsx watch --clear-screen=false server/index.ts"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-6dd59cd2-cf93-4a5d-9ba1-3b2545b019a0"

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,8 +6,51 @@ import { useSettings } from '@/contexts/SettingsContext';
 
 export default function Landing() {
   const [, setLocation] = useLocation();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { theme } = useSettings();
 
+  // Check authentication status first
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        setIsLoading(true);
+        const response = await fetch('/api/auth/check', {
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.authenticated) {
+            setLocation('/dashboard');
+            return;
+          }
+        }
+        setIsAuthenticated(false);
+      } catch (error) {
+        console.error('Auth check error:', error);
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [setLocation]);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
+  // Only render content after authentication check is complete
   return (
     <div className={`min-h-screen flex flex-col items-center justify-center px-4 ${theme === 'dark' ? 'dark bg-gray-900 text-white' : 'bg-gray-50'}`}>
       <div className="text-center mb-8">
