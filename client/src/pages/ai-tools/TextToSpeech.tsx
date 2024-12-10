@@ -77,13 +77,6 @@ export default function TextToSpeech() {
                 </SelectContent>
               </Select>
             </div>
-            
-            {/* Model and Format (disabled for now) */}
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <span className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-800">tts-1</span>
-              <span className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-800">1x</span>
-              <span className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-800">mp3</span>
-            </div>
           </div>
 
           {/* Text Input Area */}
