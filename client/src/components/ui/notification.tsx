@@ -8,7 +8,13 @@ interface NotificationProps {
   onClick?: () => void;
 }
 
-export function Notification({ message, type = "info", duration = 3000, onClose }: NotificationProps) {
+export function Notification({ 
+  message, 
+  type = "info", 
+  duration = 3000, 
+  onClose, 
+  onClick 
+}: NotificationProps) {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
