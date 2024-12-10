@@ -5,6 +5,13 @@ import { users } from "../db/schema";
 import OpenAI from "openai";
 import { logAPIUsage, calculateTokenCost } from "../lib/apiMonitoring";
 
+// Define OpenAI API error interface
+interface OpenAIAPIError {
+  status?: number;
+  message?: string;
+  code?: string;
+}
+
 export async function getTheme(req: Request, res: Response) {
   try {
     if (!req.session.user?.id) {
@@ -218,7 +225,7 @@ export async function testOpenAIEndpoint(req: Request, res: Response) {
       response: response.choices[0].message.content
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('OpenAI test error:', error);
     
     if (req.session.user?.id) {
@@ -232,6 +239,17 @@ export async function testOpenAIEndpoint(req: Request, res: Response) {
       });
     }
     
+    // Type guard for OpenAI API errors
+    if (error && typeof error === 'object' && 'status' in error) {
+      const apiError = error as OpenAIAPIError;
+      if (apiError.status === 401) {
+        return res.status(401).json({
+          message: "Invalid API key",
+          details: "Please check your OpenAI API key in settings"
+        });
+      }
+    }
+
     res.status(500).json({ 
       message: "Error testing OpenAI API",
       details: error instanceof Error ? error.message : "Unknown error"
@@ -247,14 +265,6 @@ export async function analyzeImage(req: Request, res: Response) {
 
     if (!req.body?.image) {
       return res.status(400).json({ message: "No image data provided" });
-    }
-
-    // Validate base64 image format
-    if (!req.body.image.startsWith('data:image/')) {
-      return res.status(400).json({ 
-        message: "Invalid image format",
-        details: "Image must be provided as a base64 data URL"
-      });
     }
 
     const result = await db
@@ -273,19 +283,30 @@ export async function analyzeImage(req: Request, res: Response) {
       });
     }
 
-    const openai = new OpenAI({ 
-      apiKey: result[0].openaiApiKey,
-      maxRetries: 2
-    });
+    const apiKey = result[0].openaiApiKey;
+    
+    if (!apiKey.startsWith('sk-') || apiKey.length < 20) {
+      return res.status(400).json({ 
+        message: "Invalid API key format",
+        details: "The API key should start with 'sk-' and be at least 20 characters long"
+      });
+    }
+
+    const openai = new OpenAI({ apiKey });
 
     try {
-      // Clean the base64 image data
+      if (!req.body.image.startsWith('data:image/')) {
+        return res.status(400).json({ 
+          message: "Invalid image format",
+          details: "Image must be provided as a base64 data URL"
+        });
+      }
+
       const base64Image = req.body.image.replace(/^data:image\/[a-z]+;base64,/, '');
-      
-      // Validate base64 content
+
       try {
         Buffer.from(base64Image, 'base64');
-      } catch (e) {
+      } catch (error) {
         return res.status(400).json({
           message: "Invalid image data",
           details: "The provided image data is not valid base64"
@@ -298,16 +319,8 @@ export async function analyzeImage(req: Request, res: Response) {
           {
             role: "user",
             content: [
-              {
-                type: "text",
-                text: "Please analyze this image and extract any visible text or describe what you see in detail."
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:image/jpeg;base64,${base64Image}`
-                }
-              }
+              { type: "text", text: "Please analyze this image and extract any visible text or describe what you see in detail." },
+              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${base64Image}` } }
             ]
           }
         ],
@@ -320,7 +333,6 @@ export async function analyzeImage(req: Request, res: Response) {
 
       const description = response.choices[0].message.content;
 
-      // Log successful API usage
       await logAPIUsage({
         userId: req.session.user.id,
         endpoint: "/api/user/analyze-image",
@@ -330,49 +342,48 @@ export async function analyzeImage(req: Request, res: Response) {
         resourceType: 'image'
       });
 
-      // Return successful response
       res.json({ description });
 
-    } catch (apiError: any) {
-      console.error('OpenAI API Error:', apiError);
+    } catch (error: unknown) {
+      console.error('OpenAI Vision API Error:', error);
       
-      // Handle specific API errors
-      const errorMapping: Record<string, { status: number; message: string; details: string }> = {
-        'Unauthorized': {
-          status: 401,
-          message: "Invalid API key",
-          details: "Please check your OpenAI API key in settings"
-        },
-        'has been deprecated': {
-          status: 400,
-          message: "Vision model error",
-          details: "The vision model is being updated. Please try again later."
-        },
-        'content_policy_violation': {
-          status: 400,
-          message: "Content policy violation",
-          details: "The image content violates OpenAI's content policy"
+      await logAPIUsage({
+        userId: req.session.user.id,
+        endpoint: "/api/user/analyze-image",
+        tokensUsed: 0,
+        cost: 0,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+        resourceType: 'image'
+      });
+
+      // Type guard for OpenAI API errors
+      if (error && typeof error === 'object' && 'status' in error) {
+        const apiError = error as OpenAIAPIError;
+        if (apiError.status === 401) {
+          return res.status(401).json({
+            message: "Invalid API key",
+            details: "Please check your OpenAI API key in settings"
+          });
         }
-      };
-
-      // Find matching error type
-      const errorType = Object.keys(errorMapping).find(key => 
-        apiError.message?.includes(key) || apiError.status === (key === 'Unauthorized' ? 401 : undefined)
-      );
-
-      if (errorType) {
-        const { status, message, details } = errorMapping[errorType];
-        return res.status(status).json({ message, details });
       }
 
-      // Default error handling
-      throw new Error(apiError.message || 'Failed to analyze image');
-    }
+      // Check for deprecated model error
+      if (error instanceof Error && error.message.includes('has been deprecated')) {
+        return res.status(400).json({
+          message: "Vision model error",
+          details: "The vision model is being updated. Please try again later."
+        });
+      }
 
-  } catch (error) {
-    console.error('Image analysis error:', error);
+      return res.status(500).json({ 
+        message: "Error analyzing image",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  } catch (error: unknown) {
+    console.error('Server Error:', error);
     
-    // Log failed API usage
     if (req.session.user?.id) {
       await logAPIUsage({
         userId: req.session.user.id,
@@ -385,8 +396,7 @@ export async function analyzeImage(req: Request, res: Response) {
       });
     }
     
-    // Return error response
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: "Error analyzing image",
       details: error instanceof Error ? error.message : "Unknown error"
     });
@@ -468,8 +478,8 @@ export async function generateSpeech(req: Request, res: Response) {
       
       return res.status(200).send(buffer);
 
-    } catch (err) {
-      console.error('OpenAI TTS API Error:', err);
+    } catch (error: unknown) {
+      console.error('OpenAI TTS API Error:', error);
       
       await logAPIUsage({
         userId: req.session.user.id,
@@ -477,16 +487,27 @@ export async function generateSpeech(req: Request, res: Response) {
         tokensUsed: 0,
         cost: 0,
         success: false,
-        errorMessage: err instanceof Error ? err.message : "Unknown error",
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
         resourceType: 'speech'
       });
 
+      // Type guard for OpenAI API errors
+      if (error && typeof error === 'object' && 'status' in error) {
+        const apiError = error as OpenAIAPIError;
+        if (apiError.status === 401) {
+          return res.status(401).json({
+            message: "Invalid API key",
+            details: "Please check your OpenAI API key in settings"
+          });
+        }
+      }
+
       return res.status(500).json({ 
         message: "Error generating speech",
-        details: err instanceof Error ? err.message : "Unknown error"
+        details: error instanceof Error ? error.message : "Unknown error"
       });
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Server Error:', error);
     
     if (req.session.user?.id) {
