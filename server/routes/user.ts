@@ -204,10 +204,16 @@ export async function generateSpeech(req: Request, res: Response) {
     console.log('Request body:', req.body); // Added logging for request body
 
     // Get user's OpenAI API key
+    console.log('Retrieving OpenAI API key for user:', req.session.user.id);
     const result = await db
       .select({ openaiApiKey: users.openaiApiKey })
       .from(users)
       .where(eq(users.id, req.session.user.id));
+
+    console.log('Database query result:', {
+      hasResult: result.length > 0,
+      hasApiKey: result.length > 0 && !!result[0].openaiApiKey,
+    });
 
     if (!result.length || !result[0].openaiApiKey) {
       console.error('OpenAI API key not found for user:', req.session.user.id);
@@ -215,28 +221,43 @@ export async function generateSpeech(req: Request, res: Response) {
     }
 
     const apiKey = result[0].openaiApiKey;
-    console.log('API Key used:', apiKey); // Added logging for API key
+    console.log('API Key retrieved:', apiKey.substring(0, 10) + '...');
+    
     if (!apiKey.startsWith('sk-')) {
       console.error('Invalid OpenAI API key format');
       return res.status(400).json({ message: "Invalid API key format" });
     }
 
+    console.log('API key validation passed, initializing OpenAI client...');
+
     console.log('Initializing OpenAI client...');
     const openai = new OpenAI({ apiKey });
 
     try {
-      console.log('Making request to OpenAI TTS API with key:', apiKey.substring(0, 10) + '...');
-      console.log('Request params:', { model: "tts-1", voice, textLength: text.length });
+      console.log('Preparing OpenAI TTS API request...');
+      console.log('Request parameters:', {
+        model: "tts-1",
+        voice,
+        textLength: text.length,
+        hasValidKey: !!apiKey,
+        keyPrefix: apiKey.substring(0, 10)
+      });
       
       if (!text.trim()) {
         throw new Error('Empty text provided');
       }
 
+      console.log('Initiating OpenAI API call...');
       const mp3 = await openai.audio.speech.create({
         model: "tts-1",
         voice,
         input: text,
         response_format: "mp3",
+      });
+
+      console.log('OpenAI API call completed:', {
+        success: !!mp3,
+        responseType: mp3 ? typeof mp3 : 'null'
       });
 
       if (!mp3) {
