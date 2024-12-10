@@ -5,6 +5,8 @@ import { createServer } from "http";
 import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import pkg from 'pg';
+const { Pool } = pkg;
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
@@ -29,61 +31,45 @@ function log(message: string) {
 }
 
 const app = express();
-// Configure CORS middleware with more permissive settings for development
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // List of allowed origins
-    const allowedOrigins = [
-      'https://wtoolsw.com',
-      'http://localhost:3000',
-      'http://localhost:5000'
-    ];
-    
-    if (allowedOrigins.includes(origin)) {
+// Configure CORS middleware
+const allowedOrigins = [
+  'https://wtoolsw.com',
+  'https://wtoolsw.repl.co',
+  'http://localhost:3000',
+  'http://localhost:5000'
+];
+
+const corsOptions: cors.CorsOptions = {
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(null, false);
+      console.error(`Origin ${origin} not allowed by CORS`);
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Content-Length', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials']
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control'],
+  exposedHeaders: ['Set-Cookie', 'Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+  maxAge: 86400 // 24 hours in seconds
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
 
-// Add CORS headers for all responses
+// Handle OPTIONS preflight requests
+app.options('*', cors(corsOptions));
+
+// Add security headers
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  
-  // Only set Allow-Origin header if origin is in our allowed list
-  if (origin && corsOptions.origin !== false) {
-    if (typeof corsOptions.origin === 'function') {
-      corsOptions.origin(origin, (err, allowed) => {
-        if (allowed) {
-          res.setHeader('Access-Control-Allow-Origin', origin);
-        }
-      });
-    }
-  }
-  
-  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Accept');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Vary', 'Origin');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
   next();
 });
-
-// Add pre-flight OPTIONS handling
-app.options('*', cors());
 
 // Serve static files from the Vite build output
 const publicPath = path.join(__dirname, '..', 'dist', 'public');
@@ -101,10 +87,17 @@ const staticOptions = {
       : 'public, max-age=3600';    // 1 hour for other static files
 
     res.setHeader('Cache-Control', cacheControl);
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Range');
+    
+    const origin = res.req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Range, Authorization, Cache-Control');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Vary', 'Origin');
+    }
   }
 };
 
@@ -139,30 +132,61 @@ log(`Serving static files from: ${publicPath}`);
 // Basic request handlers
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-// Configure session middleware with proper error handling
-app.use(session({
-  store: new pgSession({
-    conObject: {
-      connectionString: env.DATABASE_URL,
-      ssl: true
-    },
+// Configure PostgreSQL pool for session store
+const pool = new Pool({
+  connectionString: env.DATABASE_URL,
+  ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+// Test database connection
+pool.query('SELECT NOW()', (err) => {
+  if (err) {
+    console.error('Database connection error:', err);
+  } else {
+    log('Database connection successful');
+  }
+});
+
+// Configure session middleware
+if (env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1); // Trust first proxy
+}
+
+const pgStore = connectPgSimple(session);
+const sessionConfig: session.SessionOptions = {
+  store: new pgStore({
+    pool,
+    tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
-    errorLog: console.error // Log session store errors
+    pruneSessionInterval: 60 * 15 // 15 minutes
   }),
-  name: 'sid', // Session ID cookie name
-  secret: env.JWT_SECRET,
+  name: 'sessionId',
+  secret: env.JWT_SECRET!,
   resave: false,
   saveUninitialized: false,
+  proxy: true,
   cookie: {
-    secure: true, // Always use secure cookies in production
+    secure: env.NODE_ENV === 'production',
     httpOnly: true,
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    sameSite: 'none', // Required for cross-origin requests
     path: '/',
-    domain: process.env.NODE_ENV === 'production' ? '.dsers.com' : undefined // Adjust domain for production
+    domain: env.NODE_ENV === 'production' ? '.repl.co' : undefined
+  } as session.CookieOptions & {
+    sameSite: 'none' | 'lax'
   }
-}));
+};
+
+app.use(session(sessionConfig));
+
+// Add session error handling
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.name === 'UnauthorizedError') {
+    res.status(401).json({ message: 'Invalid token' });
+  } else {
+    next(err);
+  }
+});
 
 // Add static file error handling
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
