@@ -6,6 +6,27 @@ import { Input } from "@/components/ui/input";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useNotification } from "@/components/ui/notification";
 import { useLocation } from "wouter";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+interface APIStats {
+  total_requests: number;
+  total_tokens: number;
+  total_cost: number;
+  failed_requests: number;
+  success_rate: number;
+  text_requests: number;
+  image_requests: number;
+  speech_requests: number;
+  hourly_breakdown: HourlyUsage[];
+}
+
+interface HourlyUsage {
+  hour: string;
+  requests: number;
+  tokens: number;
+  cost: number;
+  resource_type: string;
+}
 
 export default function APIManagement() {
   const { theme } = useSettings();
@@ -13,7 +34,7 @@ export default function APIManagement() {
   const [apiKey, setApiKey] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [location, setLocation] = useLocation();
-  const [apiStats, setApiStats] = useState({
+  const [apiStats, setApiStats] = useState<APIStats>({
     total_requests: 0,
     total_tokens: 0,
     total_cost: 0,
@@ -21,7 +42,8 @@ export default function APIManagement() {
     success_rate: 100,
     text_requests: 0,
     image_requests: 0,
-    speech_requests: 0
+    speech_requests: 0,
+    hourly_breakdown: []
   });
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
@@ -47,7 +69,8 @@ export default function APIManagement() {
           success_rate: parseFloat(successRate.toString()),
           text_requests: data.text_requests || 0,
           image_requests: data.image_requests || 0,
-          speech_requests: data.speech_requests || 0
+          speech_requests: data.speech_requests || 0,
+          hourly_breakdown: data.hourly_breakdown || []
         });
       }
     } catch (error) {
@@ -210,6 +233,54 @@ export default function APIManagement() {
                   </div>
                 </div>
               </div>
+
+              {/* Usage Over Time Chart */}
+              <div className="mt-8">
+                <h4 className="text-md font-semibold mb-4">Usage Over Time</h4>
+                <div className="w-full h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={apiStats.hourly_breakdown}
+                      margin={{
+                        top: 5,
+                        right: 30,
+                        left: 20,
+                        bottom: 5,
+                      }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="hour"
+                        tickFormatter={(value) => new Date(value).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                        })}
+                      />
+                      <YAxis />
+                      <Tooltip
+                        labelFormatter={(value) => new Date(value).toLocaleString()}
+                        formatter={(value: number, name: string) => [value.toLocaleString(), name]}
+                      />
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="requests" 
+                        name="Requests"
+                        stroke="#8884d8" 
+                        activeDot={{ r: 8 }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="tokens" 
+                        name="Tokens"
+                        stroke="#82ca9d" 
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
               <div className="mt-4 space-y-2">
                 <Button
                   variant="outline"
