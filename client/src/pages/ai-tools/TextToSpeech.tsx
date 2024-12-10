@@ -47,10 +47,43 @@ export default function TextToSpeech() {
     if (!textToRead.trim()) return;
     setIsProcessing(true);
     try {
-      // API call implementation will be added later
-      console.log("Generating speech with voice:", selectedVoice);
+      const response = await fetch('/api/user/generate-speech', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: textToRead,
+          voice: selectedVoice,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to generate speech');
+      }
+
+      // Get the audio blob
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      // Create and play audio
+      const audio = new Audio(audioUrl);
+      audio.play();
+
+      // Clean up the URL after playback
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+      };
     } catch (error) {
       console.error("Failed to generate speech:", error);
+      // Show error notification (if available)
+      if (window.showNotification) {
+        window.showNotification({
+          message: error.message || 'Failed to generate speech',
+          type: 'error',
+        });
+      }
     } finally {
       setIsProcessing(false);
     }

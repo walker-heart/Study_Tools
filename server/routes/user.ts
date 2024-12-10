@@ -186,3 +186,72 @@ export async function getUserAPIStats(req: Request, res: Response) {
     res.status(500).json({ message: "Error fetching API usage statistics" });
   }
 }
+
+export async function generateSpeech(req: Request, res: Response) {
+  try {
+    if (!req.session.user?.id) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { text, voice } = req.body;
+    if (!text || !voice) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // Get user's OpenAI API key
+    const result = await db
+      .select({ openaiApiKey: users.openaiApiKey })
+      .from(users)
+      .where(eq(users.id, req.session.user.id));
+
+    if (!result.length || !result[0].openaiApiKey) {
+      return res.status(400).json({ message: "No API key configured" });
+    }
+
+    const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
+
+    // Generate speech
+    const response = await openai.audio.speech.create({
+      model: "tts-1",
+      voice,
+      input: text,
+    });
+
+    // Get the audio data as a buffer
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    // Log the API usage
+    await logAPIUsage({
+      userId: req.session.user.id,
+      endpoint: "/api/user/generate-speech",
+      tokensUsed: Math.ceil(text.length / 4), // Approximate token count
+      cost: 0.015 * (text.length / 1000), // $0.015 per 1K characters
+      success: true,
+      resourceType: 'speech'
+    });
+
+    // Send audio file
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': buffer.length,
+    });
+    res.send(buffer);
+  } catch (error) {
+    console.error('Speech generation error:', error);
+    
+    // Log failed attempt
+    if (req.session.user?.id) {
+      await logAPIUsage({
+        userId: req.session.user.id,
+        endpoint: "/api/user/generate-speech",
+        tokensUsed: 0,
+        cost: 0,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+        resourceType: 'speech'
+      });
+    }
+    
+    res.status(500).json({ message: "Error generating speech" });
+  }
+}
