@@ -76,7 +76,14 @@ export default function TextToSpeech() {
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to generate speech');
+        const errorMessage = `Failed to generate speech: ${error.message || 'Unknown error'}
+        Status: ${response.status}
+        Status Text: ${response.statusText}`;
+        showNotification({
+          message: errorMessage,
+          type: 'error'
+        });
+        throw new Error(errorMessage);
       }
 
       // Clean up previous audio URL if it exists
@@ -180,18 +187,23 @@ export default function TextToSpeech() {
                 src={audioUrl}
                 onError={(e) => {
                   const audioElement = e.currentTarget as HTMLAudioElement;
-                  console.error('Audio playback error:', {
-                    error: e,
-                    errorCode: audioElement.error?.code,
-                    errorMessage: audioElement.error?.message,
+                  const errorInfo = {
+                    code: audioElement.error?.code,
+                    message: audioElement.error?.message,
                     networkState: audioElement.networkState,
                     readyState: audioElement.readyState,
-                    currentSrc: audioElement.currentSrc,
-                  });
+                  };
+                  
                   showNotification({
-                    message: `Error playing audio: ${audioElement.error?.message || 'Unknown error'}`,
+                    message: `Audio Error: ${audioElement.error?.message || 'Unknown error'} (Code: ${errorInfo.code})
+                    Network State: ${errorInfo.networkState}
+                    Ready State: ${errorInfo.readyState}`,
                     type: 'error'
                   });
+                  
+                  // Update the UI to show error state
+                  setTextToRead(prev => prev + '\n\nAudio Error Details:\n' + 
+                    JSON.stringify(errorInfo, null, 2));
                 }}
                 onEnded={() => {
                   // Optional: Clean up the audio URL when playback ends
