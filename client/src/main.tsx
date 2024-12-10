@@ -20,6 +20,9 @@ import APIManagement from "./pages/APIManagement";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 import AITools from "./pages/AITools";
+import ImageToText from "./pages/ai-tools/ImageToText";
+import TextToSpeech from "./pages/ai-tools/TextToSpeech";
+import QuizCreator from "./pages/ai-tools/QuizCreator";
 
 function Router() {
   return (
@@ -64,6 +67,21 @@ function Router() {
         <Route path="/ai-tools">
           <ProtectedRoute>
             <AITools />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/ai-tools/image">
+          <ProtectedRoute>
+            <ImageToText />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/ai-tools/tts">
+          <ProtectedRoute>
+            <TextToSpeech />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/ai-tools/quiz">
+          <ProtectedRoute>
+            <QuizCreator />
           </ProtectedRoute>
         </Route>
         <Route path="/signin" component={SignIn} />
