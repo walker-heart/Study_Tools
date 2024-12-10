@@ -30,6 +30,8 @@ export default function TextToSpeech() {
   const [selectedVoice, setSelectedVoice] = useState("alloy");
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -77,48 +79,24 @@ export default function TextToSpeech() {
         throw new Error(error.message || 'Failed to generate speech');
       }
 
+      // Clean up previous audio URL if it exists
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+
       // Create a blob from the response
       const audioBlob = await response.blob();
       
       // Create a URL for the blob
-      const audioUrl = URL.createObjectURL(audioBlob);
+      const newAudioUrl = URL.createObjectURL(audioBlob);
       
-      // Create audio element
-      const audio = new Audio();
+      // Update the audio URL state
+      setAudioUrl(newAudioUrl);
       
-      // Set up promise to handle audio loading
-      const audioLoaded = new Promise((resolve, reject) => {
-        audio.onloadeddata = resolve;
-        audio.onerror = reject;
+      showNotification({
+        message: 'Audio generated successfully',
+        type: 'success'
       });
-      
-      // Configure audio
-      audio.src = audioUrl;
-      
-      try {
-        // Wait for audio to load
-        await audioLoaded;
-        
-        // Play audio
-        await audio.play();
-        
-        showNotification({
-          message: 'Playing generated speech',
-          type: 'success'
-        });
-        
-        // Clean up when done
-        audio.onended = () => {
-          URL.revokeObjectURL(audioUrl);
-        };
-      } catch (error) {
-        URL.revokeObjectURL(audioUrl);
-        console.error('Audio playback error:', error);
-        showNotification({
-          message: 'Error playing the generated audio',
-          type: 'error'
-        });
-      }
     } catch (error) {
       console.error("Failed to generate speech:", error);
       showNotification({
@@ -175,11 +153,38 @@ export default function TextToSpeech() {
           <Button
             onClick={handleGenerate}
             disabled={!textToRead.trim() || isProcessing}
-            className="w-full"
+            className="w-full mb-4"
           >
             <Mic className="w-4 h-4 mr-2" />
             {isProcessing ? "Generating..." : "Generate"}
           </Button>
+
+          {/* Audio Player */}
+          {audioUrl && (
+            <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Generated Audio:</p>
+              <audio 
+                ref={audioRef}
+                controls
+                className="w-full"
+                src={audioUrl}
+                onError={(e) => {
+                  console.error('Audio playback error:', e);
+                  showNotification({
+                    message: 'Error playing the generated audio',
+                    type: 'error'
+                  });
+                }}
+                onEnded={() => {
+                  // Optional: Clean up the audio URL when playback ends
+                  if (audioUrl) {
+                    URL.revokeObjectURL(audioUrl);
+                    setAudioUrl(null);
+                  }
+                }}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
