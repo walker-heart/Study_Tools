@@ -4,22 +4,74 @@ import { Input } from "@/components/ui/input";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useState } from "react";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Image } from "lucide-react";
+import { Image, Loader2 } from "lucide-react";
+import { useNotification } from "@/components/ui/notification";
 
 export default function ImageToText() {
   const { theme } = useSettings();
+  const { showNotification } = useNotification();
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        showNotification({
+          message: "Image size should be less than 5MB",
+          type: "error"
+        });
+        return;
+      }
       setSelectedImage(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
+        setAnalysisResult(null); // Clear previous results
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const analyzeImage = async () => {
+    if (!imagePreview) return;
+    
+    setIsAnalyzing(true);
+    setAnalysisResult(null);
+    
+    try {
+      const response = await fetch('/api/user/analyze-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image: imagePreview,
+        }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || error.details || 'Failed to analyze image');
+      }
+
+      const data = await response.json();
+      setAnalysisResult(data.description);
+      showNotification({
+        message: "Image analyzed successfully",
+        type: "success"
+      });
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      showNotification({
+        message: error instanceof Error ? error.message : 'Failed to analyze image',
+        type: "error"
+      });
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -34,6 +86,7 @@ export default function ImageToText() {
               accept="image/*"
               onChange={handleImageChange}
               className="w-full"
+              disabled={isAnalyzing}
             />
             {imagePreview && (
               <AspectRatio ratio={16 / 9} className="mt-2">
@@ -46,12 +99,24 @@ export default function ImageToText() {
             )}
           </div>
           <Button
-            disabled={!selectedImage}
+            onClick={analyzeImage}
+            disabled={!selectedImage || isAnalyzing}
             className="w-full"
           >
-            <Image className="w-4 h-4 mr-2" />
-            Extract Text
+            {isAnalyzing ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Image className="w-4 h-4 mr-2" />
+            )}
+            {isAnalyzing ? "Analyzing..." : "Extract Text"}
           </Button>
+
+          {analysisResult && (
+            <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+              <h3 className="text-lg font-semibold mb-2">Analysis Result:</h3>
+              <p className="whitespace-pre-wrap">{analysisResult}</p>
+            </div>
+          )}
         </div>
       </Card>
     </div>

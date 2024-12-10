@@ -1,55 +1,208 @@
 import { Request, Response } from "express";
-import { getAPIUsageStats, logAPIUsage, calculateTokenCost } from "../lib/apiMonitoring";
-import { eq } from "drizzle-orm";
 import { db } from "../db";
-import { users } from "../../db/schema/users";
+import { eq, sql } from "drizzle-orm";
+import { users } from "../db/schema";
 import OpenAI from "openai";
+import { logAPIUsage, calculateTokenCost } from "../lib/apiMonitoring";
+import OpenAI from "openai";
+import { logAPIUsage, calculateTokenCost } from "../lib/apiMonitoring";
 
-// Test endpoint for OpenAI API usage
+export async function getTheme(req: Request, res: Response) {
+  try {
+    if (!req.session.user?.id) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const result = await db
+      .select({ theme: users.theme })
+      .from(users)
+      .where(eq(users.id, req.session.user.id));
+
+    if (!result.length) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({ theme: result[0].theme });
+  } catch (error) {
+    console.error('Error getting theme:', error);
+    res.status(500).json({ 
+      message: "Error getting theme",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+export async function updateTheme(req: Request, res: Response) {
+  try {
+    if (!req.session.user?.id) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { theme } = req.body;
+    if (!theme || !['light', 'dark'].includes(theme)) {
+      return res.status(400).json({ message: "Invalid theme" });
+    }
+
+    await db
+      .update(users)
+      .set({ theme })
+      .where(eq(users.id, req.session.user.id));
+
+    res.json({ message: "Theme updated successfully" });
+  } catch (error) {
+    console.error('Error updating theme:', error);
+    res.status(500).json({ 
+      message: "Error updating theme",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+export async function getOpenAIKey(req: Request, res: Response) {
+  try {
+    if (!req.session.user?.id) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const result = await db
+      .select({ openaiApiKey: users.openaiApiKey })
+      .from(users)
+      .where(eq(users.id, req.session.user.id));
+
+    if (!result.length) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({ 
+      hasKey: !!result[0].openaiApiKey,
+      keyPreview: result[0].openaiApiKey ? `sk-...${result[0].openaiApiKey.slice(-4)}` : null
+    });
+  } catch (error) {
+    console.error('Error getting OpenAI key:', error);
+    res.status(500).json({ 
+      message: "Error getting OpenAI key",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+export async function updateOpenAIKey(req: Request, res: Response) {
+  try {
+    if (!req.session.user?.id) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { apiKey } = req.body;
+    if (!apiKey || !apiKey.startsWith('sk-')) {
+      return res.status(400).json({ message: "Invalid API key format" });
+    }
+
+    await db
+      .update(users)
+      .set({ openaiApiKey: apiKey })
+      .where(eq(users.id, req.session.user.id));
+
+    res.json({ message: "API key updated successfully" });
+  } catch (error) {
+    console.error('Error updating OpenAI key:', error);
+    res.status(500).json({ 
+      message: "Error updating OpenAI key",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
+export async function getUserAPIStats(req: Request, res: Response) {
+  try {
+    if (!req.session.user?.id) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const result = await db.execute(sql`
+      WITH stats AS (
+        SELECT 
+          COUNT(*)::INTEGER as total_requests,
+          SUM(tokens_used)::INTEGER as total_tokens,
+          ROUND(SUM(cost)::DECIMAL, 4) as total_cost,
+          COUNT(CASE WHEN success = false THEN 1 END)::INTEGER as failed_requests
+        FROM api_key_usage 
+        WHERE user_id = ${req.session.user.id}
+        AND created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
+      )
+      SELECT 
+        total_requests,
+        total_tokens,
+        total_cost,
+        failed_requests,
+        CASE 
+          WHEN total_requests > 0 THEN 
+            ROUND(((total_requests - failed_requests)::DECIMAL / total_requests::DECIMAL * 100), 1)
+          ELSE 100
+        END as success_rate
+      FROM stats
+    `);
+    
+    res.json(result.rows[0] || {
+      total_requests: 0,
+      total_tokens: 0,
+      total_cost: 0,
+      failed_requests: 0,
+      success_rate: 100
+    });
+  } catch (error) {
+    console.error('Error getting API stats:', error);
+    res.status(500).json({ 
+      message: "Error retrieving API usage stats",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+}
+
 export async function testOpenAIEndpoint(req: Request, res: Response) {
   try {
     if (!req.session.user?.id) {
       return res.status(401).json({ message: "Not authenticated" });
     }
 
-    // Get user's OpenAI API key
     const result = await db
       .select({ openaiApiKey: users.openaiApiKey })
       .from(users)
       .where(eq(users.id, req.session.user.id));
 
-    if (!result.length || !result[0].openaiApiKey) {
-      return res.status(400).json({ message: "No API key configured" });
+    if (!result.length) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!result[0].openaiApiKey) {
+      return res.status(400).json({ 
+        message: "No API key configured",
+        details: "Please configure your OpenAI API key in the settings page"
+      });
     }
 
     const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
-
-    // Make a simple test completion
-    const completion = await openai.chat.completions.create({
-      messages: [{ role: "user", content: "Say hello for testing API monitoring" }],
+    const response = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
+      messages: [{ role: "user", content: "Hello! This is a test message." }],
+      max_tokens: 50
     });
 
-    // Log the API usage
-    const tokensUsed = completion.usage?.total_tokens || 0;
     await logAPIUsage({
       userId: req.session.user.id,
       endpoint: "/api/user/test-openai",
-      tokensUsed,
-      cost: calculateTokenCost(tokensUsed, "gpt-3.5-turbo"),
+      tokensUsed: response.usage?.total_tokens || 0,
+      cost: calculateTokenCost(response.usage?.total_tokens || 0),
       success: true
     });
 
     res.json({ 
-      message: "Test completed successfully",
-      response: completion.choices[0].message.content,
-      tokensUsed,
-      model: "gpt-3.5-turbo"
+      message: "API test successful",
+      response: response.choices[0].message.content
     });
+
   } catch (error) {
-    console.error('Test OpenAI endpoint error:', error);
+    console.error('OpenAI test error:', error);
     
-    // Log failed attempt if authenticated
     if (req.session.user?.id) {
       await logAPIUsage({
         userId: req.session.user.id,
@@ -61,129 +214,118 @@ export async function testOpenAIEndpoint(req: Request, res: Response) {
       });
     }
     
-    res.status(500).json({ message: "Error testing OpenAI API" });
+    res.status(500).json({ 
+      message: "Error testing OpenAI API",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
   }
 }
 
-export async function updateTheme(req: Request, res: Response) {
+export async function analyzeImage(req: Request, res: Response) {
   try {
     if (!req.session.user?.id) {
       return res.status(401).json({ message: "Not authenticated" });
     }
 
-    const { theme } = req.body;
-    if (theme !== 'light' && theme !== 'dark') {
-      return res.status(400).json({ message: "Invalid theme value" });
+    if (!req.body?.image) {
+      return res.status(400).json({ message: "No image data provided" });
     }
 
-    // First check if user exists
-    const userExists = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.id, req.session.user.id));
-
-    if (!userExists.length) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // Update theme
-    await db
-      .update(users)
-      .set({ theme })
-      .where(eq(users.id, req.session.user.id));
-
-    res.json({ theme });
-  } catch (error) {
-    console.error('Update theme error:', error);
-    res.status(500).json({ message: "Error updating theme preference" });
-  }
-}
-
-export async function getTheme(req: Request, res: Response) {
-  try {
-    if (!req.session.user?.id) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-
-    // Get user's theme preference
+    // Get user's OpenAI API key with detailed error handling
     const result = await db
-      .select()
+      .select({ 
+        openaiApiKey: users.openaiApiKey,
+        email: users.email 
+      })
       .from(users)
-      .where(eq(users.id, req.session.user.id));
+      .where(eq(users.id, req.session.user.id))
+      .catch(error => {
+        console.error('Database error while retrieving API key:', error);
+        throw new Error('Database connection error');
+      });
 
     if (!result.length) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ 
+        message: "User not found",
+        details: "Please ensure you are logged in correctly"
+      });
     }
 
-    const theme = result[0].theme || 'light';
-    res.json({ theme });
-  } catch (error) {
-    console.error('Get theme error:', error);
-    res.status(500).json({ message: "Error getting theme preference" });
-  }
-}
-
-export async function getOpenAIKey(req: Request, res: Response) {
-  try {
-    if (!req.session.user?.id) {
-      return res.status(401).json({ message: "Not authenticated" });
+    if (!result[0].openaiApiKey) {
+      return res.status(400).json({ 
+        message: "No API key configured",
+        details: "Please configure your OpenAI API key in the settings page"
+      });
     }
 
-    // Get user's OpenAI API key
-    const result = await db
-      .select({ openaiApiKey: users.openaiApiKey })
-      .from(users)
-      .where(eq(users.id, req.session.user.id));
-
-    if (!result.length) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.json({ apiKey: result[0].openaiApiKey || '' });
-  } catch (error) {
-    console.error('Get OpenAI API key error:', error);
-    res.status(500).json({ message: "Error retrieving API key" });
-  }
-}
-
-export async function updateOpenAIKey(req: Request, res: Response) {
-  try {
-    if (!req.session.user?.id) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-
-    const { apiKey } = req.body;
-    if (typeof apiKey !== 'string') {
-      return res.status(400).json({ message: "Invalid API key format" });
-    }
-
-    // Update the API key
-    await db
-      .update(users)
-      .set({ openaiApiKey: apiKey })
-      .where(eq(users.id, req.session.user.id));
-
-    res.json({ message: "API key updated successfully" });
-  } catch (error) {
-    console.error('Update OpenAI API key error:', error);
-    res.status(500).json({ message: "Error updating API key" });
-  }
-}
-
-export async function getUserAPIStats(req: Request, res: Response) {
-  try {
-    if (!req.session.user?.id) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-
-    const days = parseInt(req.query.days as string) || 30;
+    const apiKey = result[0].openaiApiKey;
     
-    const stats = await getAPIUsageStats(req.session.user.id, days);
-    
-    res.json(stats);
+    // Validate API key format
+    if (!apiKey.startsWith('sk-') || apiKey.length < 20) {
+      return res.status(400).json({ 
+        message: "Invalid API key format",
+        details: "The API key should start with 'sk-' and be at least 20 characters long"
+      });
+    }
+
+    // Initialize OpenAI client with validated API key
+    const openai = new OpenAI({ apiKey });
+    console.log('OpenAI client initialized, making API request...');
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4-vision-preview",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Please analyze this image and describe what you see in detail." },
+            {
+              type: "image_url",
+              image_url: {
+                url: req.body.image,
+              },
+            },
+          ],
+        },
+      ],
+      max_tokens: 500,
+    });
+
+    // Log successful API usage
+    await logAPIUsage({
+      userId: req.session.user.id,
+      endpoint: "/api/user/analyze-image",
+      tokensUsed: response.usage?.total_tokens || 0,
+      cost: calculateTokenCost(response.usage?.total_tokens || 0, "gpt-4"),
+      success: true,
+      resourceType: 'image'
+    });
+
+    res.json({ 
+      description: response.choices[0].message.content,
+      usage: response.usage
+    });
+
   } catch (error) {
-    console.error('Error fetching API usage stats:', error);
-    res.status(500).json({ message: "Error fetching API usage statistics" });
+    console.error('Image analysis error:', error);
+    
+    // Log failed attempt if authenticated
+    if (req.session.user?.id) {
+      await logAPIUsage({
+        userId: req.session.user.id,
+        endpoint: "/api/user/analyze-image",
+        tokensUsed: 0,
+        cost: 0,
+        success: false,
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+        resourceType: 'image'
+      });
+    }
+    
+    res.status(500).json({ 
+      message: "Error analyzing image",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
   }
 }
 
@@ -202,136 +344,165 @@ export async function generateSpeech(req: Request, res: Response) {
     console.log('Generating speech for text:', text.substring(0, 50) + '...');
     console.log('Selected voice:', voice);
 
-    // Get user's OpenAI API key
-    console.log('Retrieving OpenAI API key for user:', req.session.user.id);
-    const result = await db
-      .select({ openaiApiKey: users.openaiApiKey })
-      .from(users)
-      .where(eq(users.id, req.session.user.id));
-
-    console.log('Database query result:', {
-      hasResult: result.length > 0,
-      hasApiKey: result.length > 0 && !!result[0].openaiApiKey,
-    });
-
-    if (!result.length || !result[0].openaiApiKey) {
-      console.error('OpenAI API key not found for user:', req.session.user.id);
-      return res.status(400).json({ message: "No API key configured" });
-    }
-
-    const apiKey = result[0].openaiApiKey;
-    console.log('API Key retrieved:', apiKey.substring(0, 10) + '...');
-    
-    if (!apiKey.startsWith('sk-')) {
-      console.error('Invalid OpenAI API key format');
-      return res.status(400).json({ message: "Invalid API key format" });
-    }
-
-    console.log('API key validation passed, initializing OpenAI client...');
-    const openai = new OpenAI({ apiKey });
-
     try {
-      console.log('Preparing OpenAI TTS API request...');
-      console.log('Request parameters:', {
-        model: "tts-1",
-        voice,
-        textLength: text.length,
-        hasValidKey: !!apiKey,
-        keyPrefix: apiKey.substring(0, 10)
-      });
-      
-      if (!text.trim()) {
-        throw new Error('Empty text provided');
-      }
-
-      console.log('Initiating OpenAI API call...');
-      const mp3 = await openai.audio.speech.create({
-        model: "tts-1",
-        voice,
-        input: text,
-        response_format: "mp3",
-      });
-
-      console.log('OpenAI API call completed successfully');
-
-      if (!mp3) {
-        throw new Error('No response from OpenAI TTS API');
-      }
-
-      // Verify we got a proper response object
-      if (!mp3.arrayBuffer || typeof mp3.arrayBuffer !== 'function') {
-        console.error('Invalid response type from OpenAI:', typeof mp3);
-        throw new Error('Invalid response format from OpenAI');
-      }
-
-      console.log('Converting response to buffer...');
-      const arrayBuffer = await mp3.arrayBuffer();
-      console.log('Received array buffer size:', arrayBuffer.byteLength);
-      
-      const buffer = Buffer.from(arrayBuffer);
-      console.log('Converted to Buffer, length:', buffer.length);
-
-      if (buffer.length === 0) {
-        throw new Error('Received empty buffer from OpenAI');
-      }
-
-      // Validate MP3 format before sending
-      const isValidMP3 = buffer.length > 4 && (
-        // Check for MP3 frame header
-        (buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0) ||
-        // Check for ID3 tag
-        (buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33)
-      );
-
-      if (!isValidMP3) {
-        console.error('Invalid MP3 data received from OpenAI:', {
-          firstBytes: Array.from(buffer.slice(0, 4)),
-          length: buffer.length
+      // Get user's OpenAI API key with detailed error handling
+      console.log('Retrieving OpenAI API key for user:', req.session.user.id);
+      const result = await db
+        .select({ 
+          openaiApiKey: users.openaiApiKey,
+          email: users.email 
+        })
+        .from(users)
+        .where(eq(users.id, req.session.user.id))
+        .catch(error => {
+          console.error('Database error while retrieving API key:', error);
+          throw new Error('Database connection error');
         });
-        throw new Error('Invalid audio data received from OpenAI');
+
+      console.log('Database query completed for user');
+
+      if (!result.length) {
+        console.error('User not found in database:', req.session.user.id);
+        return res.status(404).json({ 
+          message: "User not found",
+          details: "Please ensure you are logged in correctly"
+        });
       }
 
-      console.log('Audio buffer validated, size:', buffer.length, 'bytes');
+      if (!result[0].openaiApiKey) {
+        console.error('OpenAI API key not configured for user:', result[0].email);
+        return res.status(400).json({ 
+          message: "No API key configured",
+          details: "Please configure your OpenAI API key in the settings page"
+        });
+      }
 
-      // Log successful API usage
-      await logAPIUsage({
-        userId: req.session.user.id,
-        endpoint: "/api/user/generate-speech",
-        tokensUsed: Math.ceil(text.length / 4),
-        cost: 0.015 * (text.length / 1000),
-        success: true,
-        resourceType: 'speech'
-      });
-
-      console.log('Setting response headers...');
-      res.set({
-        'Content-Type': 'audio/mpeg',
-        'Content-Length': buffer.length,
-        'Content-Disposition': 'attachment; filename="generated_speech.mp3"',
-        'Cache-Control': 'no-cache',
-        'Accept-Ranges': 'bytes'
-      });
+      const apiKey = result[0].openaiApiKey;
       
-      console.log('Sending audio response...');
-      return res.status(200).send(buffer);
+      // Validate API key format
+      if (!apiKey.startsWith('sk-') || apiKey.length < 20) {
+        console.error('Invalid OpenAI API key format detected');
+        return res.status(400).json({ 
+          message: "Invalid API key format",
+          details: "The API key should start with 'sk-' and be at least 20 characters long"
+        });
+      }
 
-    } catch (err) {
-      console.error('OpenAI API Error:', err);
-      
-      // Log failed attempt
-      await logAPIUsage({
-        userId: req.session.user.id,
-        endpoint: "/api/user/generate-speech",
-        tokensUsed: 0,
-        cost: 0,
-        success: false,
-        errorMessage: err instanceof Error ? err.message : "Unknown error",
-        resourceType: 'speech'
-      });
+      // Log successful key retrieval (safely)
+      console.log('API Key validated successfully for user:', result[0].email);
 
+      console.log('API key validation passed, initializing OpenAI client...');
+      const openai = new OpenAI({ apiKey });
+
+      try {
+        console.log('Preparing OpenAI TTS API request...');
+        console.log('Request parameters:', {
+          model: "tts-1",
+          voice,
+          textLength: text.length,
+          hasValidKey: !!apiKey,
+          keyPrefix: apiKey.substring(0, 10)
+        });
+        
+        if (!text.trim()) {
+          throw new Error('Empty text provided');
+        }
+
+        console.log('Initiating OpenAI API call...');
+        const mp3 = await openai.audio.speech.create({
+          model: "tts-1",
+          voice,
+          input: text,
+          response_format: "mp3",
+        });
+
+        console.log('OpenAI API call completed successfully');
+
+        if (!mp3) {
+          throw new Error('No response from OpenAI TTS API');
+        }
+
+        // Verify we got a proper response object
+        if (!mp3.arrayBuffer || typeof mp3.arrayBuffer !== 'function') {
+          console.error('Invalid response type from OpenAI:', typeof mp3);
+          throw new Error('Invalid response format from OpenAI');
+        }
+
+        console.log('Converting response to buffer...');
+        const arrayBuffer = await mp3.arrayBuffer();
+        console.log('Received array buffer size:', arrayBuffer.byteLength);
+        
+        const buffer = Buffer.from(arrayBuffer);
+        console.log('Converted to Buffer, length:', buffer.length);
+
+        if (buffer.length === 0) {
+          throw new Error('Received empty buffer from OpenAI');
+        }
+
+        // Validate MP3 format before sending
+        const isValidMP3 = buffer.length > 4 && (
+          // Check for MP3 frame header
+          (buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0) ||
+          // Check for ID3 tag
+          (buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33)
+        );
+
+        if (!isValidMP3) {
+          console.error('Invalid MP3 data received from OpenAI:', {
+            firstBytes: Array.from(buffer.slice(0, 4)),
+            length: buffer.length
+          });
+          throw new Error('Invalid audio data received from OpenAI');
+        }
+
+        console.log('Audio buffer validated, size:', buffer.length, 'bytes');
+
+        // Log successful API usage
+        await logAPIUsage({
+          userId: req.session.user.id,
+          endpoint: "/api/user/generate-speech",
+          tokensUsed: Math.ceil(text.length / 4),
+          cost: 0.015 * (text.length / 1000),
+          success: true,
+          resourceType: 'speech'
+        });
+
+        console.log('Setting response headers...');
+        res.set({
+          'Content-Type': 'audio/mpeg',
+          'Content-Length': buffer.length,
+          'Content-Disposition': 'attachment; filename="generated_speech.mp3"',
+          'Cache-Control': 'no-cache',
+          'Accept-Ranges': 'bytes'
+        });
+        
+        console.log('Sending audio response...');
+        return res.status(200).send(buffer);
+
+      } catch (err) {
+        console.error('OpenAI API Error:', err);
+        
+        // Log failed attempt
+        await logAPIUsage({
+          userId: req.session.user.id,
+          endpoint: "/api/user/generate-speech",
+          tokensUsed: 0,
+          cost: 0,
+          success: false,
+          errorMessage: err instanceof Error ? err.message : "Unknown error",
+          resourceType: 'speech'
+        });
+
+        return res.status(500).json({ 
+          message: err instanceof Error ? err.message : "Failed to generate speech",
+          details: err instanceof Error ? err.message : "Unknown error"
+        });
+      }
+    } catch (error) {
+      console.error('Database or API key validation error:', error);
       return res.status(500).json({ 
-        message: err instanceof Error ? err.message : "Failed to generate speech",
-        details: err instanceof Error ? err.message : "Unknown error"
+        message: "Error accessing API key",
+        details: error instanceof Error ? error.message : "Unknown error"
       });
     }
   } catch (error) {
