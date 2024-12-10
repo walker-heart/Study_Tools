@@ -35,7 +35,7 @@ export default function ImageToText() {
     }
   };
 
-  const analyzeImage = async () => {
+  const analyzeImage = async (mode: 'extract' | 'summarize') => {
     if (!imagePreview) return;
     
     setIsAnalyzing(true);
@@ -49,6 +49,7 @@ export default function ImageToText() {
         },
         body: JSON.stringify({
           image: imagePreview,
+          mode,
         }),
         credentials: 'include'
       });
@@ -79,44 +80,71 @@ export default function ImageToText() {
     <div className={`container mx-auto px-4 py-8 ${theme === 'dark' ? 'dark' : ''}`}>
       <h1 className="text-3xl font-bold mb-8">Image to Text</h1>
       <Card className="p-6">
-        <div className="space-y-4">
-          <div className="border-2 border-dashed rounded-lg p-4">
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              className="w-full"
-              disabled={isAnalyzing}
-            />
-            {imagePreview && (
-              <AspectRatio ratio={16 / 9} className="mt-2">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="rounded-lg object-cover w-full h-full"
-                />
-              </AspectRatio>
-            )}
-          </div>
-          <Button
-            onClick={analyzeImage}
-            disabled={!selectedImage || isAnalyzing}
-            className="w-full"
-          >
-            {isAnalyzing ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Image className="w-4 h-4 mr-2" />
-            )}
-            {isAnalyzing ? "Analyzing..." : "Extract Text"}
-          </Button>
-
-          {analysisResult && (
-            <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-              <h3 className="text-lg font-semibold mb-2">Analysis Result:</h3>
-              <p className="whitespace-pre-wrap">{analysisResult}</p>
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Left side - Image Upload */}
+          <div className="flex-1 space-y-4">
+            <h2 className="text-xl font-semibold mb-4">Upload Image</h2>
+            <div className="border-2 border-dashed rounded-lg p-4">
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="w-full"
+                disabled={isAnalyzing}
+              />
+              {imagePreview && (
+                <AspectRatio ratio={16 / 9} className="mt-4">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="rounded-lg object-contain w-full h-full"
+                  />
+                </AspectRatio>
+              )}
             </div>
-          )}
+            <div className="flex gap-4">
+              <Button
+                onClick={() => analyzeImage('extract')}
+                disabled={!selectedImage || isAnalyzing}
+                className="flex-1"
+              >
+                {isAnalyzing ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Image className="w-4 h-4 mr-2" />
+                )}
+                {isAnalyzing ? "Analyzing..." : "Extract Text"}
+              </Button>
+              <Button
+                onClick={() => analyzeImage('summarize')}
+                disabled={!selectedImage || isAnalyzing}
+                className="flex-1"
+              >
+                {isAnalyzing ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Image className="w-4 h-4 mr-2" />
+                )}
+                {isAnalyzing ? "Analyzing..." : "Summarize"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Right side - Analysis Results */}
+          <div className="flex-1">
+            <h2 className="text-xl font-semibold mb-4">Analysis Results</h2>
+            <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+              {analysisResult ? (
+                <div className="prose dark:prose-invert max-w-none">
+                  <p className="whitespace-pre-wrap">{analysisResult}</p>
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 dark:text-gray-400 h-full flex items-center justify-center">
+                  <p>Upload an image and click analyze to see the results here</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </Card>
     </div>
