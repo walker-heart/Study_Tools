@@ -4,10 +4,12 @@ import { Input } from "@/components/ui/input";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useState } from "react";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Image, Loader2 } from "lucide-react";
+import { Image as ImageIcon, Loader2 } from "lucide-react";
 import { useNotification } from "@/components/ui/notification";
 
-export default function ImageToText() {
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+
+export function ImageToText() {
   const { theme } = useSettings();
   const { showNotification } = useNotification();
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -16,31 +18,44 @@ export default function ImageToText() {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        showNotification({
-          message: "Image size should be less than 5MB",
-          type: "error"
-        });
-        return;
-      }
-      setSelectedImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-        setAnalysisResult(null); // Clear previous results
-      };
-      reader.readAsDataURL(file);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE) {
+      showNotification({
+        message: "Image size should be less than 5MB",
+        type: "error"
+      });
+      return;
     }
+
+    setSelectedImage(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+      setAnalysisResult(null); // Clear previous results
+    };
+    reader.onerror = () => {
+      showNotification({
+        message: "Error reading image file",
+        type: "error"
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   const analyzeImage = async (mode: 'extract' | 'summarize') => {
-    if (!imagePreview) return;
-    
+    if (!imagePreview) {
+      showNotification({
+        message: "Please select an image first",
+        type: "error"
+      });
+      return;
+    }
+
     setIsAnalyzing(true);
     setAnalysisResult(null);
-    
+
     try {
       const response = await fetch('/api/user/analyze-image', {
         method: 'POST',
@@ -79,11 +94,11 @@ export default function ImageToText() {
   return (
     <div className={`container mx-auto px-4 py-8 ${theme === 'dark' ? 'dark' : ''}`}>
       <h1 className="text-3xl font-bold mb-8">Image to Text</h1>
-      <Card className="p-6">
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Left side - Image Upload */}
-          <div className="flex-1 space-y-4">
-            <h2 className="text-xl font-semibold mb-4">Upload Image</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left side - Image Upload */}
+        <Card className="p-6">
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold">Upload Image</h2>
             <div className="border-2 border-dashed rounded-lg p-4">
               <Input
                 type="file"
@@ -111,7 +126,7 @@ export default function ImageToText() {
                 {isAnalyzing ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
-                  <Image className="w-4 h-4 mr-2" />
+                  <ImageIcon className="w-4 h-4 mr-2" />
                 )}
                 {isAnalyzing ? "Analyzing..." : "Extract Text"}
               </Button>
@@ -123,17 +138,19 @@ export default function ImageToText() {
                 {isAnalyzing ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
-                  <Image className="w-4 h-4 mr-2" />
+                  <ImageIcon className="w-4 h-4 mr-2" />
                 )}
                 {isAnalyzing ? "Analyzing..." : "Summarize"}
               </Button>
             </div>
           </div>
+        </Card>
 
-          {/* Right side - Analysis Results */}
-          <div className="flex-1">
-            <h2 className="text-xl font-semibold mb-4">Analysis Results</h2>
-            <div className="h-full bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+        {/* Right side - Analysis Results */}
+        <Card className="p-6">
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold">Analysis Results</h2>
+            <div className="min-h-[300px] bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
               {analysisResult ? (
                 <div className="prose dark:prose-invert max-w-none">
                   <p className="whitespace-pre-wrap">{analysisResult}</p>
@@ -145,8 +162,8 @@ export default function ImageToText() {
               )}
             </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }
