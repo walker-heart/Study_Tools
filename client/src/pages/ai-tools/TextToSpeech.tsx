@@ -72,6 +72,11 @@ export default function TextToSpeech() {
         type: 'info'
       });
 
+      console.log('Making API request with:', {
+        text: textToRead.substring(0, 50) + '...',
+        voice: selectedVoice
+      });
+
       // Make API request
       const response = await fetch('/api/user/generate-speech', {
         method: 'POST',
@@ -82,26 +87,33 @@ export default function TextToSpeech() {
           text: textToRead,
           voice: selectedVoice,
         }),
+        credentials: 'include' // Important for session cookies
       });
 
       // Handle API errors
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || `HTTP error! status: ${response.status}`);
+        console.error('API Error:', error);
+        throw new Error(error.message || error.details || `HTTP error! status: ${response.status}`);
       }
+
+      console.log('Response received, processing audio data...');
 
       // Process audio response
       const arrayBuffer = await response.arrayBuffer();
+      console.log('Received array buffer size:', arrayBuffer.byteLength);
       
       // Create audio blob
       const audioBlob = new Blob([arrayBuffer], { 
-        type: 'audio/mpeg; codecs="mp3"'
+        type: 'audio/mpeg'
       });
       
       // Validate blob
       if (audioBlob.size === 0) {
         throw new Error('Received empty audio data');
       }
+
+      console.log('Created audio blob, size:', audioBlob.size);
 
       // Clean up previous audio URL
       if (audioUrl) {
