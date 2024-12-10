@@ -26,25 +26,42 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   // Load theme preference on mount and after sign in
   useEffect(() => {
     const loadTheme = async () => {
+      console.log('Loading theme preferences...');
+      
+      // First try to get from localStorage for immediate UI update
+      const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+      console.log('Theme from localStorage:', savedTheme);
+      
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        setTheme(savedTheme);
+        document.documentElement.classList.remove('light', 'dark');
+        document.documentElement.classList.add(savedTheme);
+      }
+
       try {
-        // First try to get theme from the server
+        // Then try to get theme from the server
+        console.log('Fetching theme from server...');
         const response = await fetch('/api/user/theme', {
           credentials: 'include'
         });
+        
         if (response.ok) {
           const data = await response.json();
-          if (data.theme) {
-            setTheme(data.theme as 'light' | 'dark');
+          console.log('Server theme response:', data);
+          
+          if (data.theme && (data.theme === 'light' || data.theme === 'dark')) {
+            setTheme(data.theme);
+            document.documentElement.classList.remove('light', 'dark');
+            document.documentElement.classList.add(data.theme);
+            localStorage.setItem('theme', data.theme);
+            console.log('Theme updated from server:', data.theme);
           }
         } else {
-          // If not authenticated, try to get from localStorage
-          const savedTheme = localStorage.getItem('theme');
-          if (savedTheme === 'light' || savedTheme === 'dark') {
-            setTheme(savedTheme);
-          }
+          console.log('Server theme fetch failed, keeping localStorage theme');
         }
       } catch (error) {
-        console.error('Failed to load theme preference:', error);
+        console.error('Failed to load theme from server:', error);
+        // Keep using localStorage theme if server fails
       }
     };
     loadTheme();
@@ -58,32 +75,39 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   // Save theme preference when it changes
   const handleThemeChange = async (newTheme: 'light' | 'dark') => {
     const prevTheme = theme;
+    
+    // Update UI immediately for better user experience
+    setTheme(newTheme);
+    document.documentElement.classList.remove(prevTheme);
+    document.documentElement.classList.add(newTheme);
+    localStorage.setItem('theme', newTheme);
+
     try {
-      setTheme(newTheme); // Optimistic update
-      
+      console.log(`Attempting to update theme to: ${newTheme}`);
       const response = await fetch('/api/user/theme', {
         method: 'PUT',
-        credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ theme: newTheme }),
+        credentials: 'include',
+        body: JSON.stringify({ theme: newTheme })
       });
       
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to save theme preference');
-      }
-
-      // Successfully saved
       const data = await response.json();
-      if (data.theme !== newTheme) {
-        throw new Error('Theme mismatch');
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update theme');
       }
+      
+      console.log('Theme preference saved successfully:', data);
+      
     } catch (error) {
-      console.error('Theme update failed:', error);
-      setTheme(prevTheme); // Revert to previous theme
-      throw error;
+      console.error('Failed to update theme:', error);
+      // Revert the theme if the API call failed
+      setTheme(prevTheme);
+      document.documentElement.classList.remove(newTheme);
+      document.documentElement.classList.add(prevTheme);
+      localStorage.setItem('theme', prevTheme);
     }
   };
   
