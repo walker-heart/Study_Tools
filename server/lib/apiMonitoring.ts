@@ -19,7 +19,7 @@ export async function logAPIUsage({
   success,
   errorMessage,
   resourceType = 'text'
-}: APIUsageLog & { resourceType?: 'text' | 'image' }) {
+}: APIUsageLog & { resourceType?: 'text' | 'image' | 'speech' }) {
   try {
     await db.execute(sql`
       INSERT INTO api_key_usage (
@@ -58,7 +58,8 @@ export async function getAPIUsageStats(userId: number, days: number = 30) {
           COUNT(CASE WHEN success = false THEN 1 END)::INTEGER as failed_requests,
           MAX(created_at) as last_used,
           COUNT(CASE WHEN resource_type = 'image' THEN 1 END)::INTEGER as image_requests,
-          COUNT(CASE WHEN resource_type = 'text' THEN 1 END)::INTEGER as text_requests
+          COUNT(CASE WHEN resource_type = 'text' THEN 1 END)::INTEGER as text_requests,
+          COUNT(CASE WHEN resource_type = 'speech' THEN 1 END)::INTEGER as speech_requests
         FROM api_key_usage 
         WHERE user_id = ${userId}
         AND created_at >= CURRENT_TIMESTAMP - (${days}::INTEGER * INTERVAL '1 day')

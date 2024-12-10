@@ -20,7 +20,8 @@ export default function APIManagement() {
     failed_requests: 0,
     success_rate: 100,
     text_requests: 0,
-    image_requests: 0
+    image_requests: 0,
+    speech_requests: 0
   });
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
@@ -172,7 +173,8 @@ export default function APIManagement() {
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                     Text: {isLoadingStats ? "..." : (apiStats.text_requests || 0).toLocaleString()} •
-                    Image: {isLoadingStats ? "..." : (apiStats.image_requests || 0).toLocaleString()}
+                    Image: {isLoadingStats ? "..." : (apiStats.image_requests || 0).toLocaleString()} •
+                    Speech: {isLoadingStats ? "..." : (apiStats.speech_requests || 0).toLocaleString()}
                   </div>
                 </div>
                 <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
