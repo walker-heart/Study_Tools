@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { registerRoutes as registerAPIRoutes } from "./routes/index";
 
 export function registerRoutes(app: Express) {
   // Health check endpoint
@@ -6,12 +7,6 @@ export function registerRoutes(app: Express) {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // All other API routes should be prefixed with /api
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api/')) {
-      next();
-    } else {
-      next();
-    }
-  });
+  // Register all API routes
+  registerAPIRoutes(app);
 }

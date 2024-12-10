@@ -4,8 +4,6 @@ import { eq, sql } from "drizzle-orm";
 import { users } from "../db/schema";
 import OpenAI from "openai";
 import { logAPIUsage, calculateTokenCost } from "../lib/apiMonitoring";
-import OpenAI from "openai";
-import { logAPIUsage, calculateTokenCost } from "../lib/apiMonitoring";
 
 export async function getTheme(req: Request, res: Response) {
   try {
@@ -231,24 +229,16 @@ export async function analyzeImage(req: Request, res: Response) {
       return res.status(400).json({ message: "No image data provided" });
     }
 
-    // Get user's OpenAI API key with detailed error handling
     const result = await db
       .select({ 
         openaiApiKey: users.openaiApiKey,
         email: users.email 
       })
       .from(users)
-      .where(eq(users.id, req.session.user.id))
-      .catch(error => {
-        console.error('Database error while retrieving API key:', error);
-        throw new Error('Database connection error');
-      });
+      .where(eq(users.id, req.session.user.id));
 
     if (!result.length) {
-      return res.status(404).json({ 
-        message: "User not found",
-        details: "Please ensure you are logged in correctly"
-      });
+      return res.status(404).json({ message: "User not found" });
     }
 
     if (!result[0].openaiApiKey) {
@@ -258,19 +248,7 @@ export async function analyzeImage(req: Request, res: Response) {
       });
     }
 
-    const apiKey = result[0].openaiApiKey;
-    
-    // Validate API key format
-    if (!apiKey.startsWith('sk-') || apiKey.length < 20) {
-      return res.status(400).json({ 
-        message: "Invalid API key format",
-        details: "The API key should start with 'sk-' and be at least 20 characters long"
-      });
-    }
-
-    // Initialize OpenAI client with validated API key
-    const openai = new OpenAI({ apiKey });
-    console.log('OpenAI client initialized, making API request...');
+    const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
 
     const response = await openai.chat.completions.create({
       model: "gpt-4-vision-preview",
@@ -291,7 +269,6 @@ export async function analyzeImage(req: Request, res: Response) {
       max_tokens: 500,
     });
 
-    // Log successful API usage
     await logAPIUsage({
       userId: req.session.user.id,
       endpoint: "/api/user/analyze-image",
@@ -309,7 +286,6 @@ export async function analyzeImage(req: Request, res: Response) {
   } catch (error) {
     console.error('Image analysis error:', error);
     
-    // Log failed attempt if authenticated
     if (req.session.user?.id) {
       await logAPIUsage({
         userId: req.session.user.id,
@@ -337,178 +313,94 @@ export async function generateSpeech(req: Request, res: Response) {
 
     const { text, voice } = req.body;
     if (!text || !voice) {
-      console.error('Missing required fields:', { text: !!text, voice: !!voice });
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    console.log('Generating speech for text:', text.substring(0, 50) + '...');
-    console.log('Selected voice:', voice);
+    const result = await db
+      .select({ openaiApiKey: users.openaiApiKey })
+      .from(users)
+      .where(eq(users.id, req.session.user.id));
+
+    if (!result.length) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!result[0].openaiApiKey) {
+      return res.status(400).json({ 
+        message: "No API key configured",
+        details: "Please configure your OpenAI API key in the settings page"
+      });
+    }
+
+    const apiKey = result[0].openaiApiKey;
+    
+    if (!apiKey.startsWith('sk-') || apiKey.length < 20) {
+      return res.status(400).json({ 
+        message: "Invalid API key format",
+        details: "The API key should start with 'sk-' and be at least 20 characters long"
+      });
+    }
+
+    const openai = new OpenAI({ apiKey });
 
     try {
-      // Get user's OpenAI API key with detailed error handling
-      console.log('Retrieving OpenAI API key for user:', req.session.user.id);
-      const result = await db
-        .select({ 
-          openaiApiKey: users.openaiApiKey,
-          email: users.email 
-        })
-        .from(users)
-        .where(eq(users.id, req.session.user.id))
-        .catch(error => {
-          console.error('Database error while retrieving API key:', error);
-          throw new Error('Database connection error');
-        });
+      const mp3 = await openai.audio.speech.create({
+        model: "tts-1",
+        voice,
+        input: text,
+        response_format: "mp3",
+      });
 
-      console.log('Database query completed for user');
-
-      if (!result.length) {
-        console.error('User not found in database:', req.session.user.id);
-        return res.status(404).json({ 
-          message: "User not found",
-          details: "Please ensure you are logged in correctly"
-        });
+      if (!mp3) {
+        throw new Error('No response from OpenAI TTS API');
       }
 
-      if (!result[0].openaiApiKey) {
-        console.error('OpenAI API key not configured for user:', result[0].email);
-        return res.status(400).json({ 
-          message: "No API key configured",
-          details: "Please configure your OpenAI API key in the settings page"
-        });
+      const arrayBuffer = await mp3.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      if (buffer.length === 0) {
+        throw new Error('Received empty buffer from OpenAI');
       }
 
-      const apiKey = result[0].openaiApiKey;
+      await logAPIUsage({
+        userId: req.session.user.id,
+        endpoint: "/api/user/generate-speech",
+        tokensUsed: Math.ceil(text.length / 4), 
+        cost: 0.015 * (text.length / 1000), 
+        success: true,
+        resourceType: 'speech'
+      });
+
+      res.set({
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': buffer.length,
+        'Content-Disposition': 'attachment; filename="generated_speech.mp3"',
+        'Cache-Control': 'no-cache',
+      });
       
-      // Validate API key format
-      if (!apiKey.startsWith('sk-') || apiKey.length < 20) {
-        console.error('Invalid OpenAI API key format detected');
-        return res.status(400).json({ 
-          message: "Invalid API key format",
-          details: "The API key should start with 'sk-' and be at least 20 characters long"
-        });
-      }
+      return res.status(200).send(buffer);
 
-      // Log successful key retrieval (safely)
-      console.log('API Key validated successfully for user:', result[0].email);
+    } catch (err) {
+      console.error('OpenAI TTS API Error:', err);
+      
+      await logAPIUsage({
+        userId: req.session.user.id,
+        endpoint: "/api/user/generate-speech",
+        tokensUsed: 0,
+        cost: 0,
+        success: false,
+        errorMessage: err instanceof Error ? err.message : "Unknown error",
+        resourceType: 'speech'
+      });
 
-      console.log('API key validation passed, initializing OpenAI client...');
-      const openai = new OpenAI({ apiKey });
-
-      try {
-        console.log('Preparing OpenAI TTS API request...');
-        console.log('Request parameters:', {
-          model: "tts-1",
-          voice,
-          textLength: text.length,
-          hasValidKey: !!apiKey,
-          keyPrefix: apiKey.substring(0, 10)
-        });
-        
-        if (!text.trim()) {
-          throw new Error('Empty text provided');
-        }
-
-        console.log('Initiating OpenAI API call...');
-        const mp3 = await openai.audio.speech.create({
-          model: "tts-1",
-          voice,
-          input: text,
-          response_format: "mp3",
-        });
-
-        console.log('OpenAI API call completed successfully');
-
-        if (!mp3) {
-          throw new Error('No response from OpenAI TTS API');
-        }
-
-        // Verify we got a proper response object
-        if (!mp3.arrayBuffer || typeof mp3.arrayBuffer !== 'function') {
-          console.error('Invalid response type from OpenAI:', typeof mp3);
-          throw new Error('Invalid response format from OpenAI');
-        }
-
-        console.log('Converting response to buffer...');
-        const arrayBuffer = await mp3.arrayBuffer();
-        console.log('Received array buffer size:', arrayBuffer.byteLength);
-        
-        const buffer = Buffer.from(arrayBuffer);
-        console.log('Converted to Buffer, length:', buffer.length);
-
-        if (buffer.length === 0) {
-          throw new Error('Received empty buffer from OpenAI');
-        }
-
-        // Validate MP3 format before sending
-        const isValidMP3 = buffer.length > 4 && (
-          // Check for MP3 frame header
-          (buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0) ||
-          // Check for ID3 tag
-          (buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33)
-        );
-
-        if (!isValidMP3) {
-          console.error('Invalid MP3 data received from OpenAI:', {
-            firstBytes: Array.from(buffer.slice(0, 4)),
-            length: buffer.length
-          });
-          throw new Error('Invalid audio data received from OpenAI');
-        }
-
-        console.log('Audio buffer validated, size:', buffer.length, 'bytes');
-
-        // Log successful API usage
-        await logAPIUsage({
-          userId: req.session.user.id,
-          endpoint: "/api/user/generate-speech",
-          tokensUsed: Math.ceil(text.length / 4),
-          cost: 0.015 * (text.length / 1000),
-          success: true,
-          resourceType: 'speech'
-        });
-
-        console.log('Setting response headers...');
-        res.set({
-          'Content-Type': 'audio/mpeg',
-          'Content-Length': buffer.length,
-          'Content-Disposition': 'attachment; filename="generated_speech.mp3"',
-          'Cache-Control': 'no-cache',
-          'Accept-Ranges': 'bytes'
-        });
-        
-        console.log('Sending audio response...');
-        return res.status(200).send(buffer);
-
-      } catch (err) {
-        console.error('OpenAI API Error:', err);
-        
-        // Log failed attempt
-        await logAPIUsage({
-          userId: req.session.user.id,
-          endpoint: "/api/user/generate-speech",
-          tokensUsed: 0,
-          cost: 0,
-          success: false,
-          errorMessage: err instanceof Error ? err.message : "Unknown error",
-          resourceType: 'speech'
-        });
-
-        return res.status(500).json({ 
-          message: err instanceof Error ? err.message : "Failed to generate speech",
-          details: err instanceof Error ? err.message : "Unknown error"
-        });
-      }
-    } catch (error) {
-      console.error('Database or API key validation error:', error);
       return res.status(500).json({ 
-        message: "Error accessing API key",
-        details: error instanceof Error ? error.message : "Unknown error"
+        message: "Error generating speech",
+        details: err instanceof Error ? err.message : "Unknown error"
       });
     }
   } catch (error) {
     console.error('Server Error:', error);
     
-    // Log failed attempt
     if (req.session.user?.id) {
       await logAPIUsage({
         userId: req.session.user.id,
