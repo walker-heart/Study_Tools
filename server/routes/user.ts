@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { getAPIUsageStats } from "../lib/apiMonitoring";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { users } from "../../db/schema/users";
@@ -105,5 +106,22 @@ export async function updateOpenAIKey(req: Request, res: Response) {
   } catch (error) {
     console.error('Update OpenAI API key error:', error);
     res.status(500).json({ message: "Error updating API key" });
+  }
+}
+
+export async function getUserAPIStats(req: Request, res: Response) {
+  try {
+    if (!req.session.user?.id) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const days = parseInt(req.query.days as string) || 30;
+    
+    const stats = await getAPIUsageStats(req.session.user.id, days);
+    
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching API usage stats:', error);
+    res.status(500).json({ message: "Error fetching API usage statistics" });
   }
 }
