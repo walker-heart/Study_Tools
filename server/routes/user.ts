@@ -198,6 +198,9 @@ export async function generateSpeech(req: Request, res: Response) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
+    console.log('Generating speech for text:', text.substring(0, 50) + '...');
+    console.log('Selected voice:', voice);
+
     // Get user's OpenAI API key
     const result = await db
       .select({ openaiApiKey: users.openaiApiKey })
@@ -205,13 +208,21 @@ export async function generateSpeech(req: Request, res: Response) {
       .where(eq(users.id, req.session.user.id));
 
     if (!result.length || !result[0].openaiApiKey) {
+      console.error('OpenAI API key not found for user:', req.session.user.id);
       return res.status(400).json({ message: "No API key configured" });
     }
 
-    const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
+    const apiKey = result[0].openaiApiKey;
+    if (!apiKey.startsWith('sk-')) {
+      console.error('Invalid OpenAI API key format');
+      return res.status(400).json({ message: "Invalid API key format" });
+    }
 
-    // Generate speech using OpenAI's TTS API
+    console.log('Initializing OpenAI client...');
+    const openai = new OpenAI({ apiKey });
+
     try {
+      console.log('Making request to OpenAI TTS API...');
       const mp3 = await openai.audio.speech.create({
         model: "tts-1",
         voice,
@@ -219,30 +230,41 @@ export async function generateSpeech(req: Request, res: Response) {
         response_format: "mp3",
       });
 
-      // Get the audio data as a buffer
+      if (!mp3) {
+        throw new Error('No response from OpenAI TTS API');
+      }
+
+      console.log('Converting response to buffer...');
       const buffer = Buffer.from(await mp3.arrayBuffer());
+
+      if (buffer.length === 0) {
+        throw new Error('Received empty buffer from OpenAI');
+      }
+
+      console.log('Audio buffer size:', buffer.length, 'bytes');
 
       // Log successful API usage
       await logAPIUsage({
         userId: req.session.user.id,
         endpoint: "/api/user/generate-speech",
-        tokensUsed: Math.ceil(text.length / 4), // Approximate token count
-        cost: 0.015 * (text.length / 1000), // $0.015 per 1K characters
+        tokensUsed: Math.ceil(text.length / 4),
+        cost: 0.015 * (text.length / 1000),
         success: true,
         resourceType: 'speech'
       });
 
-      // Set proper headers for audio response
+      console.log('Setting response headers...');
       res.set({
         'Content-Type': 'audio/mpeg',
         'Content-Length': buffer.length,
-        'Content-Disposition': 'attachment; filename="speech.mp3"'
+        'Content-Disposition': 'attachment; filename="speech.mp3"',
+        'Cache-Control': 'no-cache'
       });
       
-      // Send the audio buffer directly
+      console.log('Sending audio response...');
       res.status(200).send(buffer);
     } catch (err) {
-      console.error('Speech generation error:', err);
+      console.error('OpenAI API Error:', err);
       
       // Log failed attempt
       await logAPIUsage({
@@ -256,12 +278,13 @@ export async function generateSpeech(req: Request, res: Response) {
       });
 
       res.status(500).json({ 
-        message: err instanceof Error ? err.message : "Failed to generate speech"
+        message: err instanceof Error ? err.message : "Failed to generate speech",
+        details: err instanceof Error ? err.message : "Unknown error"
       });
       return;
     }
   } catch (error) {
-    console.error('Speech generation error:', error);
+    console.error('Server Error:', error);
     
     // Log failed attempt
     if (req.session.user?.id) {
@@ -276,6 +299,9 @@ export async function generateSpeech(req: Request, res: Response) {
       });
     }
     
-    res.status(500).json({ message: "Error generating speech" });
+    res.status(500).json({ 
+      message: "Error generating speech",
+      details: error instanceof Error ? error.message : "Unknown error"
+    });
   }
 }
