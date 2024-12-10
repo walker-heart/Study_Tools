@@ -8,6 +8,7 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   theme: varchar('theme', { length: 10 }).default('light'),
   isAdmin: boolean('is_admin').default(false).notNull(),
+  openaiApiKey: text('openai_api_key'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
