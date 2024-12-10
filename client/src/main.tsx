@@ -19,6 +19,7 @@ import Settings from "./pages/Settings";
 import APIManagement from "./pages/APIManagement";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
+import AITools from "./pages/AITools";
 
 function Router() {
   return (
@@ -58,6 +59,11 @@ function Router() {
         <Route path="/settings/api">
           <ProtectedRoute>
             <APIManagement />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/ai-tools">
+          <ProtectedRoute>
+            <AITools />
           </ProtectedRoute>
         </Route>
         <Route path="/signin" component={SignIn} />
