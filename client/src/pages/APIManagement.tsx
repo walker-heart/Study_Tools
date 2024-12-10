@@ -178,7 +178,7 @@ export default function APIManagement() {
                 <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
                   <div className="text-sm text-gray-500 dark:text-gray-400">Total Cost</div>
                   <div className="text-2xl font-semibold mt-1">
-                    {isLoadingStats ? "Loading..." : `$${apiStats.total_cost.toFixed(2)}`}
+                    {isLoadingStats ? "Loading..." : `$${Number(apiStats.total_cost).toFixed(2)}`}
                   </div>
                 </div>
                 <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">

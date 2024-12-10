@@ -54,7 +54,7 @@ export async function getAPIUsageStats(userId: number, days: number = 30) {
         SELECT 
           COUNT(*)::INTEGER as total_requests,
           COALESCE(SUM(tokens_used), 0)::INTEGER as total_tokens,
-          COALESCE(SUM(cost), 0)::DECIMAL as total_cost,
+          ROUND(COALESCE(SUM(cost), 0)::DECIMAL, 4) as total_cost,
           COUNT(CASE WHEN success = false THEN 1 END)::INTEGER as failed_requests,
           MAX(created_at) as last_used,
           COUNT(CASE WHEN resource_type = 'image' THEN 1 END)::INTEGER as image_requests,
