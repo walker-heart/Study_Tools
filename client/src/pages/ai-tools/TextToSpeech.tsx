@@ -103,14 +103,22 @@ export default function TextToSpeech() {
       const arrayBuffer = await response.arrayBuffer();
       console.log('Received array buffer size:', arrayBuffer.byteLength);
       
-      // Create audio blob
+      // Create audio blob with specific MIME type for MP3
       const audioBlob = new Blob([arrayBuffer], { 
-        type: 'audio/mpeg'
+        type: 'audio/mpeg; codecs=mp3'
       });
       
       // Validate blob
       if (audioBlob.size === 0) {
         throw new Error('Received empty audio data');
+      }
+
+      // Validate that the blob is actually audio data
+      const firstBytes = new Uint8Array(arrayBuffer.slice(0, 4));
+      const isMP3 = firstBytes[0] === 0xFF && (firstBytes[1] & 0xE0) === 0xE0;
+      if (!isMP3) {
+        console.error('Invalid MP3 data received:', firstBytes);
+        throw new Error('Invalid audio data format received');
       }
 
       console.log('Created audio blob, size:', audioBlob.size);
