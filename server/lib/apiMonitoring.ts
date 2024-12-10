@@ -29,7 +29,7 @@ export async function logAPIUsage({
       userId,
       endpoint,
       tokensUsed,
-      cost,
+      cost: cost.toString(), // Convert number to string for decimal type
       success,
       errorMessage,
       resourceType
