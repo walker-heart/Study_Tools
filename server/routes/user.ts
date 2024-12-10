@@ -217,17 +217,9 @@ export async function generateSpeech(req: Request, res: Response) {
       input: text,
     });
 
-    // Convert the ReadableStream to a Buffer
-    const chunks = [];
-    const reader = mp3.getReader();
-    
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-    }
-    
-    const buffer = Buffer.concat(chunks);
+    // Get the audio data as a Buffer
+    const audioData = await mp3.arrayBuffer();
+    const buffer = Buffer.from(audioData);
 
     // Log the API usage
     await logAPIUsage({
