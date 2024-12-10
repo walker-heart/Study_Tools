@@ -249,11 +249,16 @@ export async function analyzeImage(req: Request, res: Response) {
       return res.status(400).json({ message: "No image data provided" });
     }
 
+    // Validate base64 image format
+    if (!req.body.image.startsWith('data:image/')) {
+      return res.status(400).json({ 
+        message: "Invalid image format",
+        details: "Image must be provided as a base64 data URL"
+      });
+    }
+
     const result = await db
-      .select({ 
-        openaiApiKey: users.openaiApiKey,
-        email: users.email 
-      })
+      .select({ openaiApiKey: users.openaiApiKey })
       .from(users)
       .where(eq(users.id, req.session.user.id));
 
@@ -268,44 +273,106 @@ export async function analyzeImage(req: Request, res: Response) {
       });
     }
 
-    const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
+    const openai = new OpenAI({ 
+      apiKey: result[0].openaiApiKey,
+      maxRetries: 2
+    });
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4-vision-preview",
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Please analyze this image and describe what you see in detail." },
-            {
-              type: "image_url",
-              image_url: {
-                url: req.body.image,
+    try {
+      // Clean the base64 image data
+      const base64Image = req.body.image.replace(/^data:image\/[a-z]+;base64,/, '');
+      
+      // Validate base64 content
+      try {
+        Buffer.from(base64Image, 'base64');
+      } catch (e) {
+        return res.status(400).json({
+          message: "Invalid image data",
+          details: "The provided image data is not valid base64"
+        });
+      }
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4-vision-preview",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Please analyze this image and extract any visible text or describe what you see in detail."
               },
-            },
-          ],
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64Image}`
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 500
+      });
+
+      if (!response.choices?.[0]?.message?.content) {
+        throw new Error('Invalid response from OpenAI API');
+      }
+
+      const description = response.choices[0].message.content;
+
+      // Log successful API usage
+      await logAPIUsage({
+        userId: req.session.user.id,
+        endpoint: "/api/user/analyze-image",
+        tokensUsed: response.usage?.total_tokens || 0,
+        cost: calculateTokenCost(response.usage?.total_tokens || 0, "gpt-4"),
+        success: true,
+        resourceType: 'image'
+      });
+
+      // Return successful response
+      res.json({ description });
+
+    } catch (apiError: any) {
+      console.error('OpenAI API Error:', apiError);
+      
+      // Handle specific API errors
+      const errorMapping: Record<string, { status: number; message: string; details: string }> = {
+        'Unauthorized': {
+          status: 401,
+          message: "Invalid API key",
+          details: "Please check your OpenAI API key in settings"
         },
-      ],
-      max_tokens: 500,
-    });
+        'has been deprecated': {
+          status: 400,
+          message: "Vision model error",
+          details: "The vision model is being updated. Please try again later."
+        },
+        'content_policy_violation': {
+          status: 400,
+          message: "Content policy violation",
+          details: "The image content violates OpenAI's content policy"
+        }
+      };
 
-    await logAPIUsage({
-      userId: req.session.user.id,
-      endpoint: "/api/user/analyze-image",
-      tokensUsed: response.usage?.total_tokens || 0,
-      cost: calculateTokenCost(response.usage?.total_tokens || 0, "gpt-4"),
-      success: true,
-      resourceType: 'image'
-    });
+      // Find matching error type
+      const errorType = Object.keys(errorMapping).find(key => 
+        apiError.message?.includes(key) || apiError.status === (key === 'Unauthorized' ? 401 : undefined)
+      );
 
-    res.json({ 
-      description: response.choices[0].message.content,
-      usage: response.usage
-    });
+      if (errorType) {
+        const { status, message, details } = errorMapping[errorType];
+        return res.status(status).json({ message, details });
+      }
+
+      // Default error handling
+      throw new Error(apiError.message || 'Failed to analyze image');
+    }
 
   } catch (error) {
     console.error('Image analysis error:', error);
     
+    // Log failed API usage
     if (req.session.user?.id) {
       await logAPIUsage({
         userId: req.session.user.id,
@@ -318,6 +385,7 @@ export async function analyzeImage(req: Request, res: Response) {
       });
     }
     
+    // Return error response
     res.status(500).json({ 
       message: "Error analyzing image",
       details: error instanceof Error ? error.message : "Unknown error"
