@@ -173,18 +173,20 @@ pool.query('SELECT NOW()', (err) => {
   }
 });
 
-// Configure session middleware
+// Configure session middleware with enhanced debugging
 if (env.NODE_ENV === 'production') {
   app.set('trust proxy', 1); // Trust first proxy
 }
 
+console.log('Configuring session store with database connection');
 const pgStore = connectPgSimple(session);
 const sessionConfig: session.SessionOptions = {
   store: new pgStore({
     pool,
     tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15 // 15 minutes
+    pruneSessionInterval: 60 * 15, // 15 minutes
+    errorLog: console.error.bind(console, 'Session store error:')
   }),
   name: 'sid',
   secret: env.JWT_SECRET!,
@@ -196,13 +198,22 @@ const sessionConfig: session.SessionOptions = {
     secure: env.NODE_ENV === 'production',
     httpOnly: true,
     sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: '/',
     domain: undefined // Let browser set the cookie domain
   } as session.CookieOptions & {
     sameSite: 'none' | 'lax'
   }
 };
+
+// Log session configuration for debugging
+console.log('Session configuration:', {
+  store: 'PostgreSQL',
+  cookieSecure: sessionConfig.cookie?.secure,
+  cookieSameSite: sessionConfig.cookie?.sameSite,
+  environment: env.NODE_ENV,
+  trustProxy: app.get('trust proxy')
+});
 
 app.use(session(sessionConfig));
 

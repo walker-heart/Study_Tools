@@ -5,17 +5,40 @@ const router = Router();
 
 // Helper function to check authentication
 function checkAuthentication(req: any) {
-  const token = req.headers.authorization || req.cookies?.dsers_token;
-  if (!token) {
+  try {
+    // Check various token locations
+    const token = req.headers.authorization || 
+                  req.cookies?.dsers_token || 
+                  req.cookies?.auth_token ||
+                  (req.session?.user?.token);
+                  
+    console.log('Authentication check:', {
+      hasAuthHeader: !!req.headers.authorization,
+      hasDsersToken: !!req.cookies?.dsers_token,
+      hasAuthToken: !!req.cookies?.auth_token,
+      hasSessionToken: !!(req.session?.user?.token),
+      cookies: Object.keys(req.cookies || {}),
+      sessionExists: !!req.session
+    });
+
+    if (!token) {
+      return {
+        isAuthenticated: false,
+        message: 'No authentication token found in headers, cookies, or session'
+      };
+    }
+    
+    return {
+      isAuthenticated: true,
+      token: token.startsWith('Bearer ') ? token : `Bearer ${token}`
+    };
+  } catch (error) {
+    console.error('Error during authentication check:', error);
     return {
       isAuthenticated: false,
-      message: 'No authentication token found'
+      message: 'Error checking authentication'
     };
   }
-  return {
-    isAuthenticated: true,
-    token
-  };
 }
 
 // Proxy route for dsers API
