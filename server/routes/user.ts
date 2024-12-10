@@ -60,3 +60,50 @@ export async function getTheme(req: Request, res: Response) {
     res.status(500).json({ message: "Error getting theme preference" });
   }
 }
+
+export async function getOpenAIKey(req: Request, res: Response) {
+  try {
+    if (!req.session.user?.id) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    // Get user's OpenAI API key
+    const result = await db
+      .select({ openaiApiKey: users.openaiApiKey })
+      .from(users)
+      .where(eq(users.id, req.session.user.id));
+
+    if (!result.length) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({ apiKey: result[0].openaiApiKey || '' });
+  } catch (error) {
+    console.error('Get OpenAI API key error:', error);
+    res.status(500).json({ message: "Error retrieving API key" });
+  }
+}
+
+export async function updateOpenAIKey(req: Request, res: Response) {
+  try {
+    if (!req.session.user?.id) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { apiKey } = req.body;
+    if (typeof apiKey !== 'string') {
+      return res.status(400).json({ message: "Invalid API key format" });
+    }
+
+    // Update the API key
+    await db
+      .update(users)
+      .set({ openaiApiKey: apiKey })
+      .where(eq(users.id, req.session.user.id));
+
+    res.json({ message: "API key updated successfully" });
+  } catch (error) {
+    console.error('Update OpenAI API key error:', error);
+    res.status(500).json({ message: "Error updating API key" });
+  }
+}

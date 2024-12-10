@@ -3,9 +3,32 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { useState, useEffect } from "react";
+import { useNotification } from "@/components/ui/notification";
 
 export default function Settings() {
   const { theme, setTheme } = useSettings();
+  const { showNotification } = useNotification();
+  const [apiKey, setApiKey] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    // Fetch the API key on component mount
+    const fetchApiKey = async () => {
+      try {
+        const response = await fetch('/api/user/openai-key', {
+          credentials: 'include'
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setApiKey(data.apiKey || '');
+        }
+      } catch (error) {
+        console.error('Failed to fetch API key:', error);
+      }
+    };
+    fetchApiKey();
+  }, []);
 
   return (
     <div className={`container mx-auto px-4 py-8 max-w-4xl ${theme === 'dark' ? 'dark bg-gray-900 text-white' : ''}`}>
@@ -134,6 +157,62 @@ export default function Settings() {
                 Delete Account
               </Button>
             </div>
+          </div>
+        </Card>
+      {/* OpenAI API Key Section */}
+        <Card className={`p-6 mt-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
+          <h2 className="text-xl font-semibold mb-4">API Keys</h2>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="openai-api-key">OpenAI API Key</Label>
+              <Input
+                id="openai-api-key"
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="font-mono"
+              />
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Your OpenAI API key will be stored securely and used for AI-powered features
+              </p>
+            </div>
+            <Button 
+              onClick={async () => {
+                setIsLoading(true);
+                try {
+                  const response = await fetch('/api/user/openai-key', {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ apiKey })
+                  });
+
+                  if (response.ok) {
+                    showNotification({
+                      message: 'API key updated successfully',
+                      type: 'success'
+                    });
+                  } else {
+                    throw new Error('Failed to update API key');
+                  }
+                } catch (error) {
+                  showNotification({
+                    message: 'Failed to update API key',
+                    type: 'error'
+                  });
+                  console.error('Error updating API key:', error);
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              disabled={isLoading}
+              className="w-full"
+            >
+              {isLoading ? 'Updating...' : 'Update API Key'}
+            </Button>
           </div>
         </Card>
       </div>
