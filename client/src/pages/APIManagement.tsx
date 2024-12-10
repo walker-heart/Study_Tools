@@ -70,10 +70,18 @@ export default function APIManagement() {
         });
         if (response.ok) {
           const data = await response.json();
-          setApiKey(data.apiKey || '');
+          if (data.hasKey && data.key) {
+            // Always show the last 4 characters in consistent format
+            setApiKey(`sk-...${data.key.slice(-4)}`);
+          } else {
+            setApiKey('');
+          }
+        } else {
+          setApiKey('');
         }
       } catch (error) {
         console.error('Failed to fetch API key:', error);
+        setApiKey('');
       }
       
       // Fetch initial stats
@@ -117,8 +125,14 @@ export default function APIManagement() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="openai-api-key">OpenAI API Key</Label>
-                <span className={`text-sm px-2 py-1 rounded ${apiKey ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'}`}>
-                  {apiKey ? 'Configured' : 'Not Configured'}
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                  apiKey ? 'bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-300' 
+                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/30 dark:text-yellow-300'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${apiKey ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                    {apiKey ? 'Configured' : 'Not Configured'}
+                  </div>
                 </span>
               </div>
               <Input
@@ -127,7 +141,11 @@ export default function APIManagement() {
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="sk-..."
-                className={`font-mono ${!apiKey ? 'border-yellow-500 dark:border-yellow-400' : ''}`}
+                className={`font-mono ${
+                  !apiKey 
+                    ? 'border-yellow-500 dark:border-yellow-400 bg-yellow-50 dark:bg-yellow-900/10' 
+                    : 'bg-green-50 dark:bg-green-900/10'
+                }`}
               />
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Your OpenAI API key will be stored securely and used for AI-powered features. 

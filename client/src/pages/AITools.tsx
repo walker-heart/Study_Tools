@@ -20,31 +20,25 @@ export default function AITools() {
         });
         if (response.ok) {
           const data = await response.json();
-          setHasApiKey(data.hasKey);
-          if (!data.hasKey) {
-            showNotification({
-              message: "Please configure your OpenAI API key in settings to use AI features.",
-              type: "info"
-            });
-            setLocation("/settings/api");
-          }
+          setHasApiKey(!!data.hasKey);
+        } else {
+          setHasApiKey(false);
         }
       } catch (error) {
         console.error('Failed to check API key:', error);
+        setHasApiKey(false);
       }
     };
     checkApiKey();
-  }, [showNotification, setLocation]);
+  }, []);
 
   const handleCardClick = (route: string) => {
+    // If no API key is configured, redirect to API settings page
     if (!hasApiKey) {
-      showNotification({
-        message: "Please configure your OpenAI API key in settings to use AI features.",
-        type: "info"
-      });
       setLocation("/settings/api");
       return;
     }
+    // Otherwise navigate to the selected tool
     setLocation(route);
   };
 
