@@ -16,6 +16,7 @@ import Memorization from "./pages/Memorization";
 import MemorizationEasy from "./pages/MemorizationEasy";
 import MemorizationMedium from "./pages/MemorizationMedium";
 import Settings from "./pages/Settings";
+import APIManagement from "./pages/APIManagement";
 import SignIn from "./pages/SignIn";
 import SignUp from "./pages/SignUp";
 
@@ -52,6 +53,11 @@ function Router() {
         <Route path="/settings">
           <ProtectedRoute>
             <Settings />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/settings/api">
+          <ProtectedRoute>
+            <APIManagement />
           </ProtectedRoute>
         </Route>
         <Route path="/signin" component={SignIn} />
