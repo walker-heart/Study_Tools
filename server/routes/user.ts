@@ -273,9 +273,20 @@ export async function generateSpeech(req: Request, res: Response) {
       res.set({
         'Content-Type': 'audio/mpeg',
         'Content-Length': buffer.length,
-        'Content-Disposition': 'attachment; filename="speech.mp3"',
-        'Cache-Control': 'no-cache'
+        'Content-Disposition': 'inline',
+        'Cache-Control': 'no-cache',
+        'Accept-Ranges': 'bytes'
       });
+      
+      // Verify buffer contains valid MP3 data (should start with ID3 or be a valid MP3 frame)
+      const isValidMP3 = buffer.length > 2 && 
+        ((buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33) || // ID3
+         (buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0)); // MP3 frame
+      
+      if (!isValidMP3) {
+        console.error('Invalid MP3 data detected');
+        throw new Error('Invalid audio data received from OpenAI');
+      }
       
       console.log('Sending audio response...');
       res.status(200).send(buffer);
