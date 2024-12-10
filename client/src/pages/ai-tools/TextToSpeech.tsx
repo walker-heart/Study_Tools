@@ -87,7 +87,7 @@ export default function TextToSpeech() {
       // Handle API errors
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(`Failed to generate speech: ${error.message || 'Unknown error'} (Status: ${response.status})`);
+        throw new Error(error.message || `HTTP error! status: ${response.status}`);
       }
 
       // Process audio response
