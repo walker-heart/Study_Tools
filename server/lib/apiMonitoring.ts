@@ -50,37 +50,19 @@ export async function logAPIUsage({
 export async function getAPIUsageStats(userId: number, days: number = 30) {
   try {
     const result = await db.execute(sql`
-      WITH hourly_stats AS (
+      WITH stats AS (
         SELECT 
-          DATE_TRUNC('hour', created_at) as hour,
-          COUNT(*)::INTEGER as requests,
-          COALESCE(SUM(tokens_used), 0)::INTEGER as tokens,
-          ROUND(COALESCE(SUM(cost), 0)::DECIMAL, 4) as cost,
-          COUNT(CASE WHEN success = false THEN 1 END)::INTEGER as failed,
-          resource_type
+          COUNT(*)::INTEGER as total_requests,
+          COALESCE(SUM(tokens_used), 0)::INTEGER as total_tokens,
+          ROUND(COALESCE(SUM(cost), 0)::DECIMAL, 4) as total_cost,
+          COUNT(CASE WHEN success = false THEN 1 END)::INTEGER as failed_requests,
+          MAX(created_at) as last_used,
+          COUNT(CASE WHEN resource_type = 'image' THEN 1 END)::INTEGER as image_requests,
+          COUNT(CASE WHEN resource_type = 'text' THEN 1 END)::INTEGER as text_requests,
+          COUNT(CASE WHEN resource_type = 'speech' THEN 1 END)::INTEGER as speech_requests
         FROM api_key_usage 
         WHERE user_id = ${userId}
         AND created_at >= CURRENT_TIMESTAMP - (${days}::INTEGER * INTERVAL '1 day')
-        GROUP BY DATE_TRUNC('hour', created_at), resource_type
-      ),
-      stats AS (
-        SELECT 
-          COUNT(*)::INTEGER as total_requests,
-          COALESCE(SUM(tokens), 0)::INTEGER as total_tokens,
-          ROUND(COALESCE(SUM(cost), 0)::DECIMAL, 4) as total_cost,
-          COUNT(CASE WHEN failed > 0 THEN 1 END)::INTEGER as failed_requests,
-          MAX(hour) as last_used,
-          SUM(CASE WHEN resource_type = 'image' THEN requests ELSE 0 END)::INTEGER as image_requests,
-          SUM(CASE WHEN resource_type = 'text' THEN requests ELSE 0 END)::INTEGER as text_requests,
-          SUM(CASE WHEN resource_type = 'speech' THEN requests ELSE 0 END)::INTEGER as speech_requests,
-          json_agg(json_build_object(
-            'hour', hour,
-            'requests', requests,
-            'tokens', tokens,
-            'cost', cost,
-            'resource_type', resource_type
-          ) ORDER BY hour DESC) as hourly_breakdown
-        FROM hourly_stats
       )
       SELECT 
         total_requests,
@@ -90,8 +72,6 @@ export async function getAPIUsageStats(userId: number, days: number = 30) {
         last_used,
         image_requests,
         text_requests,
-        speech_requests,
-        hourly_breakdown,
         CASE 
           WHEN total_requests > 0 THEN 
             ROUND(((total_requests - failed_requests)::DECIMAL / total_requests::DECIMAL * 100), 1)
