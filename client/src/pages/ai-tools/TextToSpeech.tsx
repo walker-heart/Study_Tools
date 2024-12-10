@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useState } from "react";
+import { useNotification } from "@/components/ui/notification";
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ const VOICE_OPTIONS = [
 
 export default function TextToSpeech() {
   const { theme } = useSettings();
+  const { showNotification } = useNotification();
   const [textToRead, setTextToRead] = useState("");
   const [selectedVoice, setSelectedVoice] = useState("alloy");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -77,13 +79,10 @@ export default function TextToSpeech() {
       };
     } catch (error) {
       console.error("Failed to generate speech:", error);
-      // Show error notification (if available)
-      if (window.showNotification) {
-        window.showNotification({
-          message: error.message || 'Failed to generate speech',
-          type: 'error',
-        });
-      }
+      showNotification({
+        message: error instanceof Error ? error.message : 'Failed to generate speech',
+        type: 'error'
+      });
     } finally {
       setIsProcessing(false);
     }
