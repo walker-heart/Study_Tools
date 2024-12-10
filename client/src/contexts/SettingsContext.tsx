@@ -16,12 +16,27 @@ interface SettingsContextType {
   setAutoAdvanceDelay: (delay: number) => void;
 }
 
-const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+const defaultSettings: SettingsContextType = {
+  fontSize: 16,
+  setFontSize: () => {},
+  fontFamily: 'monospace',
+  setFontFamily: () => {},
+  theme: 'light',
+  setTheme: () => {},
+  showHints: true,
+  setShowHints: () => {},
+  autoAdvance: false,
+  setAutoAdvance: () => {},
+  autoAdvanceDelay: 3000,
+  setAutoAdvanceDelay: () => {}
+};
 
-export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [fontSize, setFontSize] = useState<number>(16);
-  const [fontFamily, setFontFamily] = useState<string>('monospace');
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+const SettingsContext = createContext<SettingsContextType>(defaultSettings);
+
+function SettingsProvider({ children }: { children: ReactNode }) {
+  const [fontSize, setFontSize] = React.useState<number>(16);
+  const [fontFamily, setFontFamily] = React.useState<string>('monospace');
+  const [theme, setTheme] = React.useState<'light' | 'dark'>('light');
   
   // Load theme preference on mount and after sign in
   useEffect(() => {
@@ -56,7 +71,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, [theme]);
 
   // Save theme preference when it changes
-  const handleThemeChange = async (newTheme: 'light' | 'dark') => {
+  const handleThemeChange = React.useCallback(async (newTheme: 'light' | 'dark') => {
     const prevTheme = theme;
     try {
       setTheme(newTheme); // Optimistic update
@@ -85,39 +100,48 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
       setTheme(prevTheme); // Revert to previous theme
       throw error;
     }
-  };
+  }, [theme]);
   
   // Memorization tool settings
-  const [showHints, setShowHints] = useState<boolean>(true);
-  const [autoAdvance, setAutoAdvance] = useState<boolean>(false);
-  const [autoAdvanceDelay, setAutoAdvanceDelay] = useState<number>(3000); // 3 seconds default
+  const [showHints, setShowHints] = React.useState<boolean>(true);
+  const [autoAdvance, setAutoAdvance] = React.useState<boolean>(false);
+  const [autoAdvanceDelay, setAutoAdvanceDelay] = React.useState<number>(3000); // 3 seconds default
+
+  const value = React.useMemo(() => ({
+    fontSize,
+    setFontSize,
+    fontFamily,
+    setFontFamily,
+    theme,
+    setTheme: handleThemeChange,
+    showHints,
+    setShowHints,
+    autoAdvance,
+    setAutoAdvance,
+    autoAdvanceDelay,
+    setAutoAdvanceDelay,
+  }), [
+    fontSize, setFontSize,
+    fontFamily, setFontFamily,
+    theme, handleThemeChange,
+    showHints, setShowHints,
+    autoAdvance, setAutoAdvance,
+    autoAdvanceDelay, setAutoAdvanceDelay
+  ]);
 
   return (
-    <SettingsContext.Provider
-      value={{
-        fontSize,
-        setFontSize,
-        fontFamily,
-        setFontFamily,
-        theme,
-        setTheme: handleThemeChange,
-        showHints,
-        setShowHints,
-        autoAdvance,
-        setAutoAdvance,
-        autoAdvanceDelay,
-        setAutoAdvanceDelay,
-      }}
-    >
+    <SettingsContext.Provider value={value}>
       {children}
     </SettingsContext.Provider>
   );
 }
 
-export const useSettings = () => {
+export function useSettings() {
   const context = useContext(SettingsContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useSettings must be used within a SettingsProvider');
   }
   return context;
-};
+}
+
+export { SettingsProvider };
