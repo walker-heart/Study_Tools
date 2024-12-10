@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Mic, Upload } from "lucide-react";
+import { Mic } from "lucide-react";
 
 const VOICE_OPTIONS = [
   { value: "alloy", label: "Alloy" },
@@ -35,29 +35,44 @@ export default function TextToSpeech() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-      // Read file content and set it to textToRead
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
           setTextToRead(event.target.result as string);
         }
       };
-      reader.readAsText(e.target.files[0]);
+      reader.onerror = (error) => {
+        showNotification({
+          message: `Error reading file: ${error}`,
+          type: 'error'
+        });
+      };
+      reader.readAsText(file);
     }
   };
 
   const handleGenerate = async () => {
-    if (!textToRead.trim()) {
-      showNotification({
-        message: 'Please enter some text to convert to speech',
-        type: 'error'
-      });
-      return;
-    }
-
-    setIsProcessing(true);
     try {
+      // Validate input
+      if (!textToRead.trim()) {
+        showNotification({
+          message: 'Please enter some text to convert to speech',
+          type: 'error'
+        });
+        return;
+      }
+
+      // Set processing state
+      setIsProcessing(true);
+      showNotification({
+        message: 'Generating speech...',
+        type: 'info'
+      });
+
+      // Make API request
       const response = await fetch('/api/user/generate-speech', {
         method: 'POST',
         headers: {
@@ -69,66 +84,42 @@ export default function TextToSpeech() {
         }),
       });
 
+      // Handle API errors
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to generate speech');
+        throw new Error(`Failed to generate speech: ${error.message || 'Unknown error'} (Status: ${response.status})`);
       }
 
-      if (!response.ok) {
-        const error = await response.json();
-        const errorMessage = `Failed to generate speech: ${error.message || 'Unknown error'}
-        Status: ${response.status}
-        Status Text: ${response.statusText}`;
-        showNotification({
-          message: errorMessage,
-          type: 'error'
-        });
-        throw new Error(errorMessage);
-      }
-
-      // Clean up previous audio URL if it exists
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-      
-      // Get array buffer from response
+      // Process audio response
       const arrayBuffer = await response.arrayBuffer();
       
-      // Create a blob with explicit MIME type and codec info
+      // Create audio blob
       const audioBlob = new Blob([arrayBuffer], { 
         type: 'audio/mpeg; codecs="mp3"'
       });
       
+      // Validate blob
       if (audioBlob.size === 0) {
         throw new Error('Received empty audio data');
       }
-      
-      // Create a URL for the blob and verify it's valid
+
+      // Clean up previous audio URL
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+
+      // Create and validate new audio URL
       const newAudioUrl = URL.createObjectURL(audioBlob);
       
-      // Validate the audio URL
-      const audio = new Audio();
-      audio.src = newAudioUrl;
-      
-      // Only set the URL if the audio loads successfully
-      await new Promise((resolve, reject) => {
-        audio.addEventListener('loadeddata', () => resolve(true));
-        audio.addEventListener('error', reject);
-        audio.load();
-      });
-      
-      // Update the audio URL state
+      // Update state and show success message
       setAudioUrl(newAudioUrl);
-      
       showNotification({
         message: 'Audio generated successfully',
         type: 'success'
       });
+
     } catch (error) {
-      console.error("Failed to generate speech:", error);
+      console.error('Speech generation error:', error);
       showNotification({
         message: error instanceof Error ? error.message : 'Failed to generate speech',
         type: 'error'
@@ -183,7 +174,7 @@ export default function TextToSpeech() {
           <Button
             onClick={handleGenerate}
             disabled={!textToRead.trim() || isProcessing}
-            className="w-full mb-4"
+            className="w-full"
           >
             <Mic className="w-4 h-4 mr-2" />
             {isProcessing ? "Generating..." : "Generate"}
@@ -207,19 +198,14 @@ export default function TextToSpeech() {
                     readyState: audioElement.readyState,
                   };
                   
+                  console.error('Audio Error:', errorInfo);
+                  
                   showNotification({
-                    message: `Audio Error: ${audioElement.error?.message || 'Unknown error'} (Code: ${errorInfo.code})
-                    Network State: ${errorInfo.networkState}
-                    Ready State: ${errorInfo.readyState}`,
+                    message: `Audio Error: ${errorInfo.message || 'Unknown error'} (Code: ${errorInfo.code})`,
                     type: 'error'
                   });
-                  
-                  // Update the UI to show error state
-                  setTextToRead(prev => prev + '\n\nAudio Error Details:\n' + 
-                    JSON.stringify(errorInfo, null, 2));
                 }}
                 onEnded={() => {
-                  // Optional: Clean up the audio URL when playback ends
                   if (audioUrl) {
                     URL.revokeObjectURL(audioUrl);
                     setAudioUrl(null);
