@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -9,9 +9,6 @@ export const users = pgTable('users', {
   theme: varchar('theme', { length: 10 }).default('light'),
   isAdmin: boolean('is_admin').default(false).notNull(),
   openaiApiKey: text('openai_api_key'),
-  dailyRequests: integer('daily_requests').default(0).notNull(),
-  dailyTokens: integer('daily_tokens').default(0).notNull(),
-  lastResetDate: timestamp('last_reset_date').defaultNow(),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

@@ -2,13 +2,9 @@ import { Router, type Express } from "express";
 import { signUp, signIn, signOut, checkAuth, checkAdmin, requireAdmin, getUsers, updateUser, updateUserPassword } from "./auth";
 import { updateTheme, getTheme, getOpenAIKey, updateOpenAIKey, getUserAPIStats, testOpenAIEndpoint } from "./user";
 import analyticsRoutes from "./analytics";
-import { apiMonitoringMiddleware, rateLimitMiddleware } from "../middleware/apiMonitoring";
 
 export function registerRoutes(app: Express): void {
   const router = Router();
-  
-  // Apply API monitoring middleware to all routes
-  router.use(apiMonitoringMiddleware);
 
   // Auth routes - Email/Password only
   router.post('/api/auth/signup', signUp);
@@ -23,7 +19,7 @@ export function registerRoutes(app: Express): void {
   router.get('/api/user/openai-key', getOpenAIKey);
   router.put('/api/user/openai-key', updateOpenAIKey);
   router.get('/api/user/api-stats', getUserAPIStats);
-  router.post('/api/user/test-openai', rateLimitMiddleware, testOpenAIEndpoint);
+  router.post('/api/user/test-openai', testOpenAIEndpoint);
 
   // Admin routes
   router.get('/api/admin/users', requireAdmin, getUsers);
