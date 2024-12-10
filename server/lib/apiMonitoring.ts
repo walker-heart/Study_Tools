@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from "express";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 
+import { apiKeyUsage } from '../db/schema';
+import type { InsertApiKeyUsage } from '../db/schema';
+
 interface APIUsageLog {
   userId: number;
   endpoint: string;
@@ -9,6 +12,7 @@ interface APIUsageLog {
   cost: number;
   success: boolean;
   errorMessage?: string;
+  resourceType?: 'text' | 'image' | 'speech';
 }
 
 export async function logAPIUsage({
@@ -19,31 +23,25 @@ export async function logAPIUsage({
   success,
   errorMessage,
   resourceType = 'text'
-}: APIUsageLog & { resourceType?: 'text' | 'image' | 'speech' }) {
+}: APIUsageLog) {
   try {
-    await db.execute(sql`
-      INSERT INTO api_key_usage (
-        user_id, 
-        endpoint, 
-        tokens_used, 
-        cost, 
-        success, 
-        error_message,
-        resource_type
-      )
-      VALUES (
-        ${userId}, 
-        ${endpoint}, 
-        ${tokensUsed}, 
-        ${cost}, 
-        ${success}, 
-        ${errorMessage || null},
-        ${resourceType}
-      )
-    `);
+    const insertData: InsertApiKeyUsage = {
+      userId,
+      endpoint,
+      tokensUsed,
+      cost,
+      success,
+      errorMessage,
+      resourceType
+    };
+
+    await db.insert(apiKeyUsage).values(insertData);
+    
     console.log(`API usage logged - Endpoint: ${endpoint}, Type: ${resourceType}, Success: ${success}`);
   } catch (error) {
     console.error('Error logging API usage:', error);
+    // Re-throw to allow handling by the caller
+    throw error;
   }
 }
 
@@ -72,6 +70,7 @@ export async function getAPIUsageStats(userId: number, days: number = 30) {
         last_used,
         image_requests,
         text_requests,
+        speech_requests,
         CASE 
           WHEN total_requests > 0 THEN 
             ROUND(((total_requests - failed_requests)::DECIMAL / total_requests::DECIMAL * 100), 1)
@@ -87,7 +86,10 @@ export async function getAPIUsageStats(userId: number, days: number = 30) {
       total_cost: 0,
       failed_requests: 0,
       success_rate: 100,
-      last_used: null
+      last_used: null,
+      image_requests: 0,
+      text_requests: 0,
+      speech_requests: 0
     };
   } catch (error) {
     console.error('Error fetching API usage stats:', error);
@@ -98,7 +100,10 @@ export async function getAPIUsageStats(userId: number, days: number = 30) {
       total_cost: 0,
       failed_requests: 0,
       success_rate: 100,
-      last_used: null
+      last_used: null,
+      image_requests: 0,
+      text_requests: 0,
+      speech_requests: 0
     };
   }
 }
