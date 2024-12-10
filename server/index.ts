@@ -52,8 +52,13 @@ function isOriginAllowed(origin: string | undefined) {
 
 const corsOptions: cors.CorsOptions = {
   origin: function(origin, callback) {
-    if (isOriginAllowed(origin)) {
+    if (!origin) {
       callback(null, true);
+      return;
+    }
+    
+    if (isOriginAllowed(origin)) {
+      callback(null, origin);
     } else {
       console.error(`Origin ${origin} not allowed by CORS`);
       callback(new Error('Not allowed by CORS'));
@@ -61,12 +66,26 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control'],
-  exposedHeaders: ['Set-Cookie', 'Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
+  exposedHeaders: ['Set-Cookie', 'Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials', 'Content-Length'],
   preflightContinue: false,
   optionsSuccessStatus: 204,
   maxAge: 86400 // 24 hours in seconds
 };
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Handle OPTIONS preflight requests
+app.options('*', cors(corsOptions));
+
+// Add security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
 
 // Apply CORS middleware
 app.use(cors(corsOptions));
@@ -171,18 +190,19 @@ const sessionConfig: session.SessionOptions = {
     createTableIfMissing: true,
     pruneSessionInterval: 60 * 15 // 15 minutes
   }),
-  name: 'sessionId',
+  name: 'sid',
   secret: env.JWT_SECRET!,
-  resave: true, // Required for our setup
+  resave: false,
   saveUninitialized: false,
   proxy: true,
-  rolling: true, // Refresh session with each request
+  rolling: true,
   cookie: {
     secure: env.NODE_ENV === 'production',
     httpOnly: true,
-    sameSite: 'none', // Required for cross-site cookies
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 24 * 60 * 60 * 1000,
     path: '/',
+    domain: undefined // Let browser set the cookie domain
   } as session.CookieOptions & {
     sameSite: 'none' | 'lax'
   }
