@@ -225,7 +225,13 @@ export async function generateSpeech(req: Request, res: Response) {
     const openai = new OpenAI({ apiKey });
 
     try {
-      console.log('Making request to OpenAI TTS API...');
+      console.log('Making request to OpenAI TTS API with key:', apiKey.substring(0, 10) + '...');
+      console.log('Request params:', { model: "tts-1", voice, textLength: text.length });
+      
+      if (!text.trim()) {
+        throw new Error('Empty text provided');
+      }
+
       const mp3 = await openai.audio.speech.create({
         model: "tts-1",
         voice,
@@ -236,15 +242,22 @@ export async function generateSpeech(req: Request, res: Response) {
       if (!mp3) {
         throw new Error('No response from OpenAI TTS API');
       }
+      
+      console.log('OpenAI API response received');
 
       console.log('Converting response to buffer...');
-      const buffer = Buffer.from(await mp3.arrayBuffer());
+      const arrayBuffer = await mp3.arrayBuffer();
+      console.log('Received array buffer type:', typeof arrayBuffer);
+      
+      const buffer = Buffer.from(arrayBuffer);
+      console.log('Converted to Buffer, length:', buffer.length);
 
       if (buffer.length === 0) {
         throw new Error('Received empty buffer from OpenAI');
       }
 
       console.log('Audio buffer size:', buffer.length, 'bytes');
+      console.log('Buffer is valid:', buffer.length > 0);
 
       // Log successful API usage
       await logAPIUsage({
