@@ -16,7 +16,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
           credentials: 'include', // Important for cookies
           headers: {
             'Cache-Control': 'no-cache', // Prevent caching of auth state
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
           },
+          mode: 'cors', // Explicitly set CORS mode
         });
         
         if (!response.ok) {

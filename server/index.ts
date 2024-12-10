@@ -36,12 +36,23 @@ const allowedOrigins = [
   'https://wtoolsw.com',
   'https://wtoolsw.repl.co',
   'http://localhost:3000',
-  'http://localhost:5000'
+  'http://localhost:5000',
+  /^https:\/\/.*\.repl\.co$/,
+  /^https:\/\/.*\.spock\.replit\.dev$/
 ];
+
+function isOriginAllowed(origin: string | undefined) {
+  if (!origin) return true;
+  return allowedOrigins.some(allowedOrigin => 
+    allowedOrigin instanceof RegExp 
+      ? allowedOrigin.test(origin)
+      : allowedOrigin === origin
+  );
+}
 
 const corsOptions: cors.CorsOptions = {
   origin: function(origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       console.error(`Origin ${origin} not allowed by CORS`);
@@ -162,16 +173,16 @@ const sessionConfig: session.SessionOptions = {
   }),
   name: 'sessionId',
   secret: env.JWT_SECRET!,
-  resave: false,
+  resave: true, // Required for our setup
   saveUninitialized: false,
   proxy: true,
+  rolling: true, // Refresh session with each request
   cookie: {
     secure: env.NODE_ENV === 'production',
     httpOnly: true,
-    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+    sameSite: 'none', // Required for cross-site cookies
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: '/',
-    domain: env.NODE_ENV === 'production' ? '.repl.co' : undefined
   } as session.CookieOptions & {
     sameSite: 'none' | 'lax'
   }

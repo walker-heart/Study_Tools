@@ -73,6 +73,14 @@ export async function signIn(req: Request, res: Response) {
     };
     req.session.authenticated = true;
     
+    // Save session explicitly
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    
     // Create a session record in the database
     const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     await sql`
@@ -82,6 +90,13 @@ export async function signIn(req: Request, res: Response) {
     
     // Also send JWT token for API authentication
     const token = jwt.sign({ userId: user.id }, JWT_SECRET!, { expiresIn: '24h' });
+
+    // Set cookie headers explicitly
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    const origin = req.get('origin');
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
 
     // Include theme in the response
     res.json({ 
