@@ -89,14 +89,14 @@ export default function APIManagement() {
           onClick={() => setLocation("/settings")}
           className={`w-32 ${location[0] === "/settings" 
             ? theme === 'dark' ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-white text-black hover:bg-gray-100"
-            : theme === 'dark' ? "bg-white text-black hover:bg-gray-100" : "bg-gray-900 text-white hover:bg-gray-800"}`}
+            : theme === 'dark' ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-white text-black hover:bg-gray-100"}`}
         >
           General
         </Button>
         <Button
           variant="outline"
           onClick={() => setLocation("/settings/api")}
-          className={`w-32 ${location[0] === "/settings/api" 
+          className={`w-32 ${location[0] === "/settings/api"
             ? theme === 'dark' ? "bg-white text-black hover:bg-gray-100" : "bg-gray-900 text-white hover:bg-gray-800"
             : theme === 'dark' ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-white text-black hover:bg-gray-100"}`}
         >
