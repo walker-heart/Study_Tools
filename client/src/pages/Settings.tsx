@@ -3,7 +3,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
 import { useLocation } from "wouter";
 import { useNotification } from "@/components/ui/notification";
 
@@ -71,7 +70,7 @@ export default function Settings() {
           </Button>
         </div>
 
-        {/* Account Settings at Bottom */}
+        {/* Account Settings */}
         <Card className={`p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
           <h2 className="text-xl font-semibold mb-4">Account Settings</h2>
           <div className="space-y-6">
@@ -107,7 +106,10 @@ export default function Settings() {
                     }
                   } catch (error) {
                     console.error('Sign out error:', error);
-                    alert('Failed to sign out. Please try again.');
+                    showNotification({
+                      message: 'Failed to sign out. Please try again.',
+                      type: 'error'
+                    });
                   }
                 }}
                 variant="outline"
@@ -125,7 +127,7 @@ export default function Settings() {
                 disabled
                 className="bg-gray-100 dark:bg-gray-700"
               />
-              <p className="text-sm text-gray-500">Contact support to change your email address</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Contact support to change your email address</p>
             </div>
 
             <div className="space-y-2">
@@ -156,103 +158,6 @@ export default function Settings() {
               >
                 Delete Account
               </Button>
-            </div>
-          </div>
-        </Card>
-      {/* OpenAI API Key Section */}
-        <Card className={`p-6 mt-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
-          <h2 className="text-xl font-semibold mb-4">API Keys</h2>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="openai-api-key">OpenAI API Key</Label>
-              <Input
-                id="openai-api-key"
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-..."
-                className="font-mono"
-              />
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Your OpenAI API key will be stored securely and used for AI-powered features
-              </p>
-            </div>
-            <Button 
-              onClick={async () => {
-                setIsLoading(true);
-                try {
-                  const response = await fetch('/api/user/openai-key', {
-                    method: 'PUT',
-                    credentials: 'include',
-                    headers: {
-                      'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ apiKey })
-                  });
-
-                  if (response.ok) {
-                    showNotification({
-                      message: 'API key updated successfully',
-                      type: 'success'
-                    });
-                  } else {
-                    throw new Error('Failed to update API key');
-                  }
-                } catch (error) {
-                  showNotification({
-                    message: 'Failed to update API key',
-                    type: 'error'
-                  });
-                  console.error('Error updating API key:', error);
-                } finally {
-                  setIsLoading(false);
-                }
-              }}
-              disabled={isLoading}
-              className="w-full"
-            >
-              {isLoading ? 'Updating...' : 'Update API Key'}
-            </Button>
-
-            {/* API Usage Statistics */}
-            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold mb-4">API Usage Statistics</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Total Requests</div>
-                  <div className="text-2xl font-semibold mt-1">
-                    {isLoadingStats ? "Loading..." : apiStats.total_requests.toLocaleString()}
-                  </div>
-                </div>
-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Total Tokens Used</div>
-                  <div className="text-2xl font-semibold mt-1">
-                    {isLoadingStats ? "Loading..." : apiStats.total_tokens.toLocaleString()}
-                  </div>
-                </div>
-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Total Cost</div>
-                  <div className="text-2xl font-semibold mt-1">
-                    {isLoadingStats ? "Loading..." : `$${apiStats.total_cost.toFixed(2)}`}
-                  </div>
-                </div>
-                <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700">
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Success Rate</div>
-                  <div className="text-2xl font-semibold mt-1">
-                    {isLoadingStats ? "Loading..." : `${apiStats.success_rate}%`}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4">
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={fetchApiStats}
-                  disabled={isLoadingStats}
-                >
-                  {isLoadingStats ? "Refreshing..." : "Refresh Statistics"}
-                </Button>
-              </div>
             </div>
           </div>
         </Card>
