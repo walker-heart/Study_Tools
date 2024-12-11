@@ -23,12 +23,47 @@ export default function TranslationTool() {
   const [, setLocation] = useLocation();
   const { showNotification } = useNotification();
 
-  const tenseOptions = [
-    { value: "neutral", label: "Natural Tense" },
-    { value: "present", label: "Present Tense" },
-    { value: "past", label: "Past Tense" },
-    { value: "future", label: "Future Tense" },
-  ];
+  // Define tenses for each language
+  const languageTenses = {
+    es: [
+      { value: "neutral", label: "Natural" },
+      { value: "present", label: "Present (Presente)" },
+      { value: "preterite", label: "Preterite (Pretérito)" },
+      { value: "imperfect", label: "Imperfect (Imperfecto)" },
+      { value: "future", label: "Future (Futuro)" },
+      { value: "conditional", label: "Conditional (Condicional)" },
+      { value: "present_perfect", label: "Present Perfect (Pretérito Perfecto)" },
+    ],
+    fr: [
+      { value: "neutral", label: "Natural" },
+      { value: "present", label: "Present (Présent)" },
+      { value: "past", label: "Past (Passé Composé)" },
+      { value: "imperfect", label: "Imperfect (Imparfait)" },
+      { value: "future", label: "Future (Futur)" },
+      { value: "conditional", label: "Conditional (Conditionnel)" },
+    ],
+    de: [
+      { value: "neutral", label: "Natural" },
+      { value: "present", label: "Present (Präsens)" },
+      { value: "past", label: "Past (Perfekt)" },
+      { value: "imperfect", label: "Imperfect (Präteritum)" },
+      { value: "future", label: "Future (Futur)" },
+    ],
+    // Default tenses for other languages
+    default: [
+      { value: "neutral", label: "Natural Tense" },
+      { value: "present", label: "Present Tense" },
+      { value: "past", label: "Past Tense" },
+      { value: "future", label: "Future Tense" },
+    ],
+  };
+
+  // Get tense options based on selected language
+  const getTenseOptions = (lang: string) => {
+    return languageTenses[lang as keyof typeof languageTenses] || languageTenses.default;
+  };
+
+  const tenseOptions = getTenseOptions(targetLanguage);
 
   const languages = [
     { code: "es", name: "Spanish" },
@@ -180,12 +215,44 @@ export default function TranslationTool() {
               
               <div>
                 <label className="block text-sm font-medium mb-2">Translation Tense</label>
-                <Select value={selectedTense} onValueChange={setSelectedTense}>
+                <Select 
+                  value={selectedTense} 
+                  onValueChange={(value) => {
+                    setSelectedTense(value);
+                    // Reset tense to neutral when changing languages if the current tense
+                    // isn't available in the new language
+                    const newTenseOptions = getTenseOptions(targetLanguage);
+                    if (!newTenseOptions.some(t => t.value === value)) {
+                      setSelectedTense('neutral');
+                    }
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
+                      <div className="px-3 py-2">
+                        <input
+                          className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                          placeholder="Search tenses..."
+                          onChange={(e) => {
+                            const searchTerm = e.target.value.toLowerCase();
+                            const filteredTenses = getTenseOptions(targetLanguage)
+                              .filter(tense => 
+                                tense.label.toLowerCase().includes(searchTerm)
+                              );
+                            // Update the visible options
+                            e.currentTarget.parentElement?.parentElement
+                              ?.querySelectorAll('[role="option"]')
+                              .forEach(option => {
+                                const shouldShow = filteredTenses
+                                  .some(t => t.value === option.getAttribute('data-value'));
+                                (option as HTMLElement).style.display = shouldShow ? '' : 'none';
+                              });
+                          }}
+                        />
+                      </div>
                       {tenseOptions.map((tense) => (
                         <SelectItem key={tense.value} value={tense.value}>
                           {tense.label}
