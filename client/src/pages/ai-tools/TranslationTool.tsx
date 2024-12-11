@@ -1,4 +1,4 @@
-import * as React from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,13 +20,13 @@ interface TenseOption {
 }
 
 export default function TranslationTool() {
-  const [sourceText, setSourceText] = React.useState("");
-  const [translatedText, setTranslatedText] = React.useState("");
-  const [targetLanguage, setTargetLanguage] = React.useState("es");
-  const [selectedTense, setSelectedTense] = React.useState("neutral");
-  const [isTranslating, setIsTranslating] = React.useState(false);
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [customization, setCustomization] = React.useState("");
+  const [sourceText, setSourceText] = useState("");
+  const [translatedText, setTranslatedText] = useState("");
+  const [targetLanguage, setTargetLanguage] = useState("es");
+  const [selectedTense, setSelectedTense] = useState("neutral");
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [customization, setCustomization] = useState("");
   const [, setLocation] = useLocation();
   const { showNotification } = useNotification();
 
@@ -165,23 +165,6 @@ export default function TranslationTool() {
     { code: "zh", name: "Chinese (中文)" },
   ];
 
-  // Filter tense options based on search term
-  const filteredTenseOptions = React.useMemo(() => 
-    tenseOptions.filter(tense => 
-      searchTerm.trim() === '' || 
-      tense.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tense.value.toLowerCase().includes(searchTerm.toLowerCase())
-    ),
-    [searchTerm, tenseOptions]
-  );
-
-  // Update selected tense when search term changes
-  React.useEffect(() => {
-    if (searchTerm.trim() !== '' && filteredTenseOptions.length > 0) {
-      setSelectedTense(filteredTenseOptions[0].value);
-    }
-  }, [searchTerm, filteredTenseOptions]);
-
   const handleTranslate = async () => {
     if (!sourceText.trim()) {
       showNotification({
@@ -222,6 +205,7 @@ export default function TranslationTool() {
 
       if (!response.ok) {
         const errorMessage = data.details || data.message || "Translation failed";
+        console.log('Translation error response:', { status: response.status, data });
         
         if (response.status === 400 && errorMessage.includes("API key")) {
           showNotification({
@@ -280,6 +264,13 @@ export default function TranslationTool() {
     }
   };
 
+  // Filter tense options based on search term
+  const filteredTenseOptions = tenseOptions.filter(tense => 
+    searchTerm.trim() === '' || 
+    tense.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    tense.value.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">AI Translation Tool</h1>
@@ -322,7 +313,7 @@ export default function TranslationTool() {
                   <div className="relative mb-2">
                     <input
                       type="text"
-                      className="w-full px-3 py-2 text-sm rounded-md bg-background text-foreground border border-input ring-offset-background transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
+                      className="w-full px-3 py-2 text-sm border rounded-md bg-background text-foreground border-input placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
                       placeholder="Search tenses..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
@@ -333,10 +324,8 @@ export default function TranslationTool() {
                   <Select 
                     value={selectedTense} 
                     onValueChange={setSelectedTense}
-                    open={searchTerm.length > 0}
-                    defaultValue={filteredTenseOptions[0]?.value}
                   >
-                    <SelectTrigger className="w-full bg-background text-foreground border-input">
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select a tense" />
                     </SelectTrigger>
                     <SelectContent>
@@ -345,7 +334,6 @@ export default function TranslationTool() {
                           <SelectItem 
                             key={tense.value} 
                             value={tense.value}
-                            className="cursor-pointer hover:bg-accent hover:text-accent-foreground"
                           >
                             {tense.label}
                           </SelectItem>
