@@ -64,15 +64,24 @@ console.log('Static files path:', publicPath);
 // Configure static file serving
 const staticFileOptions: Parameters<typeof express.static>[1] = {
   setHeaders: (res: express.Response, filePath: string) => {
-    if (path.extname(filePath).toLowerCase() === '.css') {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.css') {
       res.setHeader('Content-Type', 'text/css');
+    } else if (ext === '.js') {
+      res.setHeader('Content-Type', 'application/javascript');
+    } else if (ext === '.svg') {
+      res.setHeader('Content-Type', 'image/svg+xml');
     }
-    if (process.env.NODE_ENV === 'development') {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    }
+    // Set cache control headers
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
   },
   fallthrough: true,
-  index: false
+  index: false,
+  extensions: ['html', 'css', 'js'],
+  etag: false,
+  lastModified: false
 };
 
 // Ensure the directory exists
@@ -87,7 +96,15 @@ app.use(express.static(publicPath, staticFileOptions));
 // Handle CSS files in development
 if (process.env.NODE_ENV === 'development') {
   app.get('*.css', (req, res, next) => {
-    res.setHeader('Content-Type', 'text/css');
+    res.type('text/css');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    next();
+  });
+  
+  // Handle CSS module imports
+  app.get('*.module.css', (req, res, next) => {
+    res.type('text/css');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     next();
   });
 }
