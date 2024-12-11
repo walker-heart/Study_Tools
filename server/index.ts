@@ -322,8 +322,7 @@ async function main() {
         }
         log({
           message: `Database connection failed, retrying in ${backoff/1000} seconds...`,
-          retries_left: retries,
-          error: error instanceof Error ? error.message : String(error)
+          error_message: error instanceof Error ? error.message : String(error)
         }, 'warn');
         
         await new Promise(resolve => setTimeout(resolve, backoff));

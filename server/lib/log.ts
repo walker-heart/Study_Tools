@@ -2,6 +2,15 @@ import { env } from './env';
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
+export interface LogContext {
+  tableName?: string;
+  poolConfig?: {
+    max: number;
+    idleTimeoutMillis: number;
+    connectionTimeoutMillis: number;
+  }
+}
+
 export interface LogMessage {
   message: string;
   path?: string;
@@ -13,9 +22,15 @@ export interface LogMessage {
   realIP?: string | string[];
   forwardedFor?: string | string[];
   allowedOrigins?: string[];
-  level?: 'debug' | 'info' | 'warn' | 'error';
+  level?: LogLevel;
   errorCode?: string;
-  metadata?: Record<string, any>;
+  error_message?: string;
+  attempt?: number;
+  total_attempts?: number;
+  next_retry?: string | null;
+  retries_left?: number;
+  context?: LogContext;
+  metadata?: Record<string, unknown>;
 }
 
 function formatMessage(level: LogLevel, message: string, details?: Partial<LogMessage>): string {
@@ -50,7 +65,7 @@ function formatMessage(level: LogLevel, message: string, details?: Partial<LogMe
   }
 }
 
-export function log(input: string | Error | LogMessage, level: LogLevel = 'info'): void {
+export function log(input: string | Error | LogMessage, level?: LogLevel): void {
   const colors = {
     debug: '\x1b[36m', // cyan
     info: '\x1b[32m',  // green
@@ -94,7 +109,11 @@ export function log(input: string | Error | LogMessage, level: LogLevel = 'info'
 }
 
 // Export convenience methods
-export const debug = (message: string | Error | LogMessage) => log(message, 'debug');
-export const info = (message: string | Error | LogMessage) => log(message, 'info');
-export const warn = (message: string | Error | LogMessage) => log(message, 'warn');
-export const error = (message: string | Error | LogMessage) => log(message, 'error');
+export const debug = (message: string | Error | Omit<LogMessage, 'level'>): void => 
+  log(typeof message === 'object' && !('level' in message) ? { ...message, level: 'debug' } : message, 'debug');
+export const info = (message: string | Error | Omit<LogMessage, 'level'>): void => 
+  log(typeof message === 'object' && !('level' in message) ? { ...message, level: 'info' } : message, 'info');
+export const warn = (message: string | Error | Omit<LogMessage, 'level'>): void => 
+  log(typeof message === 'object' && !('level' in message) ? { ...message, level: 'warn' } : message, 'warn');
+export const error = (message: string | Error | Omit<LogMessage, 'level'>): void => 
+  log(typeof message === 'object' && !('level' in message) ? { ...message, level: 'error' } : message, 'error');
