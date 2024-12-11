@@ -180,7 +180,7 @@ export default function TranslationTool() {
           text: sourceText,
           targetLanguage,
           tense: selectedTense,
-          customization: customization.trim(),
+          customization: customization ? customization.trim() : '',
         }),
         credentials: 'include'
       });
