@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { log } from './log';
+import { log, LogMessage } from './log';
 import { randomUUID } from 'crypto';
 
 export interface ErrorContext {
