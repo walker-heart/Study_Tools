@@ -1,4 +1,5 @@
 import 'express-session';
+import { Session } from 'express-session';
 
 declare module 'express-session' {
   interface SessionData {
@@ -8,12 +9,18 @@ declare module 'express-session' {
       isAdmin?: boolean;
     };
     authenticated?: boolean;
+    originalID?: string;
+  }
+
+  interface SessionOptions {
+    store?: ReturnType<typeof import('connect-pg-simple')>;
   }
 }
 
 declare module 'express' {
   interface Request {
-    session: SessionData;
+    session: Session & SessionData;
+    sessionID?: string;
   }
 }
 

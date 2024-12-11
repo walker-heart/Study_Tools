@@ -96,7 +96,7 @@ function formatMessage(level: LogLevel, message: string, details?: Partial<LogMe
   }
 }
 
-export function log(input: string | Error | LogMessage): void {
+export function log(input: string | Error | LogMessage, level?: LogLevel): void {
   const colors = {
     debug: '\x1b[36m', // cyan
     info: '\x1b[32m',  // green
@@ -112,19 +112,20 @@ export function log(input: string | Error | LogMessage): void {
 
   if (typeof input === 'string') {
     message = input;
-    logLevel = 'info';
+    logLevel = level || 'info';
   } else if (input instanceof Error) {
     message = input.message;
     stack = input.stack;
-    logLevel = 'error';
+    logLevel = level || 'error';
   } else {
     message = input.message;
     stack = input.stack;
-    logLevel = input.level || 'info';
+    logLevel = level || input.level || 'info';
     details = {
       path: input.path,
       method: input.method,
-      status: input.status
+      status: input.status,
+      level: logLevel
     };
   }
 
@@ -163,11 +164,11 @@ function createLogMessage(
 }
 
 // Export convenience methods
-export const debug = (input: string | Error | Partial<Omit<LogMessage, 'level'>>): void => 
-  log(createLogMessage(input, 'debug'));
-export const info = (input: string | Error | Partial<Omit<LogMessage, 'level'>>): void => 
-  log(createLogMessage(input, 'info'));
-export const warn = (input: string | Error | Partial<Omit<LogMessage, 'level'>>): void => 
-  log(createLogMessage(input, 'warn'));
-export const error = (input: string | Error | Partial<Omit<LogMessage, 'level'>>): void => 
-  log(createLogMessage(input, 'error'));
+export const debug = (input: string | Error | Omit<LogMessage, 'level'>): void => 
+  log(typeof input === 'string' || input instanceof Error ? input : { ...input, level: 'debug' }, 'debug');
+export const info = (input: string | Error | Omit<LogMessage, 'level'>): void => 
+  log(typeof input === 'string' || input instanceof Error ? input : { ...input, level: 'info' }, 'info');
+export const warn = (input: string | Error | Omit<LogMessage, 'level'>): void => 
+  log(typeof input === 'string' || input instanceof Error ? input : { ...input, level: 'warn' }, 'warn');
+export const error = (input: string | Error | Omit<LogMessage, 'level'>): void => 
+  log(typeof input === 'string' || input instanceof Error ? input : { ...input, level: 'error' }, 'error');
