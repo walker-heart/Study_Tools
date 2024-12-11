@@ -73,19 +73,38 @@ if (!fs.existsSync(publicPath)) {
 
 app.use(express.static(publicPath, {
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
-    } else if (filePath.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css');
-    } else if (filePath.endsWith('.json')) {
-      res.setHeader('Content-Type', 'application/json');
-    } else if (filePath.endsWith('.svg')) {
-      res.setHeader('Content-Type', 'image/svg+xml');
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+      '.js': 'application/javascript',
+      '.css': 'text/css',
+      '.json': 'application/json',
+      '.svg': 'image/svg+xml',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif'
+    };
+    const mimeType = mimeTypes[ext];
+    if (mimeType) {
+      res.setHeader('Content-Type', mimeType);
+    }
+    // Add cache control for development
+    if (process.env.NODE_ENV === 'development') {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
   },
   fallthrough: true,
-  index: false
+  index: false,
+  maxAge: process.env.NODE_ENV === 'development' ? 0 : '1h'
 }));
+
+// Add specific route for CSS files in development
+if (process.env.NODE_ENV === 'development') {
+  app.get('*.css', (req, res, next) => {
+    res.setHeader('Content-Type', 'text/css');
+    next();
+  });
+}
 
 // Handle client-side routing
 app.get('*', (req, res, next) => {
@@ -238,20 +257,38 @@ app.use((req, res, next) => {
 
     // Configure environment-specific settings
     if (process.env.NODE_ENV === "development") {
-      await setupVite(app, server);
+      console.log('Setting up Vite middleware for development...');
+      try {
+        await setupVite(app, server);
+        console.log('Vite middleware setup successful');
+      } catch (error) {
+        console.error('Failed to setup Vite middleware:', error);
+        throw error;
+      }
     } else {
-      serveStatic(app);
-      
-      // Serve index.html for all routes in production
-      app.get('*', (_req, res) => {
-        // Send the index.html file with proper content type
-        res.set('Content-Type', 'text/html');
-        res.sendFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'), {
-          headers: {
-            'Cache-Control': 'no-cache',
+      console.log('Setting up static file serving for production...');
+      try {
+        serveStatic(app);
+        
+        // Serve index.html for all routes in production
+        app.get('*', (_req, res) => {
+          const indexPath = path.join(__dirname, '..', 'dist', 'public', 'index.html');
+          if (!fs.existsSync(indexPath)) {
+            console.error(`Index file not found at ${indexPath}`);
+            return res.status(404).send('Application not built properly');
           }
+          res.set('Content-Type', 'text/html');
+          res.sendFile(indexPath, {
+            headers: {
+              'Cache-Control': 'no-cache',
+            }
+          });
         });
-      });
+        console.log('Static file serving setup successful');
+      } catch (error) {
+        console.error('Failed to setup static file serving:', error);
+        throw error;
+      }
     }
 
     // Generic error handler
