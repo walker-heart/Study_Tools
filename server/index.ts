@@ -1,41 +1,37 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
+import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
-import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import cors from "cors";
+import path from "path";
+import fs from "fs";
 import pkg from 'pg';
 const { Pool } = pkg;
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
-import path from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
-import fs from 'fs';
-
-const pgSession = connectPgSimple(session);
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-function log(message: string) {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
-  console.log(`${formattedTime} [express] ${message}`);
-}
+import { log } from "./lib/log";
 
 const app = express();
-// Configure CORS middleware
+
+// Configure CORS middleware with strict origin checking
 const corsOptions: cors.CorsOptions = {
-  origin: true, // Allow all origins in development and production
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      env.APP_URL,
+      'http://localhost:3000',
+      'http://localhost:5000'
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
@@ -45,88 +41,73 @@ const corsOptions: cors.CorsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 
-// Basic security headers
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
+// Rate limiting configuration
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiting to all routes
+app.use(limiter);
+
+// Enhanced security headers middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // Strict Transport Security
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  // Content Security Policy
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';");
+  // Prevent clickjacking
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  // XSS Protection
   res.setHeader('X-XSS-Protection', '1; mode=block');
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Referrer Policy
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Permissions Policy
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   next();
 });
 
-// Serve static files with proper MIME types and error handling
-const publicPath = path.resolve(__dirname, '..', process.env.NODE_ENV === 'development' ? 'client' : 'dist/public');
+// Rate limiting configuration
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-console.log('Environment:', process.env.NODE_ENV);
-console.log('Static files path:', publicPath);
+// Apply rate limiting to all routes
+app.use(limiter);
 
-// Configure static file serving
-const staticFileOptions: Parameters<typeof express.static>[1] = {
-  setHeaders: (res: express.Response, filePath: string) => {
-    const ext = path.extname(filePath).toLowerCase();
-    if (ext === '.css') {
-      res.setHeader('Content-Type', 'text/css');
-    } else if (ext === '.js') {
-      res.setHeader('Content-Type', 'application/javascript');
-    } else if (ext === '.svg') {
-      res.setHeader('Content-Type', 'image/svg+xml');
-    }
-    // Set development-specific cache headers
-    if (process.env.NODE_ENV === 'development') {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-    } else {
-      res.setHeader('Cache-Control', 'public, max-age=31536000');
-    }
-  },
-  fallthrough: true,
-  index: false,
-  dotfiles: 'ignore',
-  extensions: ['html', 'css', 'js'],
-  etag: true,
-  lastModified: true,
-  maxAge: process.env.NODE_ENV === 'development' ? 0 : '1y'
-};
-
-// Ensure the directory exists
-if (!fs.existsSync(publicPath)) {
-  console.log(`Creating directory: ${publicPath}`);
-  fs.mkdirSync(publicPath, { recursive: true });
-}
-
-// Serve static files
-app.use(express.static(publicPath, staticFileOptions));
-
-// Handle CSS files in development
-if (process.env.NODE_ENV === 'development') {
-  app.get('*.css', (req, res, next) => {
-    res.type('text/css');
-    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-    next();
-  });
-  
-  // Handle CSS module imports
-  app.get('*.module.css', (req, res, next) => {
-    res.type('text/css');
-    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-    next();
-  });
-}
-
-// Handle client-side routing
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    return next();
-  }
-  res.setHeader('Content-Type', 'text/html');
-  res.sendFile(path.join(publicPath, 'index.html'));
+// Enhanced security headers middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // Strict Transport Security
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  // Content Security Policy
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';");
+  // Prevent clickjacking
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  // XSS Protection
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Referrer Policy
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Permissions Policy
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
 });
 
 // Configure request size limits and parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 // Configure PostgreSQL pool for session store
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
@@ -142,12 +123,11 @@ pool.query('SELECT NOW()', (err) => {
   }
 });
 
-// Configure session middleware with enhanced debugging
+// Configure session middleware with enhanced security
 if (env.NODE_ENV === 'production') {
   app.set('trust proxy', 1); // Trust first proxy
 }
 
-console.log('Configuring session store with database connection');
 const pgStore = connectPgSimple(session);
 const sessionConfig: session.SessionOptions = {
   store: new pgStore({
@@ -195,45 +175,85 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// Add static file error handling
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  if (err.code === 'ENOENT') {
-    log(`Static file not found: ${req.url}`);
-    next();
-  } else {
-    next(err);
-  }
-});
+// Serve static files with proper MIME types and error handling
+const publicPath = path.resolve(__dirname, '..', process.env.NODE_ENV === 'development' ? 'client' : 'dist/public');
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+// Configure static file serving
+const staticFileOptions: Parameters<typeof express.static>[1] = {
+  setHeaders: (res: express.Response, filePath: string) => {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.css') {
+      res.setHeader('Content-Type', 'text/css');
+    } else if (ext === '.js') {
+      res.setHeader('Content-Type', 'application/javascript');
+    } else if (ext === '.svg') {
+      res.setHeader('Content-Type', 'image/svg+xml');
     }
-  });
+    // Set development-specific cache headers
+    if (process.env.NODE_ENV === 'development') {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+    }
+  },
+  fallthrough: true,
+  index: false,
+  dotfiles: 'ignore',
+  extensions: ['html', 'css', 'js'],
+  etag: true,
+  lastModified: true,
+  maxAge: process.env.NODE_ENV === 'development' ? 0 : '1y'
+};
 
-  next();
+// Ensure the public directory exists
+if (!fs.existsSync(publicPath)) {
+  console.log(`Creating directory: ${publicPath}`);
+  fs.mkdirSync(publicPath, { recursive: true });
+}
+
+// Serve static files
+app.use(express.static(publicPath, staticFileOptions));
+
+// Handle CSS files in development
+if (process.env.NODE_ENV === 'development') {
+  app.get('*.css', (req, res, next) => {
+    res.type('text/css');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    next();
+  });
+  
+  // Handle CSS module imports
+  app.get('*.module.css', (req, res, next) => {
+    res.type('text/css');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    next();
+  });
+}
+
+// Register API routes
+registerRoutes(app);
+
+// Handle client-side routing
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  res.setHeader('Content-Type', 'text/html');
+  res.sendFile(path.join(publicPath, 'index.html'));
 });
+
+// Generic error handler
+app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+  const status = (err.status || err.statusCode || 500);
+  const message = err.message || "Internal Server Error";
+  log(`Error: ${message}`);
+  res.status(status).json({ message });
+});
+
+// Start the server
+const PORT = parseInt(process.env.PORT || '5000', 10);
 
 (async () => {
   log('Starting server initialization...');
@@ -255,13 +275,28 @@ app.use((req, res, next) => {
       log('Database connection successful');
     } catch (error) {
       log('Error connecting to database: ' + (error instanceof Error ? error.message : String(error)));
-      log('Database connection string (redacted): ' + env.DATABASE_URL.replace(/\/\/.*@/, '//***:***@'));
+      throw new Error('Failed to connect to database. Check DATABASE_URL and database status.');
+    }
+    // Check required environment variables
+    log('Checking environment variables...');
+    const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
+    const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    
+    if (missingEnvVars.length > 0) {
+      log(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+      throw new Error('Missing required environment variables');
+    }
+
+    // Verify database connection first
+    try {
+      log('Attempting to connect to database...');
+      await db.execute(sql`SELECT 1`);
+      log('Database connection successful');
+    } catch (error) {
+      log('Error connecting to database: ' + (error instanceof Error ? error.message : String(error)));
       throw new Error('Failed to connect to database. Check DATABASE_URL and database status.');
     }
 
-    // Register routes after successful database connection
-    registerRoutes(app);
-    
     const server = createServer(app);
 
     // Configure environment-specific settings
@@ -278,21 +313,6 @@ app.use((req, res, next) => {
       console.log('Setting up static file serving for production...');
       try {
         serveStatic(app);
-        
-        // Serve index.html for all routes in production
-        app.get('*', (_req, res) => {
-          const indexPath = path.join(__dirname, '..', 'dist', 'public', 'index.html');
-          if (!fs.existsSync(indexPath)) {
-            console.error(`Index file not found at ${indexPath}`);
-            return res.status(404).send('Application not built properly');
-          }
-          res.set('Content-Type', 'text/html');
-          res.sendFile(indexPath, {
-            headers: {
-              'Cache-Control': 'no-cache',
-            }
-          });
-        });
         console.log('Static file serving setup successful');
       } catch (error) {
         console.error('Failed to setup static file serving:', error);
@@ -300,16 +320,7 @@ app.use((req, res, next) => {
       }
     }
 
-    // Generic error handler
-    app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
-      const status = (err.status || err.statusCode || 500);
-      const message = err.message || "Internal Server Error";
-      log(`Error: ${message}`);
-      res.status(status).json({ message });
-    });
-
     // Start the server
-    const PORT = parseInt(process.env.PORT || '5000', 10);
     server.listen(PORT, '0.0.0.0', () => {
       log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
       log(`APP_URL: ${env.APP_URL}`);
