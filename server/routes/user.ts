@@ -752,12 +752,13 @@ export async function translateText(req: Request, res: Response) {
 
       // Make API request with detailed logging
       console.log('Making OpenAI API call...');
+      const customInstructions = req.body.customPrompt ? `Additional instructions: ${req.body.customPrompt}. ` : '';
       const response = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
           {
             role: "system",
-            content: `You are a professional translator. Translate the following text to ${targetLanguage}. ${tenseInstruction} Provide only the direct translation without any additional notes or explanations.`
+            content: `You are a professional translator. ${customInstructions}Translate the following text to ${targetLanguage}. ${tenseInstruction} Provide only the direct translation without any additional notes or explanations.`
           },
           {
             role: "user",
