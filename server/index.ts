@@ -59,10 +59,20 @@ app.use((req, res, next) => {
 const publicPath = path.join(__dirname, '..', 'dist', 'public');
 log(`Serving static files from: ${publicPath}`);
 
-// Basic static file serving configuration
+// Basic static file serving configuration with proper MIME types
 app.use(express.static(publicPath, {
-  index: false // Let our router handle the index route
+  index: false, // Let our router handle the index route
+  setHeaders: (res, path) => {
+    if (path.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css');
+    }
+  }
 }));
+
+// Serve assets from client/public directory in development
+if (process.env.NODE_ENV === 'development') {
+  app.use(express.static(path.join(__dirname, '..', 'client', 'public')));
+}
 
 // Handle static file errors
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
@@ -219,8 +229,16 @@ app.use((req, res, next) => {
       await setupVite(app, server);
     } else {
       serveStatic(app);
+      
+      // Serve index.html for all routes in production
       app.get('*', (_req, res) => {
-        res.sendFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'));
+        // Send the index.html file with proper content type
+        res.set('Content-Type', 'text/html');
+        res.sendFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'), {
+          headers: {
+            'Cache-Control': 'no-cache',
+          }
+        });
       });
     }
 
