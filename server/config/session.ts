@@ -171,7 +171,8 @@ async function initializeSessionStore() {
         error({
           message: 'Error closing pool during fallback',
           stack: poolError instanceof Error ? poolError.stack : undefined,
-          error_message: poolError instanceof Error ? poolError.message : String(poolError)
+          error_message: poolError instanceof Error ? poolError.message : String(poolError),
+          level: 'error'
         });
       }
     }
