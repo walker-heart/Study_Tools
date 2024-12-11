@@ -313,7 +313,7 @@ export default function TranslationTool() {
                   <div className="relative mb-2">
                     <input
                       type="text"
-                      className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      className="w-full px-3 py-2 text-sm border rounded-md bg-background text-foreground border-input placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
                       placeholder="Search tenses..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
