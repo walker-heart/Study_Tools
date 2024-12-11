@@ -3,31 +3,8 @@ import rateLimit from 'express-rate-limit';
 import { env } from '../lib/env';
 import { log } from '../lib/log';
 
-// Rate limiting configuration for auth endpoints
-export const authLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 10, // limit each IP to 10 requests per windowMs for auth endpoints
-  message: { error: 'Too many login attempts, please try again after 5 minutes' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => env.NODE_ENV === 'development',
-  handler: (req: Request, res: Response) => {
-    log({
-      message: 'Rate limit exceeded for auth endpoint',
-      path: req.path,
-      method: req.method,
-      ip: req.ip,
-      realIP: req.headers['x-real-ip'],
-      forwardedFor: req.headers['x-forwarded-for']
-    }, 'warn');
-    res.status(429).json({ 
-      error: 'Too many attempts',
-      message: 'Please try again after 5 minutes',
-      retryAfter: res.getHeader('Retry-After')
-    });
-  },
-  trustProxy: false // Disable trust proxy to prevent validation errors
-});
+// Note: Auth-specific rate limiting removed as it was causing unnecessary friction
+// We now rely on general rate limiting and other security measures
 
 // Security headers middleware
 export function securityHeaders(req: Request, res: Response, next: NextFunction) {

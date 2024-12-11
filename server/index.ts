@@ -79,45 +79,53 @@ const corsOptions: cors.CorsOptions = {
   preflightContinue: false
 };
 
-// Configure rate limiting with proper proxy handling and improved security
+// Configure basic rate limiting for DoS protection
 const limiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: env.NODE_ENV === 'production' ? 200 : 1000, // Increased limit
-  message: { error: 'Too many requests, please try again after 5 minutes.' },
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 500, // Allow more requests
+  message: { error: 'Too many requests, please try again shortly.' },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => env.NODE_ENV === 'development',
+  skip: (req) => {
+    // Skip rate limiting for auth routes and in development
+    return req.path.startsWith('/api/auth/') || env.NODE_ENV === 'development';
+  },
   handler: (req: Request, res: Response) => {
     log({
       message: 'Rate limit exceeded',
       path: req.path,
       method: req.method,
-      ip: req.ip,
-      realIP: req.headers['x-real-ip'],
-      forwardedFor: req.headers['x-forwarded-for']
+      ip: req.ip
     }, 'warn');
     res.status(429).json({ 
       error: 'Too many requests',
-      message: 'Please try again after 5 minutes',
-      retryAfter: res.getHeader('Retry-After')
+      message: 'Please try again shortly'
     });
   },
-  trustProxy: false, // Disable trust proxy validation
-  keyGenerator: (req) => {
-    return req.ip || 'unknown';
+  // Configure trust proxy more securely
+  trustProxy: (ip) => {
+    // Only trust Replit's infrastructure and local development
+    return ip === '127.0.0.1' || 
+           ip.startsWith('10.') || 
+           ip.startsWith('172.16.') || 
+           ip.startsWith('192.168.');
   }
 });
 
-import { securityHeaders, authLimiter, sanitizeInput, sessionSecurity } from './middleware/security';
+import { securityHeaders, sanitizeInput, sessionSecurity } from './middleware/security';
 
 // Initialize middleware
 async function initializeMiddleware() {
   try {
     // Environment-specific settings
     if (env.NODE_ENV === 'production') {
-      // Trust first proxy and configure for Replit's environment
-      app.set('trust proxy', true);
-      app.enable('trust proxy');
+      // Configure trust proxy for Replit's environment
+      app.set('trust proxy', (ip: string) => {
+        return ip === '127.0.0.1' || 
+               ip.startsWith('10.') || 
+               ip.startsWith('172.16.') || 
+               ip.startsWith('192.168.');
+      });
     } else {
       app.set('json spaces', 2);
     }
@@ -138,9 +146,8 @@ async function initializeMiddleware() {
     // Apply CORS
     app.use(cors(corsOptions));
     
-    // Apply rate limiters
-    app.use('/api/auth/*', authLimiter);  // Stricter limits for auth endpoints
-    app.use(limiter);  // General rate limiting for other routes
+    // Apply general rate limiting for DoS protection
+    app.use(limiter);
     
     // Apply parameter sanitization
     app.use(sanitizeInput);
@@ -305,8 +312,9 @@ async function main() {
 
       server.on('error', (error: NodeJS.ErrnoException) => {
         if (error.code === 'EADDRINUSE') {
-          log(`Port ${PORT} is already in use`, 'error');
-          reject(new Error(`Port ${PORT} is already in use`));
+          // Try the next available port
+          log(`Port ${PORT} is in use, trying ${PORT + 1}`, 'warn');
+          server.listen(PORT + 1, '0.0.0.0');
         } else {
           log(`Server error: ${error.message}`, 'error');
           reject(error);
