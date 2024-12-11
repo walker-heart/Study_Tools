@@ -284,7 +284,7 @@ export default function TranslationTool() {
                 value={sourceText}
                 onChange={(e) => setSourceText(e.target.value)}
                 placeholder="Enter text to translate..."
-                className="min-h-[200px]"
+                className="min-h-[200px] bg-background text-foreground placeholder:text-muted-foreground"
               />
             </div>
             
@@ -367,7 +367,7 @@ export default function TranslationTool() {
                 value={customization}
                 onChange={(e) => setCustomization(e.target.value)}
                 placeholder="Add any specific translation instructions or preferences..."
-                className="min-h-[100px]"
+                className="min-h-[100px] bg-background text-foreground placeholder:text-muted-foreground"
               />
             </div>
 
@@ -396,7 +396,7 @@ export default function TranslationTool() {
                 value={translatedText}
                 readOnly
                 placeholder="Translation will appear here..."
-                className="min-h-[200px]"
+                className="min-h-[200px] bg-background text-foreground placeholder:text-muted-foreground"
               />
             </div>
           </div>
