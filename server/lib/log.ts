@@ -13,6 +13,9 @@ interface LogMessage {
   realIP?: string | string[];
   forwardedFor?: string | string[];
   allowedOrigins?: string[];
+  level?: 'debug' | 'info' | 'warn' | 'error';
+  errorCode?: string;
+  metadata?: Record<string, any>;
 }
 
 function formatMessage(level: LogLevel, message: string, details?: Partial<LogMessage>): string {
