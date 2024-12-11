@@ -72,16 +72,22 @@ const staticFileOptions: Parameters<typeof express.static>[1] = {
     } else if (ext === '.svg') {
       res.setHeader('Content-Type', 'image/svg+xml');
     }
-    // Set cache control headers
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
+    // Set development-specific cache headers
+    if (process.env.NODE_ENV === 'development') {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+    }
   },
   fallthrough: true,
   index: false,
+  dotfiles: 'ignore',
   extensions: ['html', 'css', 'js'],
-  etag: false,
-  lastModified: false
+  etag: true,
+  lastModified: true,
+  maxAge: process.env.NODE_ENV === 'development' ? 0 : '1y'
 };
 
 // Ensure the directory exists
