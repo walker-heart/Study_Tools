@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,8 +27,23 @@ export default function TranslationTool() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [customization, setCustomization] = useState("");
+  const [filteredTenses, setFilteredTenses] = useState(languageTenses.es);
   const [, setLocation] = useLocation();
   const { showNotification } = useNotification();
+
+  // Update filtered tenses when search term or language changes
+  useEffect(() => {
+    const currentTenses = getTenseOptions(targetLanguage);
+    if (!searchTerm) {
+      setFilteredTenses(currentTenses);
+      return;
+    }
+    const filtered = currentTenses.filter(tense => 
+      tense.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      tense.value.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredTenses(filtered);
+  }, [searchTerm, targetLanguage]);
 
   // Define tenses for each language
   const languageTenses: Record<string, TenseOption[]> = {
@@ -302,48 +317,24 @@ export default function TranslationTool() {
               
               <div>
                 <label className="block text-sm font-medium mb-2">Translation Tense</label>
-                <Select 
-                  value={selectedTense} 
-                  onValueChange={setSelectedTense}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <div className="px-3 py-2">
-                      <input
-                        type="text"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                        placeholder="Search tenses..."
-                        value={searchTerm}
-                        onChange={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setSearchTerm(e.target.value.toLowerCase());
-                        }}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key !== 'Escape') {
-                            e.stopPropagation();
-                          }
-                        }}
-                      />
-                    </div>
-                    <SelectGroup>
-                      {tenseOptions
-                        .filter(tense => 
-                          !searchTerm || 
-                          tense.label.toLowerCase().includes(searchTerm) ||
-                          tense.value.toLowerCase().includes(searchTerm)
-                        )
-                        .map((tense) => (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    placeholder="Type to filter tenses..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                  <Select 
+                    value={selectedTense} 
+                    onValueChange={setSelectedTense}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a tense" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {filteredTenses.map((tense) => (
                           <SelectItem 
                             key={tense.value} 
                             value={tense.value}
@@ -351,18 +342,15 @@ export default function TranslationTool() {
                             {tense.label}
                           </SelectItem>
                         ))}
-                      {tenseOptions.filter(tense => 
-                        !searchTerm || 
-                        tense.label.toLowerCase().includes(searchTerm) ||
-                        tense.value.toLowerCase().includes(searchTerm)
-                      ).length === 0 && (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">
-                          No tenses found
-                        </div>
-                      )}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                        {filteredTenses.length === 0 && (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">
+                            No tenses found
+                          </div>
+                        )}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
