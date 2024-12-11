@@ -32,10 +32,6 @@ args = "Build Client"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Flask Server"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "Express Server"
 
 [[workflows.workflow]]
@@ -51,21 +47,6 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npm run build"
-
-[[workflows.workflow]]
-name = "Flask Server"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "NODE_ENV=development npm run dev"
-waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Express Server"
