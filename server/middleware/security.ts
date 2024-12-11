@@ -144,13 +144,16 @@ export function sessionSecurity(req: Request, res: Response, next: NextFunction)
       const error = new AuthenticationError('Unauthorized admin access attempt', {
         path: req.path,
         method: req.method,
-        statusCode: 403
+        statusCode: 403,
+        errorCode: 'ADMIN_ACCESS_DENIED'
       });
       const context = trackError(error, req);
       return res.status(403).json({
         message: 'Access denied',
-        error: 'Administrator access required',
-        requestId: context.requestId
+        error: 'Administrator privileges required for this action',
+        details: 'Please contact your system administrator if you need access',
+        requestId: context.requestId,
+        code: 'ADMIN_ACCESS_DENIED'
       });
     }
   }
