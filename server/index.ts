@@ -55,11 +55,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files from the Vite build output
+// Serve static files from multiple directories
 const publicPath = path.join(__dirname, '..', 'dist', 'public');
-log(`Serving static files from: ${publicPath}`);
+const clientPublicPath = path.join(__dirname, '..', 'client', 'public');
+log(`Serving static files from: ${publicPath} and ${clientPublicPath}`);
 
-// Basic static file serving configuration
+// Serve files from client/public first (for development)
+app.use(express.static(clientPublicPath, {
+  index: false
+}));
+
+// Then serve from dist/public
 app.use(express.static(publicPath, {
   index: false // Let our router handle the index route
 }));
