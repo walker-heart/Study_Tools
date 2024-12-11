@@ -1,10 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Switch, Route, Link } from "wouter";
-// Import global styles
-import "./index.css";
-// Import component styles
-import "./styles/memorization.css";
+// Import styles in correct order
+import "../src/index.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { SettingsProvider } from "./contexts/SettingsContext";
