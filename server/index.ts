@@ -22,10 +22,20 @@ const __dirname = path.dirname(__filename);
 // Initialize express app
 const app = express();
 
-// Define extended error type for better type safety
+// Define extended error types for better type safety
 interface ExtendedError extends Error {
   status?: number;
   statusCode?: number;
+  context?: {
+    statusCode?: number;
+    errorCode?: string;
+  };
+}
+
+interface TypedRequest extends Request {
+  session: Session & SessionData;
+  sessionID?: string;
+  requestId?: string;
 }
 
 // Configure CORS options

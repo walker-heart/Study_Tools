@@ -8,9 +8,14 @@ import { log, debug, info, warn, error } from '../lib/log';
 import type { LogMessage, LogLevel } from '../lib/log';
 
 // Define a type for the error message
-type SessionError = LogMessage & {
+type SessionError = Omit<LogMessage, 'level'> & {
   level: LogLevel;
-  context?: Record<string, unknown>;
+  context?: {
+    operation?: string;
+    fallback?: string;
+    tableName?: string;
+    poolConfig?: Record<string, number>;
+  };
 };
 
 const MemoryStoreSession = MemoryStore(session);
@@ -177,13 +182,13 @@ async function initializeSessionStore(): Promise<session.Store> {
           message: 'Error closing pool during fallback',
           stack: poolError instanceof Error ? poolError.stack : undefined,
           error_message: poolError instanceof Error ? poolError.message : String(poolError),
-          level: 'error',
+          level: 'error' as const,
           context: {
             operation: 'pool_cleanup',
             fallback: 'memory_store'
           }
         };
-        error(errorMessage);
+        error(errorMessage as LogMessage);
       }
     }
 
