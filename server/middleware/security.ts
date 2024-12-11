@@ -5,9 +5,9 @@ import { log } from '../lib/log';
 
 // Rate limiting configuration for auth endpoints
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 requests per windowMs for auth endpoints
-  message: { error: 'Too many login attempts, please try again later' },
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 10, // limit each IP to 10 requests per windowMs for auth endpoints
+  message: { error: 'Too many login attempts, please try again after 5 minutes' },
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => env.NODE_ENV === 'development',
@@ -22,10 +22,11 @@ export const authLimiter = rateLimit({
     }, 'warn');
     res.status(429).json({ 
       error: 'Too many attempts',
-      message: 'Please try again later',
+      message: 'Please try again after 5 minutes',
       retryAfter: res.getHeader('Retry-After')
     });
-  }
+  },
+  trustProxy: false // Disable trust proxy to prevent validation errors
 });
 
 // Security headers middleware
