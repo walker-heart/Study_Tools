@@ -21,8 +21,89 @@ import { log } from "./lib/log";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize express app
+// Initialize express app with enhanced security
 const app = express();
+
+// Enhanced server startup function with better error handling
+async function startServer() {
+  const PORT = parseInt(process.env.PORT || '5000', 10);
+
+  try {
+    // Validate environment variables
+    const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
+    const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    
+    if (missingEnvVars.length > 0) {
+      throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    }
+
+    // Initialize database connection with retry mechanism
+    let retries = 5;
+    while (retries > 0) {
+      try {
+        await db.execute(sql`SELECT 1`);
+        log('Database connection successful', 'info');
+        break;
+      } catch (dbError) {
+        retries--;
+        if (retries === 0) {
+          throw new Error(`Failed to connect to database after 5 attempts: ${dbError}`);
+        }
+        log(`Database connection attempt failed, retrying... (${retries} attempts remaining)`, 'warn');
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+      }
+    }
+
+    const server = createServer(app);
+
+    // Configure environment-specific settings
+    if (env.NODE_ENV === "development") {
+      try {
+        await setupVite(app, server);
+        log('Vite middleware setup successful', 'info');
+      } catch (viteError) {
+        log(`Vite middleware setup failed: ${viteError}`, 'error');
+        throw viteError;
+      }
+    } else {
+      serveStatic(app);
+      log('Static file serving setup successful', 'info');
+    }
+
+    // Enhanced error handling for server startup
+    await new Promise<void>((resolve, reject) => {
+      server.listen(PORT, '0.0.0.0', () => {
+        log(`Server running in ${env.NODE_ENV || 'development'} mode on port ${PORT}`, 'info');
+        log(`APP_URL: ${env.APP_URL}`, 'info');
+        resolve();
+      });
+
+      server.on('error', (error: Error & { code?: string }) => {
+        if (error.code === 'EADDRINUSE') {
+          reject(new Error(`Port ${PORT} is already in use. Please free up the port or use a different one.`));
+        } else {
+          reject(new Error(`Server startup failed: ${error.message}`));
+        }
+      });
+    });
+
+    // Global error handling for uncaught exceptions
+    process.on('uncaughtException', (error: Error) => {
+      log(`Uncaught Exception: ${error.message}`, 'error');
+      log(error.stack || 'No stack trace available', 'error');
+      process.exit(1);
+    });
+
+    process.on('unhandledRejection', (reason: unknown) => {
+      log(`Unhandled Promise Rejection: ${reason}`, 'error');
+      process.exit(1);
+    });
+
+  } catch (error) {
+    log(`Fatal error during server startup: ${error}`, 'error');
+    process.exit(1);
+  }
+}
 
 // Security middleware configurations
 const corsOptions: cors.CorsOptions = {
@@ -46,7 +127,26 @@ const corsOptions: cors.CorsOptions = {
   optionsSuccessStatus: 204
 };
 
-// Rate limiting configuration
+// Configure security middleware
+const securityMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  // Set comprehensive security headers
+  const securityHeaders = {
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+    'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';",
+    'X-Frame-Options': 'SAMEORIGIN',
+    'X-XSS-Protection': '1; mode=block',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+  };
+  
+  Object.entries(securityHeaders).forEach(([header, value]) => {
+    res.setHeader(header, value);
+  });
+  next();
+};
+
+// Configure rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
@@ -58,18 +158,7 @@ const limiter = rateLimit({
 // Apply security middleware
 app.use(cors(corsOptions));
 app.use(limiter);
-
-// Security headers middleware
-app.use((req: Request, res: Response, next: NextFunction) => {
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';");
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  next();
-});
+app.use(securityMiddleware);
 
 // Request parsing middleware with size limits
 app.use(express.json({ limit: '10mb' }));
@@ -87,13 +176,18 @@ if (env.NODE_ENV === 'production') {
 }
 
 const pgStore = connectPgSimple(session);
-const sessionConfig: session.SessionOptions = {
+// Configure session store with enhanced security and error handling
+const sessionConfig = {
   store: new pgStore({
     pool,
     tableName: 'session',
     createTableIfMissing: true,
     pruneSessionInterval: 60 * 15, // 15 minutes
-    errorLog: (error: Error) => log(error, 'error')
+    errorLog: (error: Error) => {
+      log(error, 'error');
+      // Notify about session store errors but don't crash
+      console.error('Session store error:', error);
+    }
   }),
   name: 'sid',
   secret: env.JWT_SECRET!,
@@ -108,33 +202,85 @@ const sessionConfig: session.SessionOptions = {
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: '/',
     domain: undefined
-  } as session.CookieOptions & {
-    sameSite: 'none' | 'lax'
   }
+} satisfies session.SessionOptions;
+
+// Cast cookie options with proper type
+const cookieOptions = sessionConfig.cookie as session.CookieOptions & {
+  sameSite: 'none' | 'lax';
 };
 
-app.use(session(sessionConfig));
+// Validate session configuration
+if (!env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required for session security');
+}
 
-// Static file serving configuration
+if (env.NODE_ENV === 'production' && !cookieOptions.secure) {
+  log('Warning: Session cookies should be secure in production', 'warn');
+}
+
+// Initialize session with comprehensive error handling
+try {
+  app.use(session(sessionConfig));
+  log('Session middleware initialized successfully', 'info');
+} catch (error) {
+  log(`Failed to initialize session middleware: ${error}`, 'error');
+  if (error instanceof Error) {
+    log(error.stack || 'No stack trace available', 'error');
+  }
+  // Fail fast if session initialization fails as it's critical for app security
+  process.exit(1);
+}
+
+// Add session error handler with detailed logging
+app.use((err: Error, _req: Request, _res: Response, next: NextFunction) => {
+  if (err.name === 'SessionError') {
+    log(`Session error occurred: ${err.message}`, 'error');
+    if (err.stack) {
+      log(`Session error stack trace: ${err.stack}`, 'error');
+    }
+  }
+  next(err);
+});
+
+// Enhanced static file serving configuration with proper MIME types and caching
 const publicPath = path.resolve(__dirname, '..', env.NODE_ENV === 'development' ? 'client' : 'dist/public');
 const staticFileOptions: Parameters<typeof express.static>[1] = {
   setHeaders: (res: express.Response, filePath: string) => {
     const ext = path.extname(filePath).toLowerCase();
-    if (ext === '.css') {
-      res.setHeader('Content-Type', 'text/css');
-    } else if (ext === '.js') {
-      res.setHeader('Content-Type', 'application/javascript');
-    } else if (ext === '.svg') {
-      res.setHeader('Content-Type', 'image/svg+xml');
+    // Enhanced MIME type mapping
+    const mimeTypes: Record<string, string> = {
+      '.css': 'text/css',
+      '.js': 'application/javascript',
+      '.svg': 'image/svg+xml',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.woff': 'font/woff',
+      '.woff2': 'font/woff2'
+    };
+
+    // Set appropriate content type
+    if (mimeTypes[ext]) {
+      res.setHeader('Content-Type', mimeTypes[ext]);
     }
     
+    // Environment-specific cache control
     if (env.NODE_ENV === 'development') {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
     } else {
-      res.setHeader('Cache-Control', 'public, max-age=31536000');
+      // Use different cache strategies based on file type
+      const maxAge = ext === '.html' ? '1h' : '1y';
+      res.setHeader('Cache-Control', `public, max-age=${maxAge === '1h' ? 3600 : 31536000}`);
     }
+
+    // Additional security headers for static content
+    res.setHeader('X-Content-Type-Options', 'nosniff');
   },
   fallthrough: true,
   index: false,
@@ -172,56 +318,6 @@ app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, r
   log(message, 'error');
   res.status(status).json({ message });
 });
-
-// Server startup function
-async function startServer() {
-  const PORT = parseInt(process.env.PORT || '5000', 10);
-
-  try {
-    // Check required environment variables
-    const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
-    const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
-    
-    if (missingEnvVars.length > 0) {
-      throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
-    }
-
-    // Verify database connection
-    await db.execute(sql`SELECT 1`);
-    log('Database connection successful', 'info');
-
-    const server = createServer(app);
-
-    // Configure environment-specific settings
-    if (env.NODE_ENV === "development") {
-      await setupVite(app, server);
-      log('Vite middleware setup successful', 'info');
-    } else {
-      serveStatic(app);
-      log('Static file serving setup successful', 'info');
-    }
-
-    // Start the server
-    server.listen(PORT, '0.0.0.0', () => {
-      log(`Server running in ${env.NODE_ENV || 'development'} mode on port ${PORT}`, 'info');
-      log(`APP_URL: ${env.APP_URL}`, 'info');
-    });
-
-    // Handle server errors
-    server.on('error', (error: Error & { code?: string }) => {
-      if (error.code === 'EADDRINUSE') {
-        log('Port 5000 is already in use. Please free up the port or use a different one.', 'error');
-      } else {
-        log(`Server error: ${error.message}`, 'error');
-      }
-      process.exit(1);
-    });
-
-  } catch (error) {
-    log(`Fatal error during server startup: ${error}`, 'error');
-    process.exit(1);
-  }
-}
 
 // Start the server
 startServer();
