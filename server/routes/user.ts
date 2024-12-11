@@ -603,13 +603,22 @@ export async function translateText(req: Request, res: Response) {
     const openai = new OpenAI({ apiKey });
 
     try {
-      console.log('Sending translation request:', { 
+      // Log the API call attempt
+      console.log('Initiating OpenAI translation:', { 
         targetLanguage, 
         textLength: text.length,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        apiKeyLength: apiKey.length,
+        hasOpenAI: !!openai
       });
 
-      // Make API request
+      // Validate API key format
+      if (!apiKey.startsWith('sk-')) {
+        throw new Error('Invalid OpenAI API key format');
+      }
+
+      // Make API request with detailed logging
+      console.log('Making OpenAI API call...');
       const response = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
@@ -626,20 +635,32 @@ export async function translateText(req: Request, res: Response) {
         max_tokens: Math.max(1000, text.length * 2)
       });
 
-      console.log('OpenAI response received:', {
+      // Log detailed API response
+      console.log('OpenAI API response received:', {
         status: 'success',
         hasChoices: !!response.choices?.length,
         messagePresent: !!response.choices?.[0]?.message,
-        tokensUsed: response.usage?.total_tokens
+        tokensUsed: response.usage?.total_tokens,
+        model: response.model,
+        responseTimestamp: new Date().toISOString()
       });
 
-      // Validate response
-      if (!response.choices?.[0]?.message?.content) {
-        console.error('Invalid OpenAI response structure:', response);
-        throw new Error('Received invalid response format from OpenAI');
+      // Detailed response validation
+      if (!response.choices?.length) {
+        throw new Error('OpenAI API returned no choices');
+      }
+      
+      if (!response.choices[0]?.message?.content) {
+        console.error('Invalid OpenAI response structure:', JSON.stringify(response, null, 2));
+        throw new Error('OpenAI API response missing translation content');
       }
 
       const translation = response.choices[0].message.content.trim();
+      console.log('Translation completed successfully:', {
+        originalLength: text.length,
+        translatedLength: translation.length,
+        targetLanguage
+      });
 
       // Log successful API usage
       try {
