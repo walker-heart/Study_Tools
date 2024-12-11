@@ -33,9 +33,24 @@ export interface LogMessage {
   metadata?: Record<string, unknown>;
 }
 
+interface FormattedLogObject {
+  timestamp: string;
+  level: string;
+  message: string;
+  requestId?: unknown;
+  path?: string;
+  method?: string;
+  status?: number;
+  errorCode?: string;
+  ip?: string;
+  userId?: unknown;
+  stack?: string;
+  [key: string]: unknown;
+}
+
 function formatMessage(level: LogLevel, message: string, details?: Partial<LogMessage>): string {
   const timestamp = new Date().toISOString();
-  const logObject = {
+  const logObject: FormattedLogObject = {
     timestamp,
     level: level.toUpperCase(),
     message,
@@ -45,27 +60,43 @@ function formatMessage(level: LogLevel, message: string, details?: Partial<LogMe
     status: details?.status,
     errorCode: details?.errorCode,
     ip: details?.ip,
-    userId: details?.metadata?.userId,
-    ...(details?.metadata || {}),
-    ...(details?.stack ? { stack: details.stack } : {})
+    userId: details?.metadata?.userId
   };
+
+  // Add metadata fields
+  if (details?.metadata) {
+    Object.entries(details.metadata).forEach(([key, value]) => {
+      logObject[key] = value;
+    });
+  }
+
+  // Add stack trace if present
+  if (details?.stack) {
+    logObject.stack = details.stack;
+  }
 
   if (env.NODE_ENV === 'production') {
     // In production, return JSON format for easier parsing
     return JSON.stringify(logObject);
   } else {
     // In development, return human-readable format
-    let formatted = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
-    if (details?.path) formatted += ` | Path: ${details.path}`;
-    if (details?.method) formatted += ` | Method: ${details.method}`;
-    if (details?.status) formatted += ` | Status: ${details.status}`;
-    if (details?.errorCode) formatted += ` | Error: ${details.errorCode}`;
-    if (details?.metadata?.requestId) formatted += ` | RequestID: ${details.metadata.requestId}`;
-    return formatted;
+    const parts: string[] = [
+      `[${timestamp}]`,
+      `[${level.toUpperCase()}]`,
+      message
+    ];
+
+    if (details?.path) parts.push(`Path: ${details.path}`);
+    if (details?.method) parts.push(`Method: ${details.method}`);
+    if (details?.status) parts.push(`Status: ${details.status}`);
+    if (details?.errorCode) parts.push(`Error: ${details.errorCode}`);
+    if (details?.metadata?.requestId) parts.push(`RequestID: ${details.metadata.requestId}`);
+
+    return parts.join(' | ');
   }
 }
 
-export function log(input: string | Error | LogMessage, level?: LogLevel): void {
+export function log(input: string | Error | LogMessage): void {
   const colors = {
     debug: '\x1b[36m', // cyan
     info: '\x1b[32m',  // green
@@ -77,15 +108,19 @@ export function log(input: string | Error | LogMessage, level?: LogLevel): void 
   let message: string;
   let stack: string | undefined;
   let details: Partial<LogMessage> | undefined;
+  let logLevel: LogLevel;
 
   if (typeof input === 'string') {
     message = input;
+    logLevel = 'info';
   } else if (input instanceof Error) {
     message = input.message;
     stack = input.stack;
+    logLevel = 'error';
   } else {
     message = input.message;
     stack = input.stack;
+    logLevel = input.level || 'info';
     details = {
       path: input.path,
       method: input.method,
@@ -93,27 +128,46 @@ export function log(input: string | Error | LogMessage, level?: LogLevel): void 
     };
   }
 
-  const formattedMessage = formatMessage(level, message, details);
+  const formattedMessage = formatMessage(logLevel, message, details);
+  const consoleMethod = console[logLevel] || console.log;
   
   if (env.NODE_ENV === 'production') {
-    console[level](formattedMessage);
+    consoleMethod(formattedMessage);
     if (stack) {
-      console[level](stack);
+      consoleMethod(stack);
     }
   } else {
-    console[level](`${colors[level]}${formattedMessage}${colors.reset}`);
+    consoleMethod(`${colors[logLevel]}${formattedMessage}${colors.reset}`);
     if (stack) {
-      console[level](`${colors[level]}${stack}${colors.reset}`);
+      consoleMethod(`${colors[logLevel]}${stack}${colors.reset}`);
     }
   }
 }
 
+// Helper function to create a LogMessage from various input types
+function createLogMessage(
+  input: string | Error | Partial<Omit<LogMessage, 'level'>>, 
+  level: LogLevel
+): LogMessage {
+  if (typeof input === 'string') {
+    return { message: input, level };
+  }
+  if (input instanceof Error) {
+    return {
+      message: input.message,
+      stack: input.stack,
+      level
+    };
+  }
+  return { ...input, message: input.message || 'No message provided', level };
+}
+
 // Export convenience methods
-export const debug = (message: string | Error | Omit<LogMessage, 'level'>): void => 
-  log(typeof message === 'object' && !('level' in message) ? { ...message, level: 'debug' } : message, 'debug');
-export const info = (message: string | Error | Omit<LogMessage, 'level'>): void => 
-  log(typeof message === 'object' && !('level' in message) ? { ...message, level: 'info' } : message, 'info');
-export const warn = (message: string | Error | Omit<LogMessage, 'level'>): void => 
-  log(typeof message === 'object' && !('level' in message) ? { ...message, level: 'warn' } : message, 'warn');
-export const error = (message: string | Error | Omit<LogMessage, 'level'>): void => 
-  log(typeof message === 'object' && !('level' in message) ? { ...message, level: 'error' } : message, 'error');
+export const debug = (input: string | Error | Partial<Omit<LogMessage, 'level'>>): void => 
+  log(createLogMessage(input, 'debug'));
+export const info = (input: string | Error | Partial<Omit<LogMessage, 'level'>>): void => 
+  log(createLogMessage(input, 'info'));
+export const warn = (input: string | Error | Partial<Omit<LogMessage, 'level'>>): void => 
+  log(createLogMessage(input, 'warn'));
+export const error = (input: string | Error | Partial<Omit<LogMessage, 'level'>>): void => 
+  log(createLogMessage(input, 'error'));

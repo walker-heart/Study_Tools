@@ -12,7 +12,7 @@ import fs from "fs";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
-import { log } from "./lib/log";
+import { log, debug, info, warn, error } from "./lib/log";
 import { createSessionConfig } from './config/session';
 
 // ES Module compatibility
@@ -62,11 +62,11 @@ const corsOptions: cors.CorsOptions = {
     if (isAllowed) {
       callback(null, true);
     } else {
-      log({
+      warn({
         message: 'CORS blocked origin',
         origin,
         allowedOrigins: allowedOrigins.map(o => o.toString())
-      }, 'warn');
+      });
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -93,12 +93,12 @@ const limiter = rateLimit({
            env.NODE_ENV === 'development';
   },
   handler: (req: Request, res: Response) => {
-    log({
+    warn({
       message: 'Rate limit exceeded',
       path: req.path,
       method: req.method,
       ip: req.ip
-    }, 'warn');
+    });
     res.status(429).json({ 
       error: 'Too many requests',
       message: 'Please try again in a few minutes'
@@ -133,7 +133,7 @@ async function initializeMiddleware() {
     }
     app.set('x-powered-by', false);
     
-    log(`Server initializing in ${env.NODE_ENV} mode`, 'info');
+    info(`Server initializing in ${env.NODE_ENV} mode`);
 
     // Initialize session first
     const sessionConfig = await createSessionConfig();
