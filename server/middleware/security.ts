@@ -4,6 +4,7 @@ import { env } from '../lib/env';
 import { log } from '../lib/log';
 import { db } from '../db';
 import { sql } from 'drizzle-orm';
+import { AuthenticationError, trackError } from '../lib/errorTracking';
 
 // Session cleanup middleware
 export async function cleanupSessions(req: Request, _res: Response, next: NextFunction) {
