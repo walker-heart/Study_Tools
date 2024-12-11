@@ -66,9 +66,13 @@ export function trackError(error: Error | AppError, req?: Request, res?: Respons
 
   log({
     message: error.message,
-    type: error.name, // Changed errorType to type to match LogMessage type
+    errorCode: 'context' in error ? error.context.errorCode : 'UNKNOWN_ERROR',
     level: 'error',
-    ...context,
+    metadata: {
+      errorName: error.name,
+      errorType: error.constructor.name,
+      ...context
+    }
   }, 'error');
 
   return context;
