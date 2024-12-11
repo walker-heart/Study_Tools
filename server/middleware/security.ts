@@ -2,9 +2,25 @@ import type { Request, Response, NextFunction } from "express";
 import rateLimit from 'express-rate-limit';
 import { env } from '../lib/env';
 import { log } from '../lib/log';
+import { db } from '../db';
+import { sql } from 'drizzle-orm';
 
-// Note: Auth-specific rate limiting removed as it was causing unnecessary friction
-// We now rely on general rate limiting and other security measures
+// Session cleanup middleware
+export async function cleanupSessions(req: Request, _res: Response, next: NextFunction) {
+  try {
+    // Only run cleanup periodically (e.g., every 100 requests)
+    if (Math.random() < 0.01) {
+      await db.execute(sql`
+        UPDATE user_sessions 
+        SET ended_at = NOW() 
+        WHERE ended_at IS NULL 
+        AND created_at < NOW() - INTERVAL '24 hours'`);
+    }
+  } catch (error) {
+    console.error('Session cleanup error:', error);
+  }
+  next();
+}
 
 // Security headers middleware
 export function securityHeaders(req: Request, res: Response, next: NextFunction) {

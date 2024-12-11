@@ -112,7 +112,7 @@ const limiter = rateLimit({
   }
 });
 
-import { securityHeaders, sanitizeInput, sessionSecurity } from './middleware/security';
+import { securityHeaders, sanitizeInput, sessionSecurity, cleanupSessions } from './middleware/security';
 
 // Initialize middleware
 async function initializeMiddleware() {
@@ -139,6 +139,9 @@ async function initializeMiddleware() {
       throw new Error('Failed to create session configuration');
     }
     app.use(session(sessionConfig));
+    
+    // Add session cleanup middleware
+    app.use(cleanupSessions);
 
     // Apply basic security headers
     app.use(securityHeaders);
