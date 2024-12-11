@@ -194,35 +194,87 @@ async function initializeMiddleware() {
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
     // Static file serving with proper caching
+    // Ensure static directories exist and are accessible
     const publicPath = path.resolve(__dirname, '..', 'dist', 'public');
-    if (!fs.existsSync(publicPath)) {
-      fs.mkdirSync(publicPath, { recursive: true });
+    const assetsPath = path.join(publicPath, 'assets');
+    
+    try {
+      // Create directories if they don't exist
+      [publicPath, assetsPath].forEach(dir => {
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true, mode: 0o755 });
+          info(`Created directory: ${dir}`);
+        }
+      });
+      
+      // Verify directory access
+      fs.accessSync(publicPath, fs.constants.R_OK);
+      fs.accessSync(assetsPath, fs.constants.R_OK);
+      
+      info('Static directories verified and accessible', {
+        publicPath,
+        assetsPath,
+        mode: env.NODE_ENV
+      });
+    } catch (err) {
+      error({
+        message: 'Failed to setup static directories',
+        error: err instanceof Error ? err.message : String(err),
+        paths: { publicPath, assetsPath }
+      });
+      throw err;
     }
 
-    // Configure static file serving
-    app.use('/assets', express.static(path.join(publicPath, 'assets'), {
+    // Configure static file serving with better error handling
+    const serveStaticWithLogging = (staticPath: string, options: any) => {
+      return (req: Request, res: Response, next: NextFunction) => {
+        express.static(staticPath, options)(req, res, (err) => {
+          if (err) {
+            error({
+              message: 'Static file error',
+              path: req.path,
+              error: err instanceof Error ? err.message : String(err)
+            });
+            next(err);
+          } else {
+            next();
+          }
+        });
+      };
+    };
+
+    // Serve assets with long cache duration
+    app.use('/assets', serveStaticWithLogging(path.join(publicPath, 'assets'), {
       maxAge: env.NODE_ENV === 'production' ? '1y' : 0,
       etag: true,
       lastModified: true,
-      fallthrough: false // Return 404 if file not found
+      immutable: true,
+      index: false,
+      fallthrough: true
     }));
 
-    // Serve other static files
-    app.use(express.static(publicPath, {
+    // Serve other static files with shorter cache
+    app.use(serveStaticWithLogging(publicPath, {
       maxAge: env.NODE_ENV === 'production' ? '1d' : 0,
       etag: true,
-      lastModified: true
+      lastModified: true,
+      index: false
     }));
 
-    // Add error handler for static files
+    // Final handler for static files
     app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
-      if (err.message.includes('ENOENT')) {
+      if (err.message?.includes('ENOENT') || err.message?.includes('not found')) {
         error({
           message: 'Static file not found',
           path: req.path,
           error: err.message
         });
-        res.status(404).json({ message: 'File not found' });
+        if (req.path.startsWith('/assets/')) {
+          res.status(404).json({ message: 'Asset not found', path: req.path });
+        } else {
+          // For non-asset routes, let the client-side router handle it
+          res.sendFile(path.join(publicPath, 'index.html'));
+        }
       } else {
         next(err);
       }
