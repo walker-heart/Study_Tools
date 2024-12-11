@@ -19,7 +19,8 @@ export async function setupVite(app: Express, server: Server) {
     appType: "custom",
   });
 
-  app.use(vite.middlewares);
+  app.use(express.static(path.resolve(__dirname, "..", "favicon_io")));
+app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 
