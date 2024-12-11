@@ -141,10 +141,6 @@ app.use('/assets', express.static(path.join(publicPath, 'assets'), {
   fallthrough: true
 }));
 
-// Configure request size limits and parsers first
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
 // Handle static file errors
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   if (err.code === 'ENOENT') {
@@ -158,27 +154,20 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 // Log static file paths for debugging
 log(`Serving static files from: ${publicPath}`);
+
+// Configure request size limits and parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Configure PostgreSQL pool for session store
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
   ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-interface PostgresError extends Error {
-  code?: string;
-}
-
-// Test database connection with detailed error logging
-pool.query('SELECT NOW()', (err: PostgresError | null) => {
+// Test database connection
+pool.query('SELECT NOW()', (err) => {
   if (err) {
-    console.error('Database connection error details:', {
-      error: err.message,
-      code: err.code,
-      stack: err.stack,
-      connectionString: env.DATABASE_URL?.replace(/:[^:@]*@/, ':****@') // Mask password
-    });
-    log('Failed to connect to database. Check connection string and credentials.');
-    process.exit(1); // Exit if we can't connect to database
+    console.error('Database connection error:', err);
   } else {
     log('Database connection successful');
   }
@@ -197,16 +186,13 @@ const sessionConfig: session.SessionOptions = {
     tableName: 'session',
     createTableIfMissing: true,
     pruneSessionInterval: 60 * 15, // 15 minutes
-    errorLog: (error: Error) => {
-      console.error('Session store error:', error);
-      log(`Session store error: ${error.message}`);
-    }
+    errorLog: console.error.bind(console, 'Session store error:')
   }),
   name: 'sid',
   secret: env.JWT_SECRET!,
   resave: false,
   saveUninitialized: false,
-  proxy: env.NODE_ENV === 'production',
+  proxy: true,
   rolling: true,
   cookie: {
     secure: env.NODE_ENV === 'production',
@@ -214,21 +200,11 @@ const sessionConfig: session.SessionOptions = {
     sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: '/',
+    domain: undefined // Let browser set the cookie domain
   } as session.CookieOptions & {
     sameSite: 'none' | 'lax'
   }
 };
-
-// Add process-level error handling
-process.on('uncaughtException', (error: Error) => {
-  log(`Uncaught Exception: ${error.message}`);
-  console.error('Uncaught Exception:', error);
-});
-
-process.on('unhandledRejection', (reason: unknown) => {
-  log(`Unhandled Rejection: ${reason instanceof Error ? reason.message : String(reason)}`);
-  console.error('Unhandled Rejection:', reason);
-});
 
 // Log session configuration for debugging
 console.log('Session configuration:', {
@@ -241,69 +217,23 @@ console.log('Session configuration:', {
 
 app.use(session(sessionConfig));
 
-interface ApplicationError extends Error {
-  status?: number;
-  statusCode?: number;
-  code?: string;
-  originalError?: Error;
-}
-
-// Global error handling middleware
-app.use((err: ApplicationError, req: Request, res: Response, next: NextFunction) => {
-  const timestamp = new Date().toISOString();
-  const errorId = Math.random().toString(36).substring(7);
-  
-  log(`[${errorId}] Error handling request to ${req.path}: ${err.message}`);
-  console.error(`[${errorId}] Request error:`, {
-    timestamp,
-    path: req.path,
-    error: err.message,
-    stack: err.stack,
-    code: err.code,
-    method: req.method,
-    query: req.query,
-    headers: req.headers,
-    originalError: err.originalError
-  });
-
-  // Handle specific error types
+// Add session error handling
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   if (err.name === 'UnauthorizedError') {
-    return res.status(401).json({ 
-      message: 'Invalid token',
-      errorId 
-    });
+    res.status(401).json({ message: 'Invalid token' });
+  } else {
+    next(err);
   }
+});
 
+// Add static file error handling
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   if (err.code === 'ENOENT') {
-    log(`[${errorId}] Static file not found: ${req.url}`);
-    return next();
+    log(`Static file not found: ${req.url}`);
+    next();
+  } else {
+    next(err);
   }
-
-  // Handle known error types with specific status codes
-  const knownErrors: Record<string, number> = {
-    'ValidationError': 400,
-    'AuthenticationError': 401,
-    'ForbiddenError': 403,
-    'NotFoundError': 404,
-    'ConflictError': 409,
-    'RateLimitError': 429
-  };
-
-  const status = err.status || err.statusCode || knownErrors[err.name] || 500;
-  const message = err.message || 'Internal Server Error';
-  
-  // Don't expose internal error details in production
-  const response = {
-    message,
-    status,
-    errorId,
-    ...(env.NODE_ENV !== 'production' && { 
-      stack: err.stack,
-      code: err.code 
-    })
-  };
-
-  res.status(status).json(response);
 });
 
 app.use((req, res, next) => {
@@ -338,36 +268,23 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Validate required environment variables first
-    const requiredEnvVars = {
-      'DATABASE_URL': process.env.DATABASE_URL,
-      'JWT_SECRET': process.env.JWT_SECRET,
-      'NODE_ENV': process.env.NODE_ENV,
-    };
-
-    const missingVars = Object.entries(requiredEnvVars)
-      .filter(([_, value]) => !value)
-      .map(([key]) => key);
-
-    if (missingVars.length > 0) {
-      log(`Error: Missing required environment variables: ${missingVars.join(', ')}`);
+    // Verify database connection first
+    try {
+      await db.execute(sql`SELECT 1`);
+      log('Database connection successful');
+    } catch (error) {
+      log('Error connecting to database: ' + error);
       process.exit(1);
     }
 
-    log('Environment variables validated successfully');
+    // Check for required environment variables
+    if (!process.env.JWT_SECRET) {
+      log('Error: JWT_SECRET is not set. Authentication will not work properly.');
+      process.exit(1);
+    }
 
-    // Verify database connection with enhanced error handling
-    try {
-      await db.execute(sql`SELECT 1`);
-      log('Database connection test successful');
-    } catch (error) {
-      const err = error as Error;
-      log('Database connection test failed:');
-      console.error('Database Error Details:', {
-        message: err.message,
-        stack: err.stack,
-        time: new Date().toISOString()
-      });
+    if (!process.env.DATABASE_URL) {
+      log('Error: DATABASE_URL is not set. Database connections will fail.');
       process.exit(1);
     }
 
@@ -395,61 +312,15 @@ app.use((req, res, next) => {
       });
     }
 
-    // Start the server with enhanced logging
-    const PORT = parseInt(process.env.PORT || '3000', 10);
-    const VITE_PORT = parseInt(process.env.VITE_PORT || '5000', 10);
-    
-    log(`Environment: ${app.get("env")}`);
-    log(`Attempting to start server on port ${PORT}...`);
-    
-    // Configure port based on environment
-    const serverPort = app.get("env") === "development" ? PORT : VITE_PORT;
-    
-    // Add event listeners before starting the server
-    server.on('error', (error: Error & { code?: string }) => {
-      if (error.code === 'EADDRINUSE') {
-        log(`Critical Error: Port ${serverPort} is already in use`);
-        // Try alternative port in development
-        if (app.get("env") === "development" && serverPort === PORT) {
-          log(`Attempting to use alternative port ${VITE_PORT}...`);
-          server.listen({
-            port: VITE_PORT,
-            host: '0.0.0.0'
-          });
-          return;
-        }
-      } else {
-        log(`Critical Error starting server: ${error.message}`);
-        console.error('Server start error details:', {
-          error: error.message,
-          stack: error.stack,
-          code: error.code,
-          time: new Date().toISOString()
-        });
-      }
-      process.exit(1);
-    });
-
-    server.on('listening', () => {
-      const addr = server.address();
-      const actualPort = typeof addr === 'string' ? addr : addr?.port;
-      log(`Server successfully bound to port ${actualPort}`);
-      log(`Server running in ${app.get("env")} mode`);
+    // Start the server
+    const PORT = parseInt(process.env.PORT || '5000', 10);
+    server.listen({
+      port: PORT,
+      host: '0.0.0.0'
+    }, () => {
+      log(`Server running in ${app.get("env")} mode on port ${PORT}`);
       log(`APP_URL: ${env.APP_URL}`);
-      log('Server startup sequence completed');
     });
-
-    // Attempt to start the server
-    try {
-      server.listen({
-        port: serverPort,
-        host: '0.0.0.0'
-      });
-    } catch (error) {
-      log(`Fatal error during server.listen(): ${error}`);
-      console.error('Server listen error:', error);
-      process.exit(1);
-    }
   } catch (error) {
     log(`Fatal error during server startup: ${error}`);
     process.exit(1);

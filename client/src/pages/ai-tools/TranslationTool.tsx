@@ -28,33 +28,113 @@ export default function TranslationTool() {
     es: [
       { value: "neutral", label: "Natural" },
       { value: "present", label: "Present (Presente)" },
-      { value: "preterite", label: "Preterite (Pretérito)" },
+      { value: "preterite", label: "Preterite (Pretérito Indefinido)" },
       { value: "imperfect", label: "Imperfect (Imperfecto)" },
-      { value: "future", label: "Future (Futuro)" },
-      { value: "conditional", label: "Conditional (Condicional)" },
+      { value: "future", label: "Future (Futuro Simple)" },
+      { value: "conditional", label: "Conditional (Condicional Simple)" },
       { value: "present_perfect", label: "Present Perfect (Pretérito Perfecto)" },
+      { value: "past_perfect", label: "Past Perfect (Pretérito Pluscuamperfecto)" },
+      { value: "future_perfect", label: "Future Perfect (Futuro Perfecto)" },
+      { value: "conditional_perfect", label: "Conditional Perfect (Condicional Perfecto)" },
+      { value: "present_subjunctive", label: "Present Subjunctive (Presente Subjuntivo)" },
+      { value: "past_subjunctive", label: "Past Subjunctive (Pretérito Imperfecto Subjuntivo)" },
+      { value: "future_subjunctive", label: "Future Subjunctive (Futuro Subjuntivo)" }
     ],
     fr: [
       { value: "neutral", label: "Natural" },
       { value: "present", label: "Present (Présent)" },
-      { value: "past", label: "Past (Passé Composé)" },
+      { value: "passe_compose", label: "Present Perfect (Passé Composé)" },
       { value: "imperfect", label: "Imperfect (Imparfait)" },
-      { value: "future", label: "Future (Futur)" },
-      { value: "conditional", label: "Conditional (Conditionnel)" },
+      { value: "passe_simple", label: "Simple Past (Passé Simple)" },
+      { value: "future", label: "Future (Futur Simple)" },
+      { value: "past_perfect", label: "Past Perfect (Plus-que-parfait)" },
+      { value: "future_perfect", label: "Future Perfect (Futur Antérieur)" },
+      { value: "conditional_perfect", label: "Conditional Perfect (Conditionnel Passé)" },
+      { value: "present_subjunctive", label: "Present Subjunctive (Subjonctif Présent)" },
+      { value: "past_subjunctive", label: "Past Subjunctive (Subjonctif Passé)" }
     ],
     de: [
       { value: "neutral", label: "Natural" },
       { value: "present", label: "Present (Präsens)" },
-      { value: "past", label: "Past (Perfekt)" },
-      { value: "imperfect", label: "Imperfect (Präteritum)" },
-      { value: "future", label: "Future (Futur)" },
+      { value: "preterite", label: "Simple Past (Präteritum)" },
+      { value: "perfect", label: "Present Perfect (Perfekt)" },
+      { value: "past_perfect", label: "Past Perfect (Plusquamperfekt)" },
+      { value: "future", label: "Future (Futur I)" },
+      { value: "future_perfect", label: "Future Perfect (Futur II)" },
+      { value: "present_subjunctive", label: "Present Subjunctive (Konjunktiv I)" },
+      { value: "past_subjunctive", label: "Past Subjunctive (Konjunktiv II)" }
+    ],
+    it: [
+      { value: "neutral", label: "Natural" },
+      { value: "present", label: "Present (Presente)" },
+      { value: "present_perfect", label: "Present Perfect (Passato Prossimo)" },
+      { value: "imperfect", label: "Imperfect (Imperfetto)" },
+      { value: "past_historic", label: "Simple Past (Passato Remoto)" },
+      { value: "future", label: "Future (Futuro Semplice)" },
+      { value: "past_perfect", label: "Past Perfect (Trapassato Prossimo)" },
+      { value: "future_perfect", label: "Future Perfect (Futuro Anteriore)" },
+      { value: "conditional_perfect", label: "Conditional Perfect (Condizionale Passato)" },
+      { value: "present_subjunctive", label: "Present Subjunctive (Congiuntivo Presente)" },
+      { value: "past_subjunctive", label: "Past Subjunctive (Congiuntivo Imperfetto)" }
+    ],
+    pt: [
+      { value: "neutral", label: "Natural" },
+      { value: "present", label: "Present (Presente)" },
+      { value: "preterite", label: "Preterite (Pretérito Perfeito)" },
+      { value: "imperfect", label: "Imperfect (Pretérito Imperfeito)" },
+      { value: "future", label: "Future (Futuro do Presente)" },
+      { value: "conditional", label: "Conditional (Condicional Simples)" },
+      { value: "past_perfect", label: "Past Perfect (Pretérito Mais-que-perfeito)" },
+      { value: "future_conditional", label: "Future Conditional (Futuro do Pretérito)" },
+      { value: "present_subjunctive", label: "Present Subjunctive (Presente do Subjuntivo)" },
+      { value: "past_subjunctive", label: "Past Subjunctive (Pretérito Imperfeito do Subjuntivo)" },
+      { value: "future_subjunctive", label: "Future Subjunctive (Futuro do Subjuntivo)" }
+    ],
+    nl: [
+      { value: "neutral", label: "Natural" },
+      { value: "present", label: "Present (Tegenwoordige Tijd)" },
+      { value: "past", label: "Past (Verleden Tijd)" },
+      { value: "perfect", label: "Perfect (Voltooide Tijd)" },
+      { value: "past_perfect", label: "Past Perfect (Plusquamperfectum)" },
+      { value: "future", label: "Future (Toekomende Tijd)" }
+    ],
+    ru: [
+      { value: "neutral", label: "Natural" },
+      { value: "present", label: "Present Tense" },
+      { value: "past", label: "Past Tense" },
+      { value: "future", label: "Future Tense" },
+      { value: "perfective", label: "Perfective Aspect" },
+      { value: "imperfective", label: "Imperfective Aspect" }
+    ],
+    ja: [
+      { value: "neutral", label: "Natural" },
+      { value: "non_past", label: "Non-Past (Present/Future)" },
+      { value: "past", label: "Past" },
+      { value: "conditional", label: "Conditional" },
+      { value: "volitional", label: "Volitional" },
+      { value: "imperative", label: "Imperative" }
+    ],
+    ko: [
+      { value: "neutral", label: "Natural" },
+      { value: "present", label: "Present" },
+      { value: "past", label: "Past" },
+      { value: "future", label: "Future" },
+      { value: "conditional", label: "Conditional" },
+      { value: "honorific", label: "Honorific" }
+    ],
+    zh: [
+      { value: "neutral", label: "Natural" },
+      { value: "default", label: "Default (No Formal Tenses)" },
+      { value: "le", label: "Aspect: 了 (le)" },
+      { value: "guo", label: "Aspect: 过 (guo)" },
+      { value: "zhe", label: "Aspect: 着 (zhe)" }
     ],
     // Default tenses for other languages
     default: [
       { value: "neutral", label: "Natural Tense" },
       { value: "present", label: "Present Tense" },
       { value: "past", label: "Past Tense" },
-      { value: "future", label: "Future Tense" },
+      { value: "future", label: "Future Tense" }
     ],
   };
 
@@ -66,16 +146,16 @@ export default function TranslationTool() {
   const tenseOptions = getTenseOptions(targetLanguage);
 
   const languages = [
-    { code: "es", name: "Spanish" },
-    { code: "fr", name: "French" },
-    { code: "de", name: "German" },
-    { code: "it", name: "Italian" },
-    { code: "pt", name: "Portuguese" },
-    { code: "nl", name: "Dutch" },
-    { code: "ru", name: "Russian" },
-    { code: "ja", name: "Japanese" },
-    { code: "ko", name: "Korean" },
-    { code: "zh", name: "Chinese" },
+    { code: "es", name: "Spanish (Español)" },
+    { code: "fr", name: "French (Français)" },
+    { code: "de", name: "German (Deutsch)" },
+    { code: "it", name: "Italian (Italiano)" },
+    { code: "pt", name: "Portuguese (Português)" },
+    { code: "nl", name: "Dutch (Nederlands)" },
+    { code: "ru", name: "Russian (Русский)" },
+    { code: "ja", name: "Japanese (日本語)" },
+    { code: "ko", name: "Korean (한국어)" },
+    { code: "zh", name: "Chinese (中文)" },
   ];
 
   const handleTranslate = async () => {
@@ -87,18 +167,7 @@ export default function TranslationTool() {
       return;
     }
 
-    if (!navigator.onLine) {
-      showNotification({
-        message: "No internet connection. Please check your network and try again.",
-        type: "error",
-      });
-      return;
-    }
-
     setIsTranslating(true);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
     try {
       const response = await fetch("/api/ai/translate", {
         method: "POST",
@@ -110,8 +179,7 @@ export default function TranslationTool() {
           targetLanguage,
           tense: selectedTense,
         }),
-        credentials: 'include',
-        signal: controller.signal
+        credentials: 'include'
       });
 
       let data;
@@ -180,31 +248,11 @@ export default function TranslationTool() {
       });
     } catch (error) {
       console.error("Translation error:", error);
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          showNotification({
-            message: "Request timed out. Please try again.",
-            type: "error",
-          });
-        } else if (error.message.includes('Failed to fetch')) {
-          showNotification({
-            message: "Network error. Please check your connection and try again.",
-            type: "error",
-          });
-        } else {
-          showNotification({
-            message: error.message,
-            type: "error",
-          });
-        }
-      } else {
-        showNotification({
-          message: "An unexpected error occurred. Please try again.",
-          type: "error",
-        });
-      }
+      showNotification({
+        message: error instanceof Error ? error.message : "Failed to translate text. Please try again.",
+        type: "error",
+      });
     } finally {
-      clearTimeout(timeoutId);
       setIsTranslating(false);
     }
   };
@@ -269,28 +317,19 @@ export default function TranslationTool() {
                           className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                           placeholder="Search tenses..."
                           onChange={(e) => {
-                            try {
-                              const searchTerm = e.target.value.toLowerCase();
-                              const filteredTenses = getTenseOptions(targetLanguage)
-                                .filter(tense => 
-                                  tense.label.toLowerCase().includes(searchTerm)
-                                );
-                              // Get the select content element
-                              const selectContent = e.currentTarget.closest('.SelectContent');
-                              if (!selectContent) return;
-                              
-                              // Update the visible options
-                              const options = selectContent.querySelectorAll('[role="option"]');
-                              options.forEach(option => {
-                                const value = option.getAttribute('data-value');
-                                const shouldShow = filteredTenses.some(t => t.value === value);
-                                if (option instanceof HTMLElement) {
-                                  option.style.display = shouldShow ? '' : 'none';
-                                }
+                            const searchTerm = e.target.value.toLowerCase();
+                            const filteredTenses = getTenseOptions(targetLanguage)
+                              .filter(tense => 
+                                tense.label.toLowerCase().includes(searchTerm)
+                              );
+                            // Update the visible options
+                            e.currentTarget.parentElement?.parentElement
+                              ?.querySelectorAll('[role="option"]')
+                              .forEach(option => {
+                                const shouldShow = filteredTenses
+                                  .some(t => t.value === option.getAttribute('data-value'));
+                                (option as HTMLElement).style.display = shouldShow ? '' : 'none';
                               });
-                            } catch (error) {
-                              console.error('Error filtering tenses:', error);
-                            }
                           }}
                         />
                       </div>
