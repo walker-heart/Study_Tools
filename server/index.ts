@@ -28,35 +28,46 @@ interface ExtendedError extends Error {
   statusCode?: number;
 }
 
-// Security middleware configurations
+// Configure CORS options
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
     const allowedOrigins = [
       env.APP_URL,
       'http://localhost:3000',
-      'http://localhost:5000'
+      'http://localhost:5000',
+      // Allow all subdomains of repl.co
+      /\.repl\.co$/
     ];
-    if (!origin || allowedOrigins.includes(origin)) {
+    
+    // Allow all origins in development, or check against allowedOrigins in production
+    if (!origin || env.NODE_ENV === 'development' || 
+        allowedOrigins.some(allowed => 
+          typeof allowed === 'string' 
+            ? allowed === origin 
+            : allowed.test(origin)
+        )) {
       callback(null, true);
     } else {
+      log(`CORS blocked origin: ${origin}`, 'warn');
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  exposedHeaders: ['Content-Type', 'Content-Length'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
+  exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie'],
   maxAge: 86400,
   optionsSuccessStatus: 204
 };
 
-// Configure rate limiting
+// Configure rate limiting with proper proxy handling
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: env.NODE_ENV === 'production' ? 100 : 1000, // Limit each IP
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => env.NODE_ENV === 'development', // Skip rate limiting in development
 });
 
 // Configure security middleware
@@ -77,6 +88,71 @@ const securityMiddleware = (req: Request, res: Response, next: NextFunction) => 
   });
   next();
 };
+
+// Initialize middleware
+async function initializeMiddleware() {
+  try {
+    // Environment-specific settings
+    if (env.NODE_ENV === 'production') {
+      app.set('trust proxy', 1);
+    } else {
+      app.set('json spaces', 2);
+    }
+    app.set('x-powered-by', false);
+    
+    log(`Server initializing in ${env.NODE_ENV} mode`, 'info');
+
+    // Apply security middleware first
+    app.use(securityMiddleware);
+    
+    // Apply CORS before other middleware
+    app.use(cors(corsOptions));
+    
+    // Apply rate limiter
+    app.use(limiter);
+
+    // Initialize session
+    const sessionConfig = await createSessionConfig();
+    if (!sessionConfig) {
+      throw new Error('Failed to create session configuration');
+    }
+    app.use(session(sessionConfig));
+
+    // Body parsing middleware with size limits and validation
+    app.use(express.json({ 
+      limit: '10mb',
+      verify: (req: Request, res: Response, buf: Buffer) => {
+        try {
+          JSON.parse(buf.toString());
+        } catch (e) {
+          res.status(400).json({ message: 'Invalid JSON' });
+          throw new Error('Invalid JSON');
+        }
+      }
+    }));
+    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+    // Static file serving with proper caching
+    const publicPath = path.resolve(__dirname, '..', 'dist', 'public');
+    if (!fs.existsSync(publicPath)) {
+      fs.mkdirSync(publicPath, { recursive: true });
+    }
+
+    app.use(express.static(publicPath, {
+      maxAge: env.NODE_ENV === 'production' ? '1y' : 0,
+      etag: true,
+      lastModified: true
+    }));
+
+    log('Middleware initialized successfully', 'info');
+  } catch (error) {
+    log({
+      message: 'Failed to initialize middleware',
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'error');
+    throw error;
+  }
+}
 
 // Setup error handlers
 function setupErrorHandlers() {
@@ -161,109 +237,6 @@ function setupErrorHandlers() {
   });
 }
 
-// Initialize middleware
-async function initializeMiddleware() {
-  try {
-    // Production-specific settings
-    if (env.NODE_ENV === 'production') {
-      app.set('trust proxy', 1);
-      app.set('x-powered-by', false);
-    }
-
-    // Apply security middleware first
-    app.use(securityMiddleware);
-    app.use(cors(corsOptions));
-    app.use(limiter);
-
-    // Initialize session
-    const sessionConfig = await createSessionConfig();
-    if (!sessionConfig) {
-      throw new Error('Failed to create session configuration');
-    }
-    app.use(session(sessionConfig));
-
-    // Body parsing middleware with size limits
-    app.use(express.json({ 
-      limit: '10mb',
-      verify: (req: Request, res: Response, buf: Buffer) => {
-        try {
-          JSON.parse(buf.toString());
-        } catch (e) {
-          res.status(400).json({ message: 'Invalid JSON' });
-          throw new Error('Invalid JSON');
-        }
-      }
-    }));
-    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-    // Static file serving
-    const publicPath = path.resolve(__dirname, '..', 'dist', 'public');
-    if (!fs.existsSync(publicPath)) {
-      fs.mkdirSync(publicPath, { recursive: true });
-    }
-
-    app.use(express.static(publicPath, {
-      maxAge: env.NODE_ENV === 'production' ? '1y' : 0,
-      etag: true,
-      lastModified: true
-    }));
-
-    log('Middleware initialized successfully', 'info');
-  } catch (error) {
-    log({
-      message: 'Failed to initialize middleware',
-      stack: error instanceof Error ? error.stack : undefined
-    }, 'error');
-    throw error;
-  }
-}
-
-// Main server startup function
-async function startServer() {
-  const PORT = parseInt(process.env.PORT || '5000', 10);
-
-  try {
-    // Test database connection
-    await db.execute(sql`SELECT NOW()`);
-    log('Database connection successful', 'info');
-
-    // Initialize middleware
-    await initializeMiddleware();
-
-    // Setup error handlers
-    setupErrorHandlers();
-
-    // Register routes
-    registerRoutes(app);
-
-    // Create HTTP server
-    const server = createServer(app);
-
-    // Start the server
-    await new Promise<void>((resolve, reject) => {
-      server.listen(PORT, '0.0.0.0', () => {
-        log(`Server running in ${env.NODE_ENV} mode on port ${PORT}`, 'info');
-        log(`APP_URL: ${env.APP_URL}`, 'info');
-        resolve();
-      }).on('error', (err: Error & { code?: string }) => {
-        if (err.code === 'EADDRINUSE') {
-          reject(new Error(`Port ${PORT} is already in use`));
-        } else {
-          reject(err);
-        }
-      });
-    });
-
-    return server;
-  } catch (error) {
-    log({
-      message: 'Fatal error during server startup',
-      stack: error instanceof Error ? error.stack : String(error)
-    }, 'error');
-    throw error;
-  }
-}
-
 // Main application entry point
 async function main() {
   const PORT = parseInt(process.env.PORT || '5000', 10);
@@ -316,17 +289,6 @@ async function main() {
       server.listen(PORT, '0.0.0.0');
     });
 
-    // Handle process signals
-    process.on('SIGTERM', () => {
-      log('SIGTERM received, shutting down', 'info');
-      server?.close(() => process.exit(0));
-    });
-
-    process.on('SIGINT', () => {
-      log('SIGINT received, shutting down', 'info');
-      server?.close(() => process.exit(0));
-    });
-
   } catch (error) {
     log({
       message: 'Fatal error in server startup',
@@ -339,9 +301,20 @@ async function main() {
     
     process.exit(1);
   }
+
+  // Handle process signals
+  process.on('SIGTERM', () => {
+    log('SIGTERM received, shutting down', 'info');
+    server?.close(() => process.exit(0));
+  });
+
+  process.on('SIGINT', () => {
+    log('SIGINT received, shutting down', 'info');
+    server?.close(() => process.exit(0));
+  });
 }
 
-// Start server with top-level error handling
+// Start server
 try {
   await main();
 } catch (error) {
