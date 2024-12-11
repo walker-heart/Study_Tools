@@ -1,6 +1,6 @@
 import { env } from './env';
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LogContext {
   tableName?: string;
