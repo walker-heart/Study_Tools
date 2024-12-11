@@ -17,11 +17,15 @@ export default function Layout({ children }: LayoutProps) {
     location !== "/admin/dashboard";
 
   return (
-    <div
-      className={`min-h-screen ${theme === "dark" ? "dark bg-gray-900 text-white" : "bg-white"}`}
-    >
-      {showSidebar && <Sidebar />}
-      <main className={showSidebar ? "ml-0 md:ml-12" : ""}>{children}</main>
+    <div className={`min-h-screen ${theme}`}>
+      <div className="flex min-h-screen">
+        {showSidebar && <Sidebar />}
+        <main className={`flex-1 ${showSidebar ? "pl-64" : ""} bg-background text-foreground`}>
+          <div className="container mx-auto px-4 py-8">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
