@@ -310,42 +310,53 @@ export default function TranslationTool() {
               <div>
                 <label className="block text-sm font-medium mb-2">Translation Tense</label>
                 <div className="space-y-2">
-                  <div className="relative mb-2">
-                    <input
-                      type="text"
-                      className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                      placeholder="Search tenses..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      aria-label="Search tenses"
-                    />
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                        placeholder="Search tenses..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                          e.preventDefault();
+                          setSearchTerm(e.target.value);
+                        }}
+                        onKeyDown={(e) => {
+                          // Prevent the select from capturing keyboard events
+                          e.stopPropagation();
+                        }}
+                      />
+                    </div>
+                    
+                    <Select 
+                      value={selectedTense} 
+                      onValueChange={(value) => {
+                        setSelectedTense(value);
+                        setSearchTerm(""); // Clear search after selection
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a tense" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {filteredTenseOptions.map((tense) => (
+                            <SelectItem 
+                              key={tense.value} 
+                              value={tense.value}
+                            >
+                              {tense.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                        {filteredTenseOptions.length === 0 && (
+                          <div className="px-3 py-2 text-sm text-muted-foreground text-center">
+                            No tenses found
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  
-                  <Select 
-                    value={selectedTense} 
-                    onValueChange={setSelectedTense}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select a tense" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {filteredTenseOptions.map((tense) => (
-                          <SelectItem 
-                            key={tense.value} 
-                            value={tense.value}
-                          >
-                            {tense.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                      {filteredTenseOptions.length === 0 && (
-                        <div className="px-3 py-2 text-sm text-muted-foreground text-center">
-                          No tenses found
-                        </div>
-                      )}
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
             </div>

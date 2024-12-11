@@ -8,7 +8,7 @@ channel = "stable-24_05"
 [deployment]
 deploymentTarget = "cloudrun"
 build = ["npm", "run", "build"]
-run = ["npm", "run", "start"]
+run = ["sh", "-c", "npm run build"]
 
 [[ports]]
 localPort = 5000
@@ -24,25 +24,11 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Build Client"
+args = "Development Server"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Development Server"
-
-[[workflows.workflow]]
-name = "Build Client"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run build"
+args = "Flask Server"
 
 [[workflows.workflow]]
 name = "Development Server"
@@ -56,7 +42,22 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "NODE_ENV=development tsx watch --clear-screen=false server/index.ts"
+args = "NODE_ENV=development DATABASE_URL=$DATABASE_URL tsx server/index.ts"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "Flask Server"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build && NODE_ENV=development DATABASE_URL=$DATABASE_URL tsx server/index.ts"
 waitForPort = 5000
 
 [objectStorage]
