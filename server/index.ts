@@ -110,41 +110,7 @@ const limiter = rateLimit({
   }
 });
 
-// Configure security middleware
-const securityMiddleware = (req: Request, res: Response, next: NextFunction) => {
-  // Set security headers
-  const securityHeaders = {
-    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
-    'Content-Security-Policy': [
-      "default-src 'self'",
-      "img-src 'self' data: https: blob:",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "font-src 'self' data:",
-      "connect-src 'self' https://api.openai.com https://bff-api-gw.dsers.com",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'"
-    ].join('; '),
-    'X-Frame-Options': 'DENY',
-    'X-XSS-Protection': '1; mode=block',
-    'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), magnetometer=(), gyroscope=()',
-    'Cross-Origin-Embedder-Policy': 'require-corp',
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Cross-Origin-Resource-Policy': 'same-origin'
-  };
-  
-  Object.entries(securityHeaders).forEach(([header, value]) => {
-    res.setHeader(header, value);
-  });
-
-  // Add security-focused response headers
-  res.removeHeader('X-Powered-By');
-  res.removeHeader('Server');
-  next();
-};
+import { securityHeaders, authLimiter, sanitizeInput, sessionSecurity } from './middleware/security';
 
 // Initialize middleware
 async function initializeMiddleware() {
@@ -161,14 +127,21 @@ async function initializeMiddleware() {
     
     log(`Server initializing in ${env.NODE_ENV} mode`, 'info');
 
-    // Apply security middleware first
-    app.use(securityMiddleware);
+    // Apply basic security headers first
+    app.use(securityHeaders);
     
-    // Apply CORS before other middleware
+    // Apply CORS
     app.use(cors(corsOptions));
     
-    // Apply rate limiter
-    app.use(limiter);
+    // Apply rate limiters
+    app.use('/api/auth/*', authLimiter);  // Stricter limits for auth endpoints
+    app.use(limiter);  // General rate limiting for other routes
+    
+    // Apply parameter sanitization
+    app.use(sanitizeInput);
+    
+    // Apply session security
+    app.use(sessionSecurity);
 
     // Initialize session
     const sessionConfig = await createSessionConfig();
