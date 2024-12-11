@@ -42,33 +42,10 @@ export async function signUp(req: Request, res: Response) {
 
 // Add session check endpoint
 export async function checkAuth(req: Request, res: Response) {
-  // Log headers and session info for debugging
-  console.log('Auth check headers:', {
-    origin: req.headers.origin,
-    cookie: req.headers.cookie ? 'present' : 'absent',
-    credentials: req.headers['access-control-allow-credentials'],
-  });
-  console.log('Session state:', {
-    hasSession: !!req.session,
-    authenticated: req.session?.authenticated,
-    userId: req.session?.user?.id,
-  });
-
-  if (req.session?.user?.id) {
-    res.json({ 
-      authenticated: true, 
-      user: { 
-        id: req.session.user.id, 
-        email: req.session.user.email,
-        isAdmin: req.session.user.isAdmin 
-      } 
-    });
+  if (req.session.user?.id) {
+    res.json({ authenticated: true, user: { id: req.session.user.id, email: req.session.user.email } });
   } else {
-    res.status(401).json({ 
-      authenticated: false,
-      reason: !req.session ? 'No session found' : 'No user in session',
-      sessionExists: !!req.session
-    });
+    res.status(401).json({ authenticated: false });
   }
 }
 
