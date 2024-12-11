@@ -1,20 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, createContext, useContext } from "react";
 
 interface NotificationProps {
   message: string;
   type?: "success" | "error" | "info";
   duration?: number;
   onClose?: () => void;
-  onClick?: () => void;
 }
 
-export function Notification({ 
-  message, 
-  type = "info", 
-  duration = 3000, 
-  onClose, 
-  onClick 
-}: NotificationProps) {
+interface NotificationContextType {
+  showNotification: (notification: NotificationProps) => void;
+}
+
+const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+
+export function Notification({ message, type = "info", duration = 3000, onClose }: NotificationProps) {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
@@ -35,46 +34,39 @@ export function Notification({
   }[type];
 
   return (
-    <div 
-      onClick={onClick}
-      className={`fixed top-4 right-4 p-4 rounded-md shadow-lg text-white ${bgColor} transition-opacity duration-300 z-50 ${
-        onClick ? 'cursor-pointer hover:opacity-90' : ''
-      }`}
-    >
+    <div className={`fixed top-4 right-4 p-4 rounded-md shadow-lg text-white ${bgColor}`}>
       {message}
     </div>
   );
 }
 
-interface NotificationContextValue {
-  showNotification: (props: NotificationProps) => void;
-}
-
-export const useNotification = () => {
+export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<NotificationProps[]>([]);
 
-  const showNotification = (props: NotificationProps) => {
-    setNotifications(prev => [...prev, props]);
+  const showNotification = (notification: NotificationProps) => {
+    setNotifications(prev => [...prev, notification]);
   };
 
-  const removeNotification = (index: number) => {
-    setNotifications(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const NotificationContainer = () => (
-    <>
+  return (
+    <NotificationContext.Provider value={{ showNotification }}>
+      {children}
       {notifications.map((props, index) => (
         <Notification
           key={index}
           {...props}
-          onClose={() => removeNotification(index)}
+          onClose={() => {
+            setNotifications(prev => prev.filter((_, i) => i !== index));
+          }}
         />
       ))}
-    </>
+    </NotificationContext.Provider>
   );
+}
 
-  return {
-    showNotification,
-    NotificationContainer
-  };
-};
+export function useNotification() {
+  const context = useContext(NotificationContext);
+  if (context === undefined) {
+    throw new Error('useNotification must be used within a NotificationProvider');
+  }
+  return context;
+}
