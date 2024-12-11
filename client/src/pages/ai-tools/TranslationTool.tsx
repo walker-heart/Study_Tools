@@ -55,16 +55,30 @@ export default function TranslationTool() {
         }),
       });
 
+      const data = await response.json();
+      
       if (!response.ok) {
-        throw new Error("Translation failed");
+        if (response.status === 400 && data.details?.includes("API key")) {
+          showNotification({
+            message: "OpenAI API key not configured. Please configure it in settings.",
+            type: "error",
+          });
+          // Navigate to API settings
+          setLocation("/settings/api");
+          return;
+        }
+        throw new Error(data.details || "Translation failed");
       }
 
-      const data = await response.json();
       setTranslatedText(data.translation);
+      showNotification({
+        message: "Text translated successfully",
+        type: "success",
+      });
     } catch (error) {
       console.error("Translation error:", error);
       showNotification({
-        message: "Failed to translate text. Please try again.",
+        message: error instanceof Error ? error.message : "Failed to translate text. Please try again.",
         type: "error",
       });
     } finally {
