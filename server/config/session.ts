@@ -14,7 +14,7 @@ const createPool = () => new Pool({
   ssl: env.NODE_ENV === 'production' 
     ? { rejectUnauthorized: false } 
     : undefined,
-  max: 20,
+  max: env.NODE_ENV === 'production' ? 20 : 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000
 });

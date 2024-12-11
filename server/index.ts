@@ -60,32 +60,63 @@ const corsOptions: cors.CorsOptions = {
   optionsSuccessStatus: 204
 };
 
-// Configure rate limiting with proper proxy handling
+// Configure rate limiting with proper proxy handling and improved security
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: env.NODE_ENV === 'production' ? 100 : 1000, // Limit each IP
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
+  message: { error: 'Too many requests from this IP, please try again later.' },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   skip: (req) => env.NODE_ENV === 'development', // Skip rate limiting in development
+  handler: (req: Request, res: Response) => {
+    log({
+      message: 'Rate limit exceeded',
+      path: req.path,
+      method: req.method
+    }, 'warn');
+    res.status(429).json({ 
+      error: 'Too many requests',
+      message: 'Please try again later',
+      retryAfter: res.getHeader('Retry-After')
+    });
+  },
+  // Trust proxy settings
+  trusted: env.NODE_ENV === 'production' ? ['loopback', 'linklocal', 'uniquelocal'] : []
 });
 
 // Configure security middleware
 const securityMiddleware = (req: Request, res: Response, next: NextFunction) => {
   // Set security headers
   const securityHeaders = {
-    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-    'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';",
-    'X-Frame-Options': 'SAMEORIGIN',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "img-src 'self' data: https: blob:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "font-src 'self' data:",
+      "connect-src 'self' https://api.openai.com https://bff-api-gw.dsers.com",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'"
+    ].join('; '),
+    'X-Frame-Options': 'DENY',
     'X-XSS-Protection': '1; mode=block',
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), magnetometer=(), gyroscope=()',
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Resource-Policy': 'same-origin'
   };
   
   Object.entries(securityHeaders).forEach(([header, value]) => {
     res.setHeader(header, value);
   });
+
+  // Add security-focused response headers
+  res.removeHeader('X-Powered-By');
+  res.removeHeader('Server');
   next();
 };
 
