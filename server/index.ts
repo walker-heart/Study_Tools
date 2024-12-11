@@ -8,6 +8,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import cors from "cors";
 import path from "path";
+import { fileURLToPath } from 'url';
 import fs from "fs";
 import pkg from 'pg';
 const { Pool } = pkg;
@@ -16,9 +17,14 @@ import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
 import { log } from "./lib/log";
 
+// ES Module compatibility
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Initialize express app
 const app = express();
 
-// Configure CORS middleware with strict origin checking
+// Security middleware configurations
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
     const allowedOrigins = [
@@ -40,71 +46,32 @@ const corsOptions: cors.CorsOptions = {
   optionsSuccessStatus: 204
 };
 
+// Rate limiting configuration
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply security middleware
 app.use(cors(corsOptions));
-
-// Rate limiting configuration
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Apply rate limiting to all routes
 app.use(limiter);
 
-// Enhanced security headers middleware
+// Security headers middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
-  // Strict Transport Security
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  // Content Security Policy
   res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';");
-  // Prevent clickjacking
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  // XSS Protection
   res.setHeader('X-XSS-Protection', '1; mode=block');
-  // Prevent MIME type sniffing
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  // Referrer Policy
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // Permissions Policy
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   next();
 });
 
-// Rate limiting configuration
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Apply rate limiting to all routes
-app.use(limiter);
-
-// Enhanced security headers middleware
-app.use((req: Request, res: Response, next: NextFunction) => {
-  // Strict Transport Security
-  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-  // Content Security Policy
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';");
-  // Prevent clickjacking
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  // XSS Protection
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  // Prevent MIME type sniffing
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  // Referrer Policy
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // Permissions Policy
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  next();
-});
-
-// Configure request size limits and parsers
+// Request parsing middleware with size limits
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -114,18 +81,9 @@ const pool = new Pool({
   ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Test database connection
-pool.query('SELECT NOW()', (err) => {
-  if (err) {
-    console.error('Database connection error:', err);
-  } else {
-    log('Database connection successful');
-  }
-});
-
-// Configure session middleware with enhanced security
+// Session configuration
 if (env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1); // Trust first proxy
+  app.set('trust proxy', 1);
 }
 
 const pgStore = connectPgSimple(session);
@@ -135,7 +93,7 @@ const sessionConfig: session.SessionOptions = {
     tableName: 'session',
     createTableIfMissing: true,
     pruneSessionInterval: 60 * 15, // 15 minutes
-    errorLog: console.error.bind(console, 'Session store error:')
+    errorLog: (error: Error) => log(error, 'error')
   }),
   name: 'sid',
   secret: env.JWT_SECRET!,
@@ -149,36 +107,16 @@ const sessionConfig: session.SessionOptions = {
     sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: '/',
-    domain: undefined // Let browser set the cookie domain
+    domain: undefined
   } as session.CookieOptions & {
     sameSite: 'none' | 'lax'
   }
 };
 
-// Log session configuration for debugging
-console.log('Session configuration:', {
-  store: 'PostgreSQL',
-  cookieSecure: sessionConfig.cookie?.secure,
-  cookieSameSite: sessionConfig.cookie?.sameSite,
-  environment: env.NODE_ENV,
-  trustProxy: app.get('trust proxy')
-});
-
 app.use(session(sessionConfig));
 
-// Add session error handling
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  if (err.name === 'UnauthorizedError') {
-    res.status(401).json({ message: 'Invalid token' });
-  } else {
-    next(err);
-  }
-});
-
-// Serve static files with proper MIME types and error handling
-const publicPath = path.resolve(__dirname, '..', process.env.NODE_ENV === 'development' ? 'client' : 'dist/public');
-
-// Configure static file serving
+// Static file serving configuration
+const publicPath = path.resolve(__dirname, '..', env.NODE_ENV === 'development' ? 'client' : 'dist/public');
 const staticFileOptions: Parameters<typeof express.static>[1] = {
   setHeaders: (res: express.Response, filePath: string) => {
     const ext = path.extname(filePath).toLowerCase();
@@ -189,8 +127,8 @@ const staticFileOptions: Parameters<typeof express.static>[1] = {
     } else if (ext === '.svg') {
       res.setHeader('Content-Type', 'image/svg+xml');
     }
-    // Set development-specific cache headers
-    if (process.env.NODE_ENV === 'development') {
+    
+    if (env.NODE_ENV === 'development') {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
@@ -204,38 +142,21 @@ const staticFileOptions: Parameters<typeof express.static>[1] = {
   extensions: ['html', 'css', 'js'],
   etag: true,
   lastModified: true,
-  maxAge: process.env.NODE_ENV === 'development' ? 0 : '1y'
+  maxAge: env.NODE_ENV === 'development' ? 0 : '1y'
 };
 
-// Ensure the public directory exists
+// Ensure public directory exists
 if (!fs.existsSync(publicPath)) {
-  console.log(`Creating directory: ${publicPath}`);
+  log('Creating directory: ' + publicPath, 'info');
   fs.mkdirSync(publicPath, { recursive: true });
 }
 
-// Serve static files
 app.use(express.static(publicPath, staticFileOptions));
-
-// Handle CSS files in development
-if (process.env.NODE_ENV === 'development') {
-  app.get('*.css', (req, res, next) => {
-    res.type('text/css');
-    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-    next();
-  });
-  
-  // Handle CSS module imports
-  app.get('*.module.css', (req, res, next) => {
-    res.type('text/css');
-    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-    next();
-  });
-}
 
 // Register API routes
 registerRoutes(app);
 
-// Handle client-side routing
+// Client-side routing handler
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return next();
@@ -244,95 +165,63 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(publicPath, 'index.html'));
 });
 
-// Generic error handler
+// Global error handler
 app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
-  const status = (err.status || err.statusCode || 500);
+  const status = err.status || err.statusCode || 500;
   const message = err.message || "Internal Server Error";
-  log(`Error: ${message}`);
+  log(message, 'error');
   res.status(status).json({ message });
 });
 
-// Start the server
-const PORT = parseInt(process.env.PORT || '5000', 10);
+// Server startup function
+async function startServer() {
+  const PORT = parseInt(process.env.PORT || '5000', 10);
 
-(async () => {
-  log('Starting server initialization...');
   try {
     // Check required environment variables
-    log('Checking environment variables...');
     const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
     const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
     
     if (missingEnvVars.length > 0) {
-      log(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
-      throw new Error('Missing required environment variables');
+      throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
     }
 
-    // Verify database connection first
-    try {
-      log('Attempting to connect to database...');
-      await db.execute(sql`SELECT 1`);
-      log('Database connection successful');
-    } catch (error) {
-      log('Error connecting to database: ' + (error instanceof Error ? error.message : String(error)));
-      throw new Error('Failed to connect to database. Check DATABASE_URL and database status.');
-    }
-    // Check required environment variables
-    log('Checking environment variables...');
-    const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
-    const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
-    
-    if (missingEnvVars.length > 0) {
-      log(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
-      throw new Error('Missing required environment variables');
-    }
-
-    // Verify database connection first
-    try {
-      log('Attempting to connect to database...');
-      await db.execute(sql`SELECT 1`);
-      log('Database connection successful');
-    } catch (error) {
-      log('Error connecting to database: ' + (error instanceof Error ? error.message : String(error)));
-      throw new Error('Failed to connect to database. Check DATABASE_URL and database status.');
-    }
+    // Verify database connection
+    await db.execute(sql`SELECT 1`);
+    log('Database connection successful', 'info');
 
     const server = createServer(app);
 
     // Configure environment-specific settings
-    if (process.env.NODE_ENV === "development") {
-      console.log('Setting up Vite middleware for development...');
-      try {
-        await setupVite(app, server);
-        console.log('Vite middleware setup successful');
-      } catch (error) {
-        console.error('Failed to setup Vite middleware:', error);
-        throw error;
-      }
+    if (env.NODE_ENV === "development") {
+      await setupVite(app, server);
+      log('Vite middleware setup successful', 'info');
     } else {
-      console.log('Setting up static file serving for production...');
-      try {
-        serveStatic(app);
-        console.log('Static file serving setup successful');
-      } catch (error) {
-        console.error('Failed to setup static file serving:', error);
-        throw error;
-      }
+      serveStatic(app);
+      log('Static file serving setup successful', 'info');
     }
 
     // Start the server
     server.listen(PORT, '0.0.0.0', () => {
-      log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-      log(`APP_URL: ${env.APP_URL}`);
-    }).on('error', (error: Error) => {
-      log(`Error starting server: ${error.message}`);
-      if ((error as any).code === 'EADDRINUSE') {
-        log('Port 5000 is already in use. Please free up the port or use a different one.');
+      log(`Server running in ${env.NODE_ENV || 'development'} mode on port ${PORT}`, 'info');
+      log(`APP_URL: ${env.APP_URL}`, 'info');
+    });
+
+    // Handle server errors
+    server.on('error', (error: Error & { code?: string }) => {
+      if (error.code === 'EADDRINUSE') {
+        log('Port 5000 is already in use. Please free up the port or use a different one.', 'error');
+      } else {
+        log(`Server error: ${error.message}`, 'error');
       }
       process.exit(1);
     });
+
   } catch (error) {
-    log(`Fatal error during server startup: ${error}`);
+    log(`Fatal error during server startup: ${error}`, 'error');
     process.exit(1);
   }
-})();
+}
+
+// Start the server
+startServer();
