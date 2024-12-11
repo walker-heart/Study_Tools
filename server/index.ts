@@ -211,16 +211,21 @@ async function initializeMiddleware() {
       fs.accessSync(publicPath, fs.constants.R_OK);
       fs.accessSync(assetsPath, fs.constants.R_OK);
       
-      info('Static directories verified and accessible', {
-        publicPath,
-        assetsPath,
-        mode: env.NODE_ENV
+      info({
+        message: 'Static directories verified and accessible',
+        metadata: {
+          publicPath,
+          assetsPath,
+          mode: env.NODE_ENV
+        }
       });
     } catch (err) {
       error({
         message: 'Failed to setup static directories',
-        error: err instanceof Error ? err.message : String(err),
-        paths: { publicPath, assetsPath }
+        error_message: err instanceof Error ? err.message : String(err),
+        metadata: { 
+          paths: { publicPath, assetsPath }
+        }
       });
       throw err;
     }
@@ -233,7 +238,7 @@ async function initializeMiddleware() {
             error({
               message: 'Static file error',
               path: req.path,
-              error: err instanceof Error ? err.message : String(err)
+              error_message: err instanceof Error ? err.message : String(err)
             });
             next(err);
           } else {
@@ -266,8 +271,11 @@ async function initializeMiddleware() {
       if (err.message?.includes('ENOENT') || err.message?.includes('not found')) {
         error({
           message: 'Static file not found',
-          path: req.path,
-          error: err.message
+          error_message: err.message,
+          metadata: {
+            path: req.path,
+            statusCode: 404
+          }
         });
         if (req.path.startsWith('/assets/')) {
           res.status(404).json({ message: 'Asset not found', path: req.path });
