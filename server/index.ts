@@ -189,13 +189,13 @@ async function initializeMiddleware() {
       lastModified: true
     }));
 
-    log('Middleware initialized successfully', 'info');
-  } catch (error) {
-    log({
+    info('Middleware initialized successfully');
+  } catch (err) {
+    error({
       message: 'Failed to initialize middleware',
-      stack: error instanceof Error ? error.stack : undefined
-    }, 'error');
-    throw error;
+      stack: err instanceof Error ? err.stack : undefined
+    });
+    throw err;
   }
 }
 
@@ -313,17 +313,17 @@ async function main() {
     while (retries > 0) {
       try {
         await db.execute(sql`SELECT NOW()`);
-        log('Database connection successful', 'info');
+        info('Database connection successful');
         break;
-      } catch (error) {
+      } catch (err) {
         retries--;
         if (retries === 0) {
           throw new Error('Failed to connect to database after multiple attempts');
         }
-        log({
+        warn({
           message: `Database connection failed, retrying in ${backoff/1000} seconds...`,
-          error_message: error instanceof Error ? error.message : String(error)
-        }, 'warn');
+          error_message: err instanceof Error ? err.message : String(err)
+        });
         
         await new Promise(resolve => setTimeout(resolve, backoff));
         backoff *= 2; // Exponential backoff
@@ -332,19 +332,19 @@ async function main() {
 
     // Initialize middleware
     await initializeMiddleware();
-    log('Middleware initialized successfully', 'info');
+    info('Middleware initialized successfully');
 
     // Register routes
     registerRoutes(app);
-    log('Routes registered', 'info');
+    info('Routes registered');
 
     // Setup error handlers
     setupErrorHandlers();
-    log('Error handlers configured', 'info');
+    info('Error handlers configured');
 
     // Create HTTP server
     server = createServer(app);
-    log('HTTP server created', 'info');
+    info('HTTP server created');
 
     // Start server
     await new Promise<void>((resolve, reject) => {
@@ -353,35 +353,35 @@ async function main() {
         return;
       }
 
-      server.on('error', (error: NodeJS.ErrnoException) => {
-        if (error.code === 'EADDRINUSE') {
+      server.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
           // Try the next available port
-          log(`Port ${PORT} is in use, trying ${PORT + 1}`, 'warn');
+          warn(`Port ${PORT} is in use, trying ${PORT + 1}`);
           if (server) {
             server.listen(PORT + 1, '0.0.0.0');
           } else {
             reject(new Error('Server is not initialized'));
           }
         } else {
-          log(`Server error: ${error.message}`, 'error');
-          reject(error);
+          error(`Server error: ${err.message}`);
+          reject(err);
         }
       });
 
       server.on('listening', () => {
-        log(`Server running in ${env.NODE_ENV} mode on port ${PORT}`, 'info');
-        log(`APP_URL: ${env.APP_URL}`, 'info');
+        info(`Server running in ${env.NODE_ENV} mode on port ${PORT}`);
+        info(`APP_URL: ${env.APP_URL}`);
         resolve();
       });
 
       server.listen(PORT, '0.0.0.0');
     });
 
-  } catch (error) {
-    log({
+  } catch (err) {
+    error({
       message: 'Fatal error in server startup',
-      stack: error instanceof Error ? error.stack : String(error)
-    }, 'error');
+      stack: err instanceof Error ? err.stack : String(err)
+    });
 
     if (server?.listening) {
       await new Promise<void>((resolve) => server!.close(() => resolve()));
@@ -392,12 +392,12 @@ async function main() {
 
   // Handle process signals
   process.on('SIGTERM', () => {
-    log('SIGTERM received, shutting down', 'info');
+    info('SIGTERM received, shutting down');
     server?.close(() => process.exit(0));
   });
 
   process.on('SIGINT', () => {
-    log('SIGINT received, shutting down', 'info');
+    info('SIGINT received, shutting down');
     server?.close(() => process.exit(0));
   });
 }
@@ -405,10 +405,10 @@ async function main() {
 // Start server
 try {
   await main();
-} catch (error) {
-  log({
+} catch (err) {
+  error({
     message: 'Fatal error starting server',
-    stack: error instanceof Error ? error.stack : String(error)
-  }, 'error');
+    stack: err instanceof Error ? err.stack : String(err)
+  });
   process.exit(1);
 }
