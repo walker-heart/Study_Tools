@@ -264,19 +264,7 @@ export default function TranslationTool() {
     }
   };
 
-  // Handle search input separately from select events
-  const handleSearchInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const target = e.target as HTMLInputElement;
-    setSearchTerm(target.value.toLowerCase());
-  };
-
-  // Prevent select from closing when clicking inside search input
-  const handleSearchClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
+  // No unused handlers needed anymore
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -329,18 +317,29 @@ export default function TranslationTool() {
                   <SelectContent>
                     <div
                       className="px-3 py-2"
-                      onClick={handleSearchClick}
-                      onMouseDown={handleSearchClick}
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
                     >
-                      <input
-                        type="text"
-                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        placeholder="Search tenses..."
-                        value={searchTerm}
-                        onChange={handleSearchInput}
-                        onClick={handleSearchClick}
-                        onMouseDown={handleSearchClick}
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                          placeholder="Search tenses..."
+                          value={searchTerm}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            setSearchTerm(e.target.value.toLowerCase());
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Escape') {
+                              setSearchTerm('');
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                     <SelectGroup>
                       {tenseOptions
