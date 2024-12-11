@@ -592,15 +592,17 @@ export async function translateText(req: Request, res: Response) {
       return sendError(400, "OpenAI API key not configured", "Please configure your OpenAI API key in settings");
     }
 
+    console.log('Creating OpenAI client with API key length:', result[0].openaiApiKey?.length);
     const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
 
     try {
+      console.log('Sending translation request to OpenAI:', { targetLanguage, textLength: text.length });
       const response = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
           {
             role: "system",
-            content: `You are a professional translator. Translate the following text to ${targetLanguage}. Provide only the translation, no explanations.`
+            content: `You are a professional translator. Your task is to accurately translate text to ${targetLanguage}. Translate directly without adding any explanations or notes.`
           },
           {
             role: "user",
@@ -608,10 +610,17 @@ export async function translateText(req: Request, res: Response) {
           }
         ],
         temperature: 0.3,
-        max_tokens: 1000
+        max_tokens: Math.max(1000, text.length * 2) // Ensure enough tokens for translation
+      });
+
+      console.log('Received OpenAI response:', {
+        status: 'success',
+        hasChoices: !!response.choices?.length,
+        firstChoice: !!response.choices?.[0]?.message
       });
 
       if (!response.choices?.[0]?.message?.content) {
+        console.error('Invalid OpenAI response structure:', response);
         throw new Error('Invalid response from OpenAI API');
       }
 
