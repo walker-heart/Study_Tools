@@ -13,16 +13,40 @@ interface SessionErrorContext {
   fallback?: string;
   tableName?: string;
   poolConfig?: Record<string, number>;
+  error?: unknown;
 }
 
 interface SessionError extends LogMessage {
   level: LogLevel;
-  metadata?: {
+  error_message?: string;
+  metadata: {
     path?: string;
     status?: number;
-    operation?: string;
+    operation: string;
     tableName?: string;
     poolConfig?: Record<string, number>;
+  }
+}
+
+type ErrorWithMessage = {
+  message: string;
+}
+
+function isErrorWithMessage(error: unknown): error is ErrorWithMessage {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as Record<string, unknown>).message === 'string'
+  );
+}
+
+function toErrorWithMessage(maybeError: unknown): ErrorWithMessage {
+  if (isErrorWithMessage(maybeError)) return maybeError;
+  try {
+    return new Error(JSON.stringify(maybeError));
+  } catch {
+    return new Error(String(maybeError));
   }
 }
 
@@ -78,19 +102,21 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
       });
       info('Database connection successful');
       return true;
-    } catch (error) {
+    } catch (unknownError) {
+      const error = toErrorWithMessage(unknownError);
       const isLastAttempt = attempt === maxRetries;
       const level: LogLevel = isLastAttempt ? 'error' : 'warn';
-      const logMessage: LogMessage = {
+      const logMessage: SessionError = {
         message: `Database connection attempt ${attempt}/${maxRetries} failed`,
         next_retry: isLastAttempt ? null : `${backoff/1000} seconds`,
         stack: error instanceof Error ? error.stack : undefined,
-        error_message: error instanceof Error ? error.message : String(error),
+        error_message: error.message,
         attempt,
         total_attempts: maxRetries,
         level,
         metadata: {
-          operation: 'db_connection_test'
+          operation: 'db_connection_test',
+          status: 500
         }
       };
       log(logMessage, level);
@@ -161,9 +187,10 @@ async function initializeSessionStore(): Promise<session.Store> {
     try {
       await Promise.race([
         new Promise<void>((resolve, reject) => {
-          store.get('test-session', (err) => {
+          store.get('test-session', (err: unknown) => {
             if (err) {
-              reject(new Error(`Session store verification failed: ${err.message}`));
+              const error = toErrorWithMessage(err);
+              reject(new Error(`Session store verification failed: ${error.message}`));
             } else {
               resolve();
             }
@@ -188,7 +215,8 @@ async function initializeSessionStore(): Promise<session.Store> {
         }
       };
       log(logMessage, 'error');
-      throw verifyError;
+      // Rethrow with proper typing
+      throw new Error(verifyError instanceof Error ? verifyError.message : String(verifyError));
     }
   } catch (error) {
     warn({
