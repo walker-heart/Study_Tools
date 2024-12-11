@@ -6,6 +6,8 @@ import MemoryStore from 'memorystore';
 import { env } from '../lib/env';
 import { log } from '../lib/log';
 
+import type { LogMessage } from '../lib/log';
+
 const MemoryStoreSession = MemoryStore(session);
 
 // Create PostgreSQL pool with enhanced error handling and connection management
@@ -25,11 +27,13 @@ const createPool = () => {
 
   // Add event listeners for connection issues
   pool.on('error', (err: Error) => {
-    log({
+    const logMessage: LogMessage = {
       message: 'Unexpected error on idle client',
       stack: err.stack,
-      error_message: err.message
-    }, 'error');
+      error_message: err.message,
+      level: 'error'
+    };
+    log(logMessage);
   });
 
   pool.on('connect', () => {
@@ -54,12 +58,16 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
       return true;
     } catch (error) {
       const isLastAttempt = attempt === maxRetries;
-      log({
+      const logMessage: LogMessage = {
         message: `Database connection attempt ${attempt}/${maxRetries} failed`,
         next_retry: isLastAttempt ? null : `${backoff/1000} seconds`,
         stack: error instanceof Error ? error.stack : undefined,
-        error_message: error instanceof Error ? error.message : String(error)
-      }, isLastAttempt ? 'error' : 'warn');
+        error_message: error instanceof Error ? error.message : String(error),
+        attempt,
+        total_attempts: maxRetries,
+        level: isLastAttempt ? 'error' : 'warn'
+      };
+      log(logMessage);
 
       if (isLastAttempt) {
         return false;
@@ -97,25 +105,28 @@ async function initializeSessionStore() {
       pruneSessionInterval: 60 * 15, // Prune every 15 minutes
       // Enhanced error logging with context
       errorLog: (error: Error) => {
-        log({
+        const poolConfig = {
+          max: 20,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 5000
+        };
+        
+        const logMessage: LogMessage = {
           message: `Session store error: ${error.message}`,
           path: 'session-store',
           status: 500,
           stack: error.stack,
+          level: 'error',
           context: {
             tableName: 'session',
-            poolConfig: {
-              max: pool.options.max,
-              idleTimeoutMillis: pool.options.idleTimeoutMillis,
-              connectionTimeoutMillis: pool.options.connectionTimeoutMillis
-            }
+            poolConfig
           }
-        }, 'error');
+        };
+        log(logMessage);
       },
-      // Add retry mechanism for session operations
-      retries: 3,
-      minReconnectTimeoutMillis: 1000,
-      maxReconnectTimeoutMillis: 5000
+      // Connection configuration
+      ttl: 24 * 60 * 60,
+      disableTouch: false
     });
 
     // Verify session store functionality with timeout
