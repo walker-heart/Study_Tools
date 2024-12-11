@@ -80,8 +80,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    @apply font-sans antialiased;
+    @apply bg-background text-foreground font-sans antialiased;
   }
 }
 

@@ -57,7 +57,7 @@ app.use((req, res, next) => {
 // Serve static files with proper MIME types and error handling
 let publicPath: string;
 if (process.env.NODE_ENV === 'development') {
-  publicPath = path.resolve(__dirname, '..', 'client');
+  publicPath = path.resolve(__dirname, '..', 'dist', 'public');
 } else {
   publicPath = path.resolve(__dirname, '..', 'dist', 'public');
 }
@@ -74,7 +74,7 @@ if (!fs.existsSync(publicPath)) {
 app.use(express.static(publicPath, {
   setHeaders: (res, filePath) => {
     const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes = {
+    const mimeTypes: Record<string, string> = {
       '.js': 'application/javascript',
       '.css': 'text/css',
       '.json': 'application/json',
@@ -84,7 +84,7 @@ app.use(express.static(publicPath, {
       '.jpeg': 'image/jpeg',
       '.gif': 'image/gif'
     };
-    const mimeType = mimeTypes[ext];
+    const mimeType = mimeTypes[ext] || 'application/octet-stream';
     if (mimeType) {
       res.setHeader('Content-Type', mimeType);
     }
