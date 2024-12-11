@@ -264,10 +264,12 @@ export default function TranslationTool() {
     }
   };
 
-  // Handle search input change
-  const handleSearchInput = (value: string) => {
-    setSearchTerm(value.toLowerCase());
-  };
+  // Filter tense options based on search term
+  const filteredTenseOptions = tenseOptions.filter(tense => 
+    searchTerm.trim() === '' || 
+    tense.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    tense.value.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -308,51 +310,40 @@ export default function TranslationTool() {
               <div>
                 <label className="block text-sm font-medium mb-2">Translation Tense</label>
                 <div className="space-y-2">
-                  <div className="relative">
+                  <div className="relative mb-2">
                     <input
                       type="text"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                       placeholder="Search tenses..."
                       value={searchTerm}
-                      onChange={(e) => handleSearchInput(e.target.value)}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      aria-label="Search tenses"
                     />
                   </div>
+                  
                   <Select 
                     value={selectedTense} 
-                    onValueChange={(value) => {
-                      setSelectedTense(value);
-                      setSearchTerm('');
-                    }}
+                    onValueChange={setSelectedTense}
                   >
-                    <SelectTrigger>
-                      <SelectValue />
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a tense" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        {tenseOptions
-                          .filter(tense => 
-                            !searchTerm || 
-                            tense.label.toLowerCase().includes(searchTerm) ||
-                            tense.value.toLowerCase().includes(searchTerm)
-                          )
-                          .map((tense) => (
-                            <SelectItem 
-                              key={tense.value} 
-                              value={tense.value}
-                            >
-                              {tense.label}
-                            </SelectItem>
-                          ))}
-                        {tenseOptions.filter(tense => 
-                          !searchTerm || 
-                          tense.label.toLowerCase().includes(searchTerm) ||
-                          tense.value.toLowerCase().includes(searchTerm)
-                        ).length === 0 && (
-                          <div className="px-3 py-2 text-sm text-muted-foreground">
-                            No tenses found
-                          </div>
-                        )}
+                        {filteredTenseOptions.map((tense) => (
+                          <SelectItem 
+                            key={tense.value} 
+                            value={tense.value}
+                          >
+                            {tense.label}
+                          </SelectItem>
+                        ))}
                       </SelectGroup>
+                      {filteredTenseOptions.length === 0 && (
+                        <div className="px-3 py-2 text-sm text-muted-foreground text-center">
+                          No tenses found
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
