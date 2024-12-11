@@ -125,7 +125,14 @@ async function initializeMiddleware() {
     
     log(`Server initializing in ${env.NODE_ENV} mode`, 'info');
 
-    // Apply basic security headers first
+    // Initialize session first
+    const sessionConfig = await createSessionConfig();
+    if (!sessionConfig) {
+      throw new Error('Failed to create session configuration');
+    }
+    app.use(session(sessionConfig));
+
+    // Apply basic security headers
     app.use(securityHeaders);
     
     // Apply CORS
@@ -140,13 +147,6 @@ async function initializeMiddleware() {
     
     // Apply session security
     app.use(sessionSecurity);
-
-    // Initialize session
-    const sessionConfig = await createSessionConfig();
-    if (!sessionConfig) {
-      throw new Error('Failed to create session configuration');
-    }
-    app.use(session(sessionConfig));
 
     // Body parsing middleware with size limits and validation
     app.use(express.json({ 
