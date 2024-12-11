@@ -603,9 +603,23 @@ export async function translateText(req: Request, res: Response) {
     const openai = new OpenAI({ apiKey });
 
     try {
+      // Extract tense from request body, default to "neutral"
+      const tense = req.body.tense?.toLowerCase() || "neutral";
+      
+      // Validate tense parameter
+      const validTenses = ["present", "past", "future", "neutral"];
+      if (!validTenses.includes(tense)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid tense specified",
+          details: `Tense must be one of: ${validTenses.join(", ")}`
+        });
+      }
+
       // Log the API call attempt
       console.log('Initiating OpenAI translation:', { 
-        targetLanguage, 
+        targetLanguage,
+        tense,
         textLength: text.length,
         timestamp: new Date().toISOString(),
         apiKeyLength: apiKey.length,
@@ -617,6 +631,22 @@ export async function translateText(req: Request, res: Response) {
         throw new Error('Invalid OpenAI API key format');
       }
 
+      // Create tense-specific instruction
+      let tenseInstruction = "";
+      switch(tense) {
+        case "present":
+          tenseInstruction = "Use present tense in the translation.";
+          break;
+        case "past":
+          tenseInstruction = "Use past tense in the translation.";
+          break;
+        case "future":
+          tenseInstruction = "Use future tense in the translation.";
+          break;
+        default:
+          tenseInstruction = "Use the most natural tense for the context.";
+      }
+
       // Make API request with detailed logging
       console.log('Making OpenAI API call...');
       const response = await openai.chat.completions.create({
@@ -624,7 +654,7 @@ export async function translateText(req: Request, res: Response) {
         messages: [
           {
             role: "system",
-            content: `You are a professional translator. Translate the following text to ${targetLanguage}. Provide only the direct translation without any additional notes or explanations.`
+            content: `You are a professional translator. Translate the following text to ${targetLanguage}. ${tenseInstruction} Provide only the direct translation without any additional notes or explanations.`
           },
           {
             role: "user",
