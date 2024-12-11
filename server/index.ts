@@ -13,6 +13,7 @@ import { env } from "./lib/env";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import fs from 'fs';
 
 const pgSession = connectPgSimple(session);
 
@@ -33,11 +34,13 @@ function log(message: string) {
 const app = express();
 // Configure CORS middleware with simpler setup for development
 const corsOptions: cors.CorsOptions = {
-  origin: true, // Allow all origins in development
+  origin: process.env.NODE_ENV === 'development' ? true : env.APP_URL,
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  maxAge: 86400 // 24 hours in seconds
+  exposedHeaders: ['Content-Type', 'Content-Length'],
+  maxAge: 86400, // 24 hours in seconds
+  optionsSuccessStatus: 204
 };
 
 // Apply CORS middleware
@@ -62,16 +65,67 @@ log(`Serving static files from: ${publicPath}`);
 // Basic static file serving configuration with proper MIME types
 app.use(express.static(publicPath, {
   index: false, // Let our router handle the index route
-  setHeaders: (res, path) => {
-    if (path.endsWith('.css')) {
+  setHeaders: (res, filePath) => {
+    // Set proper MIME types for different file extensions
+    if (filePath.endsWith('.css')) {
       res.setHeader('Content-Type', 'text/css');
+    } else if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    } else if (filePath.endsWith('.html')) {
+      res.setHeader('Content-Type', 'text/html');
+    } else if (filePath.endsWith('.json')) {
+      res.setHeader('Content-Type', 'application/json');
+    } else if (filePath.endsWith('.svg')) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+    } else if (filePath.endsWith('.png')) {
+      res.setHeader('Content-Type', 'image/png');
+    }
+    
+    // Set appropriate caching headers
+    if (filePath.includes('manifest.json')) {
+      // Don't cache manifest.json
+      res.setHeader('Cache-Control', 'no-cache');
+    } else {
+      // Cache other static assets
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
     }
   }
 }));
 
 // Serve assets from client/public directory in development
 if (process.env.NODE_ENV === 'development') {
-  app.use(express.static(path.join(__dirname, '..', 'client', 'public')));
+  const clientPublicPath = path.join(__dirname, '..', 'client', 'public');
+  log(`Serving development assets from: ${clientPublicPath}`);
+  
+  // First verify the directory exists
+  if (!fs.existsSync(clientPublicPath)) {
+    log(`Warning: Development assets directory not found: ${clientPublicPath}`);
+  }
+
+  app.use(express.static(clientPublicPath, {
+    setHeaders: (res, filePath) => {
+      // Log the file being served in development
+      log(`Serving static file: ${filePath}`);
+      
+      // Set appropriate MIME types
+      if (filePath.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css');
+      } else if (filePath.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript');
+      } else if (filePath.endsWith('.json')) {
+        res.setHeader('Content-Type', 'application/json');
+      } else if (filePath.endsWith('.svg')) {
+        res.setHeader('Content-Type', 'image/svg+xml');
+      } else if (filePath.endsWith('.png')) {
+        res.setHeader('Content-Type', 'image/png');
+      }
+      
+      // Development-specific headers
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }));
 }
 
 // Handle static file errors
@@ -200,8 +254,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  log('Starting server initialization...');
   try {
     // Check required environment variables
+    log('Checking environment variables...');
     const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
     const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
     
@@ -212,11 +268,13 @@ app.use((req, res, next) => {
 
     // Verify database connection first
     try {
+      log('Attempting to connect to database...');
       await db.execute(sql`SELECT 1`);
       log('Database connection successful');
     } catch (error) {
-      log('Error connecting to database: ' + error);
-      throw error;
+      log('Error connecting to database: ' + (error instanceof Error ? error.message : String(error)));
+      log('Database connection string (redacted): ' + env.DATABASE_URL.replace(/\/\/.*@/, '//***:***@'));
+      throw new Error('Failed to connect to database. Check DATABASE_URL and database status.');
     }
 
     // Register routes after successful database connection
@@ -255,6 +313,12 @@ app.use((req, res, next) => {
     server.listen(PORT, '0.0.0.0', () => {
       log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
       log(`APP_URL: ${env.APP_URL}`);
+    }).on('error', (error: Error) => {
+      log(`Error starting server: ${error.message}`);
+      if ((error as any).code === 'EADDRINUSE') {
+        log('Port 5000 is already in use. Please free up the port or use a different one.');
+      }
+      process.exit(1);
     });
   } catch (error) {
     log(`Fatal error during server startup: ${error}`);
