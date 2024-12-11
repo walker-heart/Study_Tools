@@ -1,8 +1,9 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
+import type { ServeStaticOptions } from 'serve-static';
 import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic } from "./vite";
+import { setupVite } from "./vite";
 import { createServer } from "http";
 import session from "express-session";
 import type { Session as ExpressSession, SessionData } from "express-session";
@@ -14,6 +15,7 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
 import { log, debug, info, warn, error } from "./lib/log";
+import type { LogMessage, LogLevel } from "./lib/log";
 import { createSessionConfig } from './config/session';
 
 // ES Module compatibility
@@ -220,26 +222,50 @@ async function initializeMiddleware() {
         }
       });
     } catch (err) {
-      error({
+      const errorMessage: LogMessage = {
+        level: 'error' as LogLevel,
         message: 'Failed to setup static directories',
         error_message: err instanceof Error ? err.message : String(err),
         metadata: { 
-          paths: { publicPath, assetsPath }
+          paths: { publicPath, assetsPath },
+          operation: 'static_directory_setup',
+          status: 500
         }
-      });
+      };
+      error(errorMessage);
       throw err;
     }
 
     // Configure static file serving with better error handling
-    const serveStaticWithLogging = (staticPath: string, options: any) => {
+    const serveStaticWithLogging = (staticPath: string, options: ServeStaticOptions) => {
+      const staticHandler = express.static(staticPath, {
+        ...options,
+        setHeaders: (res, path) => {
+          // Set correct MIME types for different file extensions
+          if (path.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+          } else if (path.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+          } else if (path.endsWith('.svg')) {
+            res.setHeader('Content-Type', 'image/svg+xml');
+          }
+        }
+      });
+
       return (req: Request, res: Response, next: NextFunction) => {
-        express.static(staticPath, options)(req, res, (err) => {
+        staticHandler(req, res, (err) => {
           if (err) {
-            error({
+            const logMessage: LogMessage = {
+              level: 'error',
               message: 'Static file error',
-              path: req.path,
-              error_message: err instanceof Error ? err.message : String(err)
-            });
+              error_message: err instanceof Error ? err.message : String(err),
+              metadata: {
+                path: req.path,
+                operation: 'static_file_serve',
+                status: 500
+              }
+            };
+            error(logMessage);
             next(err);
           } else {
             next();
@@ -274,14 +300,29 @@ async function initializeMiddleware() {
           error_message: err.message,
           metadata: {
             path: req.path,
-            statusCode: 404
+            status: 404,
+            operation: 'static_file_serve'
           }
         });
+        
         if (req.path.startsWith('/assets/')) {
           res.status(404).json({ message: 'Asset not found', path: req.path });
         } else {
           // For non-asset routes, let the client-side router handle it
-          res.sendFile(path.join(publicPath, 'index.html'));
+          res.sendFile(path.join(publicPath, 'index.html'), (sendErr) => {
+            if (sendErr) {
+              error({
+                message: 'Error sending index.html',
+                error_message: sendErr.message,
+                metadata: {
+                  path: req.path,
+                  status: 500,
+                  operation: 'serve_index_html'
+                }
+              });
+              res.status(500).json({ message: 'Error serving page' });
+            }
+          });
         }
       } else {
         next(err);
