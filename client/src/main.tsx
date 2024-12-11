@@ -23,6 +23,7 @@ import AITools from "./pages/AITools";
 import { ImageToText } from "./pages/ai-tools/ImageToText";
 import TextToSpeech from "./pages/ai-tools/TextToSpeech";
 import QuizCreator from "./pages/ai-tools/QuizCreator";
+import TranslationTool from "./pages/ai-tools/TranslationTool";
 
 function Router() {
   return (
@@ -82,6 +83,11 @@ function Router() {
         <Route path="/ai-tools/quiz">
           <ProtectedRoute>
             <QuizCreator />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/ai-tools/translate">
+          <ProtectedRoute>
+            <TranslationTool />
           </ProtectedRoute>
         </Route>
         <Route path="/signin" component={SignIn} />

@@ -1,7 +1,7 @@
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useSettings } from "@/contexts/SettingsContext";
 import { useLocation } from "wouter";
-import { Image, Mic, BookOpen } from "lucide-react";
+import { Image, Mic, BookOpen, Languages } from "lucide-react";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { useEffect, useState } from "react";
 import { useNotification } from "@/components/ui/notification";
@@ -77,6 +77,17 @@ export default function AITools() {
               Practice Quiz Creator
             </CardTitle>
             <CardDescription>Generate quizzes with AI</CardDescription>
+          </CardHeader>
+        </Card>
+
+        {/* Translation Tool */}
+        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => handleCardClick('/ai-tools/translate')}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Languages className="w-5 h-5" />
+              AI Translation
+            </CardTitle>
+            <CardDescription>Translate text into multiple languages</CardDescription>
           </CardHeader>
         </Card>
       </div>
