@@ -58,15 +58,9 @@ export default function TranslationTool() {
         credentials: 'include'
       });
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (e) {
-        throw new Error("Invalid response from server");
-      }
-      
       if (!response.ok) {
-        if (response.status === 400 && data.details?.includes("API key")) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 400 && errorData.details?.includes("API key")) {
           showNotification({
             message: "OpenAI API key not configured. Please configure it in settings.",
             type: "error",
@@ -82,11 +76,12 @@ export default function TranslationTool() {
           setLocation("/signin");
           return;
         }
-        throw new Error(data.details || data.message || "Translation failed");
+        throw new Error(errorData.details || errorData.message || "Translation failed");
       }
 
-      if (!data.translation) {
-        throw new Error("Invalid translation response");
+      const data = await response.json();
+      if (!data?.translation) {
+        throw new Error("Invalid translation response from server");
       }
 
       setTranslatedText(data.translation);
