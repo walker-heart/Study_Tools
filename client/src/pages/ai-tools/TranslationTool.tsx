@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -18,6 +19,7 @@ export default function TranslationTool() {
   const [translatedText, setTranslatedText] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("es");
   const [isTranslating, setIsTranslating] = useState(false);
+  const [, setLocation] = useLocation();
   const { showNotification } = useNotification();
 
   const languages = [
@@ -53,9 +55,15 @@ export default function TranslationTool() {
           text: sourceText,
           targetLanguage,
         }),
+        credentials: 'include'
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        throw new Error("Invalid response from server");
+      }
       
       if (!response.ok) {
         if (response.status === 400 && data.details?.includes("API key")) {
@@ -63,11 +71,22 @@ export default function TranslationTool() {
             message: "OpenAI API key not configured. Please configure it in settings.",
             type: "error",
           });
-          // Navigate to API settings
           setLocation("/settings/api");
           return;
         }
-        throw new Error(data.details || "Translation failed");
+        if (response.status === 401) {
+          showNotification({
+            message: "Please sign in to use the translation feature",
+            type: "error",
+          });
+          setLocation("/signin");
+          return;
+        }
+        throw new Error(data.details || data.message || "Translation failed");
+      }
+
+      if (!data.translation) {
+        throw new Error("Invalid translation response");
       }
 
       setTranslatedText(data.translation);
