@@ -66,7 +66,8 @@ export function trackError(error: Error | AppError, req?: Request, res?: Respons
 
   log({
     message: error.message,
-    errorType: error.name,
+    type: error.name, // Changed errorType to type to match LogMessage type
+    level: 'error',
     ...context,
   }, 'error');
 
