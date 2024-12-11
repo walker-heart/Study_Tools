@@ -199,30 +199,57 @@ async function initializeMiddleware() {
   }
 }
 
+import { 
+  trackError, 
+  initRequestTracking, 
+  AuthenticationError,
+  DatabaseError,
+  ValidationError,
+  AppError 
+} from './lib/errorTracking';
+
 // Setup error handlers
 function setupErrorHandlers() {
+  // Add request tracking
+  app.use(initRequestTracking());
+
   // API route not found handler
   app.use('/api/*', (req: Request, res: Response) => {
-    log({
+    const context = trackError(
+      new AppError('API endpoint not found', {
+        errorCode: 'NOT_FOUND',
+        statusCode: 404
+      }), 
+      req
+    );
+    
+    res.status(404).json({ 
       message: 'API endpoint not found',
-      path: req.path,
-      method: req.method
-    }, 'warn');
-    res.status(404).json({ message: 'API endpoint not found' });
+      requestId: context.requestId
+    });
   });
 
-  // Session error handler
+  // Authentication error handler
   app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-    if (err.name === 'SessionError') {
-      log({
-        message: 'Session error occurred',
-        path: req.path,
-        method: req.method,
-        stack: err.stack
-      }, 'error');
+    if (err instanceof AuthenticationError || err.name === 'SessionError') {
+      const context = trackError(err, req);
       return res.status(401).json({ 
-        message: 'Session error occurred',
-        error: 'Please try signing in again'
+        message: 'Authentication failed',
+        error: 'Please sign in again',
+        requestId: context.requestId
+      });
+    }
+    next(err);
+  });
+
+  // Validation error handler
+  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+    if (err instanceof ValidationError) {
+      const context = trackError(err, req);
+      return res.status(400).json({
+        message: 'Validation failed',
+        error: err.message,
+        requestId: context.requestId
       });
     }
     next(err);
@@ -230,40 +257,31 @@ function setupErrorHandlers() {
 
   // Database error handler
   app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-    if (err.name === 'DatabaseError' || err.message.includes('database')) {
-      log({
-        message: 'Database error occurred',
-        path: req.path,
-        method: req.method,
-        stack: err.stack
-      }, 'error');
+    if (err instanceof DatabaseError || err.message.includes('database')) {
+      const context = trackError(err, req);
       return res.status(503).json({ 
-        message: 'Database error occurred',
-        error: 'Please try again later'
+        message: 'Service temporarily unavailable',
+        error: 'Please try again later',
+        requestId: context.requestId
       });
     }
     next(err);
   });
 
   // Final error handler
-  app.use((err: ExtendedError, req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || 'Internal Server Error';
+  app.use((err: Error | AppError, req: Request, res: Response, _next: NextFunction) => {
+    const context = trackError(err, req, res);
+    const status = 'context' in err ? err.context.statusCode || 500 : 500;
     
-    log({
-      message: `Error processing request: ${message}`,
-      path: req.path,
-      method: req.method,
-      status,
-      stack: err.stack
-    }, 'error');
-
     const response = {
-      message: env.NODE_ENV === 'production' ? 'An unexpected error occurred' : message,
+      message: env.NODE_ENV === 'production' 
+        ? 'An unexpected error occurred' 
+        : err.message,
       status,
+      requestId: context.requestId,
       ...(env.NODE_ENV === 'development' ? { 
         stack: err.stack,
-        details: err.message 
+        errorCode: 'context' in err ? err.context.errorCode : 'UNKNOWN_ERROR'
       } : {})
     };
 
