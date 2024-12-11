@@ -264,6 +264,11 @@ export default function TranslationTool() {
     }
   };
 
+  // Handle search input change
+  const handleSearchInput = (value: string) => {
+    setSearchTerm(value.toLowerCase());
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">AI Translation Tool</h1>
@@ -302,67 +307,55 @@ export default function TranslationTool() {
               
               <div>
                 <label className="block text-sm font-medium mb-2">Translation Tense</label>
-                <Select 
-                  value={selectedTense} 
-                  onValueChange={setSelectedTense}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <div className="px-3 py-2">
-                      <input
-                        type="text"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                        placeholder="Search tenses..."
-                        value={searchTerm}
-                        onChange={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setSearchTerm(e.target.value.toLowerCase());
-                        }}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key !== 'Escape') {
-                            e.stopPropagation();
-                          }
-                        }}
-                      />
-                    </div>
-                    <SelectGroup>
-                      {tenseOptions
-                        .filter(tense => 
+                <div className="space-y-2">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      placeholder="Search tenses..."
+                      value={searchTerm}
+                      onChange={(e) => handleSearchInput(e.target.value)}
+                    />
+                  </div>
+                  <Select 
+                    value={selectedTense} 
+                    onValueChange={(value) => {
+                      setSelectedTense(value);
+                      setSearchTerm('');
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {tenseOptions
+                          .filter(tense => 
+                            !searchTerm || 
+                            tense.label.toLowerCase().includes(searchTerm) ||
+                            tense.value.toLowerCase().includes(searchTerm)
+                          )
+                          .map((tense) => (
+                            <SelectItem 
+                              key={tense.value} 
+                              value={tense.value}
+                            >
+                              {tense.label}
+                            </SelectItem>
+                          ))}
+                        {tenseOptions.filter(tense => 
                           !searchTerm || 
                           tense.label.toLowerCase().includes(searchTerm) ||
                           tense.value.toLowerCase().includes(searchTerm)
-                        )
-                        .map((tense) => (
-                          <SelectItem 
-                            key={tense.value} 
-                            value={tense.value}
-                          >
-                            {tense.label}
-                          </SelectItem>
-                        ))}
-                      {tenseOptions.filter(tense => 
-                        !searchTerm || 
-                        tense.label.toLowerCase().includes(searchTerm) ||
-                        tense.value.toLowerCase().includes(searchTerm)
-                      ).length === 0 && (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">
-                          No tenses found
-                        </div>
-                      )}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                        ).length === 0 && (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">
+                            No tenses found
+                          </div>
+                        )}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
