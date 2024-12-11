@@ -33,10 +33,41 @@ function log(message: string) {
 const app = express();
 // Configure CORS middleware with simpler setup for development
 const corsOptions: cors.CorsOptions = {
-  origin: true, // Allow all origins in development
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      'https://www.wtoolsw.com',
+      'https://wtoolsw.com',
+      'https://wtoolsw.repl.co'
+    ];
+    // Allow requests with no origin (like mobile apps, curl, postman)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    // Allow all origins in development
+    if (env.NODE_ENV === 'development') {
+      callback(null, true);
+      return;
+    }
+    // Check against allowed origins
+    if (allowedOrigins.some(allowed => origin.startsWith(allowed))) {
+      callback(null, true);
+    } else {
+      log(`CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Cache-Control',
+    'Origin'
+  ],
+  exposedHeaders: ['Set-Cookie'],
   maxAge: 86400 // 24 hours in seconds
 };
 
@@ -45,6 +76,15 @@ app.use(cors(corsOptions));
 
 // Handle OPTIONS preflight requests
 app.options('*', cors(corsOptions));
+
+// Log all requests for debugging
+app.use((req, res, next) => {
+  log(`${req.method} ${req.url}`);
+  if (env.NODE_ENV === 'development') {
+    log('Headers: ' + JSON.stringify(req.headers));
+  }
+  next();
+});
 
 // Add security headers
 app.use((req, res, next) => {
@@ -55,28 +95,55 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files from the Vite build output
+// Configure static file serving
 const publicPath = path.join(__dirname, '..', 'dist', 'public');
-log(`Serving static files from: ${publicPath}`);
+const clientPublicPath = path.join(__dirname, '..', 'client', 'public');
 
-// Basic static file serving configuration
-app.use(express.static(publicPath, {
-  index: false // Let our router handle the index route
+log(`Serving static files from build: ${publicPath}`);
+log(`Serving static files from client: ${clientPublicPath}`);
+
+// Serve manifest and favicon files first
+app.use(express.static(clientPublicPath, {
+  index: false,
+  etag: true,
+  lastModified: true,
+  maxAge: '1d',
+  dotfiles: 'ignore',
+  fallthrough: true
 }));
 
-// Handle static file errors
+// Then serve the build output
+app.use(express.static(publicPath, {
+  index: false,
+  etag: true,
+  lastModified: true,
+  maxAge: '1d',
+  dotfiles: 'ignore',
+  fallthrough: true
+}));
+
+// Configure request size limits and parsers after static files
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Static file error handler with improved error handling
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  if (err.code === 'ENOENT') {
-    log(`Static file not found: ${req.url}`);
-    next();
+  if (err) {
+    log(`Static file error for ${req.url}: ${err.message}`);
+    if (err.code === 'ENOENT') {
+      // For missing files, continue to next handler
+      next();
+    } else {
+      // For other errors, send error response
+      res.status(500).json({ 
+        error: 'Static file error',
+        message: env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+      });
+    }
   } else {
-    log(`Static file error: ${err.message}`);
-    next(err);
+    next();
   }
 });
-
-// Log static file paths for debugging
-log(`Serving static files from: ${publicPath}`);
 
 // Configure request size limits and parsers
 app.use(express.json({ limit: '10mb' }));
@@ -87,29 +154,24 @@ const pool = new Pool({
   ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Test database connection
-pool.query('SELECT NOW()', (err) => {
-  if (err) {
-    console.error('Database connection error:', err);
-  } else {
-    log('Database connection successful');
-  }
-});
-
-// Configure session middleware with enhanced debugging
+// Configure proxy settings based on environment
 if (env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1); // Trust first proxy
+  app.set('trust proxy', 1); // trust first proxy
 }
 
-console.log('Configuring session store with database connection');
-const pgStore = connectPgSimple(session);
+// Session configuration with improved error handling
 const sessionConfig: session.SessionOptions = {
-  store: new pgStore({
+  store: new (connectPgSimple(session))({
     pool,
     tableName: 'session',
     createTableIfMissing: true,
     pruneSessionInterval: 60 * 15, // 15 minutes
-    errorLog: console.error.bind(console, 'Session store error:')
+    errorLog: (err: Error) => {
+      log(`Session store error: ${err.message}`);
+      if (env.NODE_ENV === 'development') {
+        log(err.stack || 'No stack trace available');
+      }
+    }
   }),
   name: 'sid',
   secret: env.JWT_SECRET!,
@@ -123,19 +185,32 @@ const sessionConfig: session.SessionOptions = {
     sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: '/',
-    domain: undefined // Let browser set the cookie domain
-  } as session.CookieOptions & {
-    sameSite: 'none' | 'lax'
+    ...(env.NODE_ENV === 'production' && {
+      domain: '.wtoolsw.com'
+    })
   }
 };
 
-// Log session configuration for debugging
-console.log('Session configuration:', {
+// Single, comprehensive session configuration log
+log('Session configuration: ' + JSON.stringify({
+  environment: env.NODE_ENV,
   store: 'PostgreSQL',
   cookieSecure: sessionConfig.cookie?.secure,
   cookieSameSite: sessionConfig.cookie?.sameSite,
-  environment: env.NODE_ENV,
+  cookieDomain: sessionConfig.cookie?.domain,
   trustProxy: app.get('trust proxy')
+}, null, 2));
+
+// Test database connection before applying session middleware
+pool.query('SELECT NOW()', (err) => {
+  if (err) {
+    log(`Database connection error: ${err.message}`);
+    throw err; // Fail fast if database connection fails
+  }
+  log('Database connection successful');
+  
+  // Apply session middleware after successful database connection
+  app.use(session(sessionConfig));
 });
 
 app.use(session(sessionConfig));
