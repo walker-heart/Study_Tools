@@ -142,7 +142,7 @@ export default function Settings() {
                       method: 'POST',
                       credentials: 'include',
                       headers: {
-                        'Content-Type': 'application/json'
+                        'Accept': 'application/json'
                       }
                     });
                     
@@ -161,7 +161,7 @@ export default function Settings() {
                       // Force reload to clear React Query cache and reset app state
                       window.location.href = '/';
                     } else {
-                      const data = await response.json();
+                      const data = await response.json().catch(() => ({ message: 'Failed to sign out' }));
                       throw new Error(data.message || 'Failed to sign out');
                     }
                   } catch (error) {

@@ -115,13 +115,15 @@ export async function signIn(req: Request, res: Response) {
 }
 export async function signOut(req: Request, res: Response) {
   try {
+    const userId = req.session?.user?.id;
+    
     // Clear user session from database if user exists
-    if (req.session?.user?.id) {
+    if (userId) {
       try {
         await db.execute(sql`
           UPDATE user_sessions 
           SET ended_at = NOW() 
-          WHERE user_id = ${req.session.user.id} 
+          WHERE user_id = ${userId} 
           AND ended_at IS NULL
         `);
       } catch (dbError) {
@@ -130,31 +132,37 @@ export async function signOut(req: Request, res: Response) {
       }
     }
 
-    // Clear authentication flag
+    // Clear session data
     req.session.authenticated = false;
     req.session.user = undefined;
 
     // Destroy session and clear cookie
-    return new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
       req.session.destroy((err: Error | null) => {
         if (err) {
           console.error('Error destroying session:', err);
-          res.status(500).json({ message: "Error signing out" });
+          reject(err);
         } else {
-          res.clearCookie('sid', {
-            path: '/',
-            httpOnly: true,
-            secure: env.NODE_ENV === 'production',
-            sameSite: 'lax'
-          });
-          res.json({ message: "Signed out successfully" });
+          resolve();
         }
-        resolve();
       });
     });
+
+    // Clear cookies after session is destroyed
+    res.clearCookie('sid', {
+      path: '/',
+      httpOnly: true,
+      secure: env.NODE_ENV === 'production',
+      sameSite: 'lax'
+    });
+
+    res.status(200).json({ message: "Signed out successfully" });
   } catch (error) {
     console.error('Sign out error:', error);
-    res.status(500).json({ message: "Error signing out" });
+    // Ensure we haven't already sent headers
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Error signing out" });
+    }
   }
 }
 

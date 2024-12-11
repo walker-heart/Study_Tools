@@ -181,12 +181,15 @@ async function initializeMiddleware() {
     app.use(express.json({ 
       limit: '10mb',
       verify: (req: Request, res: Response, buf: Buffer) => {
-        try {
-          JSON.parse(buf.toString());
-        } catch (e) {
-          res.status(400).json({ message: 'Invalid JSON' });
-          throw new Error('Invalid JSON');
+        if (req.headers['content-type']?.includes('application/json')) {
+          try {
+            JSON.parse(buf.toString());
+          } catch (e) {
+            res.status(400).json({ message: 'Invalid JSON' });
+            throw new Error('Invalid JSON');
+          }
         }
+        return true;
       }
     }));
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));
