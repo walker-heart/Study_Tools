@@ -220,7 +220,7 @@ async function initializeMiddleware() {
         error({
           message: 'Static file not found',
           path: req.path,
-          error: err.message
+          message: err.message
         });
         res.status(404).json({ message: 'File not found' });
       } else {
@@ -287,7 +287,7 @@ function setupErrorHandlers() {
       const context = trackError(err, req);
       return res.status(400).json({
         message: 'Validation failed',
-        error: err.message,
+        message: err.message,
         requestId: context.requestId
       });
     }
