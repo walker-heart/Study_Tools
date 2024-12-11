@@ -20,6 +20,8 @@ export default function TranslationTool() {
   const [targetLanguage, setTargetLanguage] = useState("es");
   const [selectedTense, setSelectedTense] = useState("neutral");
   const [isTranslating, setIsTranslating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [customization, setCustomization] = useState("");
   const [, setLocation] = useLocation();
   const { showNotification } = useNotification();
 
@@ -178,6 +180,7 @@ export default function TranslationTool() {
           text: sourceText,
           targetLanguage,
           tense: selectedTense,
+          customization: customization.trim(),
         }),
         credentials: 'include'
       });
@@ -295,53 +298,55 @@ export default function TranslationTool() {
               
               <div>
                 <label className="block text-sm font-medium mb-2">Translation Tense</label>
-                <Select 
-                  value={selectedTense} 
-                  onValueChange={(value) => {
-                    setSelectedTense(value);
-                    // Reset tense to neutral when changing languages if the current tense
-                    // isn't available in the new language
-                    const newTenseOptions = getTenseOptions(targetLanguage);
-                    if (!newTenseOptions.some(t => t.value === value)) {
-                      setSelectedTense('neutral');
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <div className="px-3 py-2">
-                        <input
-                          className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                          placeholder="Search tenses..."
-                          onChange={(e) => {
-                            const searchTerm = e.target.value.toLowerCase();
-                            const filteredTenses = getTenseOptions(targetLanguage)
-                              .filter(tense => 
-                                tense.label.toLowerCase().includes(searchTerm)
-                              );
-                            // Update the visible options
-                            e.currentTarget.parentElement?.parentElement
-                              ?.querySelectorAll('[role="option"]')
-                              .forEach(option => {
-                                const shouldShow = filteredTenses
-                                  .some(t => t.value === option.getAttribute('data-value'));
-                                (option as HTMLElement).style.display = shouldShow ? '' : 'none';
-                              });
-                          }}
-                        />
-                      </div>
-                      {tenseOptions.map((tense) => (
-                        <SelectItem key={tense.value} value={tense.value}>
-                          {tense.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    placeholder="Search tenses..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
+                  />
+                  <Select 
+                    value={selectedTense} 
+                    onValueChange={(value) => {
+                      setSelectedTense(value);
+                      const newTenseOptions = getTenseOptions(targetLanguage);
+                      if (!newTenseOptions.some(t => t.value === value)) {
+                        setSelectedTense('neutral');
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {tenseOptions
+                          .filter(tense => 
+                            !searchTerm || 
+                            tense.label.toLowerCase().includes(searchTerm) ||
+                            tense.value.toLowerCase().includes(searchTerm)
+                          )
+                          .map((tense) => (
+                            <SelectItem key={tense.value} value={tense.value}>
+                              {tense.label}
+                            </SelectItem>
+                          ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Custom Instructions (Optional)</label>
+              <Textarea
+                value={customization}
+                onChange={(e) => setCustomization(e.target.value)}
+                placeholder="Add any specific translation instructions or preferences..."
+                className="min-h-[100px]"
+              />
             </div>
 
             <Button 
