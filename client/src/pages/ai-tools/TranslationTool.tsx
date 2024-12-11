@@ -313,11 +313,12 @@ export default function TranslationTool() {
                   <div className="relative mb-2">
                     <input
                       type="text"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 selection:bg-primary selection:text-primary-foreground"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background text-foreground placeholder:text-muted-foreground focus:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 selection:bg-primary/20 selection:text-foreground hover:bg-accent hover:text-accent-foreground"
                       placeholder="Search tenses..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       aria-label="Search tenses"
+                      autoComplete="off"
                     />
                   </div>
                   
