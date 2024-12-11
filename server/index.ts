@@ -1,4 +1,5 @@
-import express, { type Request, Response, NextFunction } from "express";
+import express from "express";
+import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
@@ -55,50 +56,35 @@ app.use((req, res, next) => {
 });
 
 // Serve static files with proper MIME types and error handling
-let publicPath: string;
-if (process.env.NODE_ENV === 'development') {
-  publicPath = path.resolve(__dirname, '..', 'dist', 'public');
-} else {
-  publicPath = path.resolve(__dirname, '..', 'dist', 'public');
-}
+const publicPath = path.resolve(__dirname, '..', process.env.NODE_ENV === 'development' ? 'client' : 'dist/public');
 
 console.log('Environment:', process.env.NODE_ENV);
 console.log('Static files path:', publicPath);
 
-// Verify the directory exists
-if (!fs.existsSync(publicPath)) {
-  console.error(`Error: Static files directory not found at ${publicPath}`);
-  fs.mkdirSync(publicPath, { recursive: true });
-}
-
-app.use(express.static(publicPath, {
-  setHeaders: (res, filePath) => {
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeTypes: Record<string, string> = {
-      '.js': 'application/javascript',
-      '.css': 'text/css',
-      '.json': 'application/json',
-      '.svg': 'image/svg+xml',
-      '.png': 'image/png',
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.gif': 'image/gif'
-    };
-    const mimeType = mimeTypes[ext] || 'application/octet-stream';
-    if (mimeType) {
-      res.setHeader('Content-Type', mimeType);
+// Configure static file serving
+const staticFileOptions: Parameters<typeof express.static>[1] = {
+  setHeaders: (res: express.Response, filePath: string) => {
+    if (path.extname(filePath).toLowerCase() === '.css') {
+      res.setHeader('Content-Type', 'text/css');
     }
-    // Add cache control for development
     if (process.env.NODE_ENV === 'development') {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     }
   },
   fallthrough: true,
-  index: false,
-  maxAge: process.env.NODE_ENV === 'development' ? 0 : '1h'
-}));
+  index: false
+};
 
-// Add specific route for CSS files in development
+// Ensure the directory exists
+if (!fs.existsSync(publicPath)) {
+  console.log(`Creating directory: ${publicPath}`);
+  fs.mkdirSync(publicPath, { recursive: true });
+}
+
+// Serve static files
+app.use(express.static(publicPath, staticFileOptions));
+
+// Handle CSS files in development
 if (process.env.NODE_ENV === 'development') {
   app.get('*.css', (req, res, next) => {
     res.setHeader('Content-Type', 'text/css');
