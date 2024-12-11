@@ -264,11 +264,6 @@ export default function TranslationTool() {
     }
   };
 
-  // Handle search input change
-  const handleSearchInput = (value: string) => {
-    setSearchTerm(value.toLowerCase());
-  };
-
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">AI Translation Tool</h1>
@@ -321,7 +316,24 @@ export default function TranslationTool() {
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                         placeholder="Search tenses..."
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
+                        onChange={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSearchTerm(e.target.value.toLowerCase());
+                        }}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key !== 'Escape') {
+                            e.stopPropagation();
+                          }
+                        }}
                       />
                     </div>
                     <SelectGroup>
