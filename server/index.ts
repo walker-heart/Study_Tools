@@ -5,7 +5,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 import session from "express-session";
-import type { Session, SessionData } from "express-session";
+import type { Session as ExpressSession, SessionData } from "express-session";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
@@ -34,7 +34,7 @@ interface ExtendedError extends Error {
 }
 
 interface TypedRequest extends Request {
-  session: Session & Partial<SessionData> & {
+  session: ExpressSession & Partial<SessionData> & {
     user?: {
       id: string | number;
       [key: string]: any;
