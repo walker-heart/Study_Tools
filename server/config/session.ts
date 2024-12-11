@@ -4,7 +4,7 @@ const { Pool } = pkg;
 import connectPgSimple from 'connect-pg-simple';
 import MemoryStore from 'memorystore';
 import { env } from '../lib/env';
-import { log } from '../lib/log';
+import { log, debug, info, warn, error } from '../lib/log';
 
 import type { LogMessage } from '../lib/log';
 
@@ -37,7 +37,7 @@ const createPool = () => {
   });
 
   pool.on('connect', () => {
-    log('New client connected to database pool', 'debug');
+    debug('New client connected to database pool');
   });
 
   return pool;
@@ -54,7 +54,8 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
         message: 'Database connection successful',
         attempt,
         total_attempts: maxRetries
-      }, 'info');
+      });
+      info('Database connection successful');
       return true;
     } catch (error) {
       const isLastAttempt = attempt === maxRetries;
@@ -146,31 +147,32 @@ async function initializeSessionStore() {
         )
       ]);
       
-      log('PostgreSQL session store initialized and verified', 'info');
+      info('PostgreSQL session store initialized and verified');
       return store;
       
     } catch (verifyError) {
-      log({
+      error({
         message: `Session store verification failed: ${verifyError instanceof Error ? verifyError.message : 'Unknown error'}`,
         stack: verifyError instanceof Error ? verifyError.stack : undefined
-      }, 'error');
+      });
       throw verifyError;
     }
   } catch (error) {
-    log({
+    warn({
       message: 'PostgreSQL session store initialization failed, falling back to MemoryStore',
       stack: error instanceof Error ? error.stack : undefined
-    }, 'warn');
+    });
 
     // Clean up pool if it exists
     if (pool) {
       try {
         await pool.end();
-      } catch (poolError) {
-        log({
+      } catch (poolError: unknown) {
+        error({
           message: 'Error closing pool during fallback',
-          stack: poolError instanceof Error ? poolError.stack : undefined
-        }, 'error');
+          stack: poolError instanceof Error ? poolError.stack : undefined,
+          error_message: poolError instanceof Error ? poolError.message : String(poolError)
+        });
       }
     }
 
