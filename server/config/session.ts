@@ -5,13 +5,18 @@ import connectPgSimple from 'connect-pg-simple';
 import MemoryStore from 'memorystore';
 import { env } from '../lib/env';
 import { log, debug, info, warn, error } from '../lib/log';
+import type { LogMessage, LogLevel } from '../lib/log';
 
-import type { LogMessage } from '../lib/log';
+// Define a type for the error message
+type SessionError = LogMessage & {
+  level: LogLevel;
+  context?: Record<string, unknown>;
+};
 
 const MemoryStoreSession = MemoryStore(session);
 
 // Create PostgreSQL pool with enhanced error handling and connection management
-const createPool = () => {
+const createPool = (): pkg.Pool => {
   const pool = new Pool({
     connectionString: env.DATABASE_URL,
     ssl: env.NODE_ENV === 'production' 
@@ -83,7 +88,7 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
 }
 
 // Initialize session store with proper error handling and retries
-async function initializeSessionStore() {
+async function initializeSessionStore(): Promise<session.Store> {
   let pool: pkg.Pool | undefined;
 
   try {
@@ -168,12 +173,17 @@ async function initializeSessionStore() {
       try {
         await pool.end();
       } catch (poolError: unknown) {
-        error({
+        const errorMessage: SessionError = {
           message: 'Error closing pool during fallback',
           stack: poolError instanceof Error ? poolError.stack : undefined,
           error_message: poolError instanceof Error ? poolError.message : String(poolError),
-          level: 'error'
-        });
+          level: 'error',
+          context: {
+            operation: 'pool_cleanup',
+            fallback: 'memory_store'
+          }
+        };
+        error(errorMessage);
       }
     }
 
