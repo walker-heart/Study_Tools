@@ -45,24 +45,30 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
 
 // Initialize session store with proper error handling and retries
 async function initializeSessionStore() {
-  const pool = createPool();
+  let pool: pkg.Pool | undefined;
 
   try {
+    pool = createPool();
+    
     // Test database connection first
     const isConnected = await testDatabaseConnection(pool);
     if (!isConnected) {
       throw new Error('Failed to establish database connection after retries');
     }
 
+    // Initialize session store
     const pgSession = connectPgSimple(session);
+    
+    // Create session store with enhanced error handling
     const store = new pgSession({
       pool,
       tableName: 'session',
       createTableIfMissing: true,
       pruneSessionInterval: 60 * 15, // Prune every 15 minutes
+      // Enhanced error logging
       errorLog: (error: Error) => {
         log({
-          message: 'Session store error',
+          message: `Session store error: ${error.message}`,
           path: 'session-store',
           status: 500,
           stack: error.stack
@@ -70,37 +76,59 @@ async function initializeSessionStore() {
       }
     });
 
-    // Verify session store functionality
-    await new Promise<void>((resolve, reject) => {
-      store.get('test-session', (err) => {
-        if (err) {
-          reject(new Error(`Session store verification failed: ${err.message}`));
-        } else {
-          resolve();
-        }
-      });
-    });
-
-    log('PostgreSQL session store initialized and verified', 'info');
-    return store;
+    // Verify session store functionality with timeout
+    try {
+      await Promise.race([
+        new Promise<void>((resolve, reject) => {
+          store.get('test-session', (err) => {
+            if (err) {
+              reject(new Error(`Session store verification failed: ${err.message}`));
+            } else {
+              resolve();
+            }
+          });
+        }),
+        new Promise<void>((_, reject) => 
+          setTimeout(() => reject(new Error('Session store verification timeout')), 5000)
+        )
+      ]);
+      
+      log('PostgreSQL session store initialized and verified', 'info');
+      return store;
+      
+    } catch (verifyError) {
+      log({
+        message: `Session store verification failed: ${verifyError instanceof Error ? verifyError.message : 'Unknown error'}`,
+        stack: verifyError instanceof Error ? verifyError.stack : undefined
+      }, 'error');
+      throw verifyError;
+    }
   } catch (error) {
     log({
       message: 'PostgreSQL session store initialization failed, falling back to MemoryStore',
       stack: error instanceof Error ? error.stack : undefined
     }, 'warn');
 
-    // Clean up pool before falling back
-    await pool.end().catch(err => {
-      log({
-        message: 'Error closing pool during fallback',
-        stack: err instanceof Error ? err.stack : undefined
-      }, 'error');
+    // Clean up pool if it exists
+    if (pool) {
+      try {
+        await pool.end();
+      } catch (poolError) {
+        log({
+          message: 'Error closing pool during fallback',
+          stack: poolError instanceof Error ? poolError.stack : undefined
+        }, 'error');
+      }
+    }
+
+    // Return memory store as fallback
+    const memoryStore = new MemoryStoreSession({
+      checkPeriod: 86400000, // Prune expired entries every 24h
+      stale: false, // Don't keep stale sessions
+      max: 100 // Limit maximum number of sessions
     });
 
-    return new MemoryStoreSession({
-      checkPeriod: 86400000, // Prune expired entries every 24h
-      stale: false // Don't keep stale sessions
-    });
+    return memoryStore;
   }
 }
 
