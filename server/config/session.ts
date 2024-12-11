@@ -95,15 +95,27 @@ async function initializeSessionStore() {
       tableName: 'session',
       createTableIfMissing: true,
       pruneSessionInterval: 60 * 15, // Prune every 15 minutes
-      // Enhanced error logging
+      // Enhanced error logging with context
       errorLog: (error: Error) => {
         log({
           message: `Session store error: ${error.message}`,
           path: 'session-store',
           status: 500,
-          stack: error.stack
+          stack: error.stack,
+          context: {
+            tableName: 'session',
+            poolConfig: {
+              max: pool.options.max,
+              idleTimeoutMillis: pool.options.idleTimeoutMillis,
+              connectionTimeoutMillis: pool.options.connectionTimeoutMillis
+            }
+          }
         }, 'error');
-      }
+      },
+      // Add retry mechanism for session operations
+      retries: 3,
+      minReconnectTimeoutMillis: 1000,
+      maxReconnectTimeoutMillis: 5000
     });
 
     // Verify session store functionality with timeout
