@@ -117,13 +117,17 @@ export function sessionSecurity(req: Request, res: Response, next: NextFunction)
     // Regenerate session
     req.session.regenerate((err: Error | null) => {
       if (err) {
-        log({
-          message: 'Failed to regenerate session',
+        const error = new AuthenticationError('Failed to regenerate session', {
           path: req.path,
           method: req.method,
-          stack: err.stack
-        }, 'error');
-        return res.status(500).json({ message: 'Session error' });
+          statusCode: 500
+        });
+        trackError(error, req);
+        return res.status(500).json({ 
+          message: 'Session error occurred',
+          error: 'Please try again',
+          requestId: req.headers['x-request-id']
+        });
       }
       
       // Restore user data to new session
@@ -131,6 +135,23 @@ export function sessionSecurity(req: Request, res: Response, next: NextFunction)
       next();
     });
     return;
+  }
+
+  // Check admin access
+  if (req.path.startsWith('/api/admin/')) {
+    if (!req.session?.user?.isAdmin) {
+      const error = new AuthenticationError('Unauthorized admin access attempt', {
+        path: req.path,
+        method: req.method,
+        statusCode: 403
+      });
+      const context = trackError(error, req);
+      return res.status(403).json({
+        message: 'Access denied',
+        error: 'Administrator access required',
+        requestId: context.requestId
+      });
+    }
   }
 
   // Check for session fixation on authenticated routes
