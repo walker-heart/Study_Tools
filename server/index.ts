@@ -220,7 +220,7 @@ async function initializeMiddleware() {
         error({
           message: 'Static file not found',
           path: req.path,
-          error: err.message
+          error_message: err.message
         });
         res.status(404).json({ message: 'File not found' });
       } else {
