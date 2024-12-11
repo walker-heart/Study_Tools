@@ -55,44 +55,14 @@ app.use((req, res, next) => {
   next();
 });
 
-// Configure request size limits and parsers
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Serve static files from the Vite build output
+const publicPath = path.join(__dirname, '..', 'dist', 'public');
+log(`Serving static files from: ${publicPath}`);
 
-// Add error handling middleware for JSON parsing
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  if (err instanceof SyntaxError) {
-    log('JSON Parse Error: ' + err.message);
-    return res.status(400).json({ message: 'Invalid JSON' });
-  }
-  next(err);
-});
-
-// Configure static file serving from client/public
-const clientPublicPath = path.join(__dirname, '..', 'client', 'public');
-log(`Serving static files from: ${clientPublicPath}`);
-
-// Serve files from client/public with explicit error handling
-app.use(express.static(clientPublicPath, {
-  index: false,
-  fallthrough: true,
-  setHeaders: (res) => {
-    res.setHeader('Cache-Control', 'public, max-age=31536000');
-  }
+// Basic static file serving configuration
+app.use(express.static(publicPath, {
+  index: false // Let our router handle the index route
 }));
-
-// In production, also serve from dist/public
-if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, '..', 'dist', 'public');
-  log(`Also serving static files from: ${distPath}`);
-  app.use(express.static(distPath, {
-    index: false,
-    fallthrough: true,
-    setHeaders: (res) => {
-      res.setHeader('Cache-Control', 'public, max-age=31536000');
-    }
-  }));
-}
 
 // Handle static file errors
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
@@ -105,6 +75,12 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// Log static file paths for debugging
+log(`Serving static files from: ${publicPath}`);
+
+// Configure request size limits and parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Configure PostgreSQL pool for session store
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
