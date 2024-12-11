@@ -610,14 +610,7 @@ export async function translateText(req: Request, res: Response) {
       const validTenses = [
         "neutral", "present", "past", "future", 
         "preterite", "imperfect", "conditional", 
-        "present_perfect", "past_perfect", "future_perfect",
-        "conditional_perfect", "present_subjunctive",
-        "past_subjunctive", "future_subjunctive",
-        "passe_compose", "passe_simple", "perfect",
-        "past_historic", "future_conditional", "perfective",
-        "imperfective", "non_past", "volitional",
-        "imperative", "honorific", "default", "le",
-        "guo", "zhe"
+        "present_perfect"
       ];
       if (!validTenses.includes(tense)) {
         return res.status(400).json({
@@ -645,7 +638,6 @@ export async function translateText(req: Request, res: Response) {
       // Create tense-specific instruction
       let tenseInstruction = "";
       switch(tense) {
-        // Basic tenses
         case "present":
           tenseInstruction = "Use present tense in the translation.";
           break;
@@ -655,97 +647,18 @@ export async function translateText(req: Request, res: Response) {
         case "future":
           tenseInstruction = "Use future tense in the translation.";
           break;
-        
-        // Complex past tenses
         case "preterite":
-          tenseInstruction = "Use preterite (simple past/completed action) tense in the translation.";
+          tenseInstruction = "Use preterite (simple past) tense in the translation.";
           break;
         case "imperfect":
-          tenseInstruction = "Use imperfect (ongoing past action) tense in the translation.";
+          tenseInstruction = "Use imperfect past tense in the translation.";
           break;
-        case "past_perfect":
-          tenseInstruction = "Use past perfect (pluperfect) tense in the translation.";
-          break;
-        
-        // Perfect tenses
-        case "present_perfect":
-          tenseInstruction = "Use present perfect tense in the translation.";
-          break;
-        case "future_perfect":
-          tenseInstruction = "Use future perfect tense in the translation.";
-          break;
-        
-        // Conditional forms
         case "conditional":
           tenseInstruction = "Use conditional tense in the translation.";
           break;
-        case "conditional_perfect":
-          tenseInstruction = "Use conditional perfect tense in the translation.";
+        case "present_perfect":
+          tenseInstruction = "Use present perfect tense in the translation.";
           break;
-        case "future_conditional":
-          tenseInstruction = "Use future conditional tense in the translation.";
-          break;
-        
-        // Subjunctive moods
-        case "present_subjunctive":
-          tenseInstruction = "Use present subjunctive mood in the translation.";
-          break;
-        case "past_subjunctive":
-          tenseInstruction = "Use past subjunctive mood in the translation.";
-          break;
-        case "future_subjunctive":
-          tenseInstruction = "Use future subjunctive mood in the translation.";
-          break;
-        
-        // French-specific
-        case "passe_compose":
-          tenseInstruction = "Use passé composé (compound past) in the translation.";
-          break;
-        case "passe_simple":
-          tenseInstruction = "Use passé simple (literary simple past) in the translation.";
-          break;
-        
-        // German-specific
-        case "perfect":
-          tenseInstruction = "Use perfect tense (completed action) in the translation.";
-          break;
-        
-        // Russian aspects
-        case "perfective":
-          tenseInstruction = "Use perfective aspect (completed action) in the translation.";
-          break;
-        case "imperfective":
-          tenseInstruction = "Use imperfective aspect (ongoing action) in the translation.";
-          break;
-        
-        // Japanese-specific
-        case "non_past":
-          tenseInstruction = "Use non-past form (present/future) in the translation.";
-          break;
-        case "volitional":
-          tenseInstruction = "Use volitional form (expressing intention) in the translation.";
-          break;
-        case "imperative":
-          tenseInstruction = "Use imperative form (commands) in the translation.";
-          break;
-        
-        // Korean-specific
-        case "honorific":
-          tenseInstruction = "Use honorific form in the translation.";
-          break;
-        
-        // Chinese-specific aspects
-        case "le":
-          tenseInstruction = "Use 了 (le) to indicate completed action in the translation.";
-          break;
-        case "guo":
-          tenseInstruction = "Use 过 (guo) to indicate past experience in the translation.";
-          break;
-        case "zhe":
-          tenseInstruction = "Use 着 (zhe) to indicate ongoing state in the translation.";
-          break;
-        
-        // Default
         default:
           tenseInstruction = "Use the most natural and appropriate tense for the context.";
       }
@@ -757,7 +670,7 @@ export async function translateText(req: Request, res: Response) {
         messages: [
           {
             role: "system",
-            content: `You are a professional translator. Translate the following text to ${targetLanguage}. ${tenseInstruction} ${req.body.customization ? `Additional instructions: ${req.body.customization.trim()}` : ''} Provide only the direct translation without any additional notes or explanations.`
+            content: `You are a professional translator. Translate the following text to ${targetLanguage}. ${tenseInstruction} Provide only the direct translation without any additional notes or explanations.`
           },
           {
             role: "user",
