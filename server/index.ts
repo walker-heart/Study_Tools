@@ -32,115 +32,39 @@ function log(message: string) {
 }
 
 const app = express();
-// Configure CORS middleware with simpler setup for development
+// Configure CORS middleware
 const corsOptions: cors.CorsOptions = {
-  origin: process.env.NODE_ENV === 'development' ? true : env.APP_URL,
+  origin: true, // Allow all origins in development and production
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   exposedHeaders: ['Content-Type', 'Content-Length'],
-  maxAge: 86400, // 24 hours in seconds
+  maxAge: 86400,
   optionsSuccessStatus: 204
 };
 
-// Apply CORS middleware
 app.use(cors(corsOptions));
-
-// Handle OPTIONS preflight requests
 app.options('*', cors(corsOptions));
 
-// Add security headers
+// Basic security headers
 app.use((req, res, next) => {
-  // Security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   next();
 });
 
-// Serve static files from the Vite build output
+// Serve static files
 const publicPath = path.join(__dirname, '..', 'dist', 'public');
-log(`Serving static files from: ${publicPath}`);
+app.use(express.static(publicPath));
 
-// Basic static file serving configuration with proper MIME types
-app.use(express.static(publicPath, {
-  index: false, // Let our router handle the index route
-  setHeaders: (res, filePath) => {
-    // Set proper MIME types for different file extensions
-    if (filePath.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css');
-    } else if (filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
-    } else if (filePath.endsWith('.html')) {
-      res.setHeader('Content-Type', 'text/html');
-    } else if (filePath.endsWith('.json')) {
-      res.setHeader('Content-Type', 'application/json');
-    } else if (filePath.endsWith('.svg')) {
-      res.setHeader('Content-Type', 'image/svg+xml');
-    } else if (filePath.endsWith('.png')) {
-      res.setHeader('Content-Type', 'image/png');
-    }
-    
-    // Set appropriate caching headers
-    if (filePath.includes('manifest.json')) {
-      // Don't cache manifest.json
-      res.setHeader('Cache-Control', 'no-cache');
-    } else {
-      // Cache other static assets
-      res.setHeader('Cache-Control', 'public, max-age=31536000');
-    }
+// Handle client-side routing
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return next();
   }
-}));
-
-// Serve assets from client/public directory in development
-if (process.env.NODE_ENV === 'development') {
-  const clientPublicPath = path.join(__dirname, '..', 'client', 'public');
-  log(`Serving development assets from: ${clientPublicPath}`);
-  
-  // First verify the directory exists
-  if (!fs.existsSync(clientPublicPath)) {
-    log(`Warning: Development assets directory not found: ${clientPublicPath}`);
-  }
-
-  app.use(express.static(clientPublicPath, {
-    setHeaders: (res, filePath) => {
-      // Log the file being served in development
-      log(`Serving static file: ${filePath}`);
-      
-      // Set appropriate MIME types
-      if (filePath.endsWith('.css')) {
-        res.setHeader('Content-Type', 'text/css');
-      } else if (filePath.endsWith('.js')) {
-        res.setHeader('Content-Type', 'application/javascript');
-      } else if (filePath.endsWith('.json')) {
-        res.setHeader('Content-Type', 'application/json');
-      } else if (filePath.endsWith('.svg')) {
-        res.setHeader('Content-Type', 'image/svg+xml');
-      } else if (filePath.endsWith('.png')) {
-        res.setHeader('Content-Type', 'image/png');
-      }
-      
-      // Development-specific headers
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-    }
-  }));
-}
-
-// Handle static file errors
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  if (err.code === 'ENOENT') {
-    log(`Static file not found: ${req.url}`);
-    next();
-  } else {
-    log(`Static file error: ${err.message}`);
-    next(err);
-  }
+  res.sendFile(path.join(publicPath, 'index.html'));
 });
-
-// Log static file paths for debugging
-log(`Serving static files from: ${publicPath}`);
 
 // Configure request size limits and parsers
 app.use(express.json({ limit: '10mb' }));
