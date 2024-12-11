@@ -18,9 +18,17 @@ export default function TranslationTool() {
   const [sourceText, setSourceText] = useState("");
   const [translatedText, setTranslatedText] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("es");
+  const [selectedTense, setSelectedTense] = useState("neutral");
   const [isTranslating, setIsTranslating] = useState(false);
   const [, setLocation] = useLocation();
   const { showNotification } = useNotification();
+
+  const tenseOptions = [
+    { value: "neutral", label: "Natural Tense" },
+    { value: "present", label: "Present Tense" },
+    { value: "past", label: "Past Tense" },
+    { value: "future", label: "Future Tense" },
+  ];
 
   const languages = [
     { code: "es", name: "Spanish" },
@@ -54,6 +62,7 @@ export default function TranslationTool() {
         body: JSON.stringify({
           text: sourceText,
           targetLanguage,
+          tense: selectedTense,
         }),
         credentials: 'include'
       });
@@ -150,22 +159,42 @@ export default function TranslationTool() {
               />
             </div>
             
-            <div>
-              <label className="block text-sm font-medium mb-2">Target Language</label>
-              <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {languages.map((lang) => (
-                      <SelectItem key={lang.code} value={lang.code}>
-                        {lang.name}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Target Language</label>
+                <Select value={targetLanguage} onValueChange={setTargetLanguage}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {languages.map((lang) => (
+                        <SelectItem key={lang.code} value={lang.code}>
+                          {lang.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-2">Translation Tense</label>
+                <Select value={selectedTense} onValueChange={setSelectedTense}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {tenseOptions.map((tense) => (
+                        <SelectItem key={tense.value} value={tense.value}>
+                          {tense.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <Button 
