@@ -54,7 +54,27 @@ async function startServer() {
       }
     }
 
+    // Initialize middleware (including session) after database is confirmed working
+    await initializeMiddleware();
+
+    // Setup error handlers before registering routes
+    setupErrorHandlers();
+
+    // Register routes after all middleware is initialized
+    registerRoutes(app);
+
+    // Set up HTTP server
     const server = createServer(app);
+
+    // Register error handlers before starting the server
+    server.on('error', (error: Error & { code?: string }) => {
+      if (error.code === 'EADDRINUSE') {
+        log(`Port ${PORT} is already in use. Please free up the port or use a different one.`, 'error');
+        process.exit(1);
+      }
+      log(`Server error: ${error.message}`, 'error');
+      process.exit(1);
+    });
 
     // Configure environment-specific settings
     if (env.NODE_ENV === "development") {
@@ -70,21 +90,10 @@ async function startServer() {
       log('Static file serving setup successful', 'info');
     }
 
-    // Enhanced error handling for server startup
-    await new Promise<void>((resolve, reject) => {
-      server.listen(PORT, '0.0.0.0', () => {
-        log(`Server running in ${env.NODE_ENV || 'development'} mode on port ${PORT}`, 'info');
-        log(`APP_URL: ${env.APP_URL}`, 'info');
-        resolve();
-      });
-
-      server.on('error', (error: Error & { code?: string }) => {
-        if (error.code === 'EADDRINUSE') {
-          reject(new Error(`Port ${PORT} is already in use. Please free up the port or use a different one.`));
-        } else {
-          reject(new Error(`Server startup failed: ${error.message}`));
-        }
-      });
+    // Start the server with proper error handling
+    server.listen(PORT, '0.0.0.0', () => {
+      log(`Server running in ${env.NODE_ENV || 'development'} mode on port ${PORT}`, 'info');
+      log(`APP_URL: ${env.APP_URL}`, 'info');
     });
 
     // Global error handling for uncaught exceptions
@@ -99,6 +108,7 @@ async function startServer() {
       process.exit(1);
     });
 
+    return server;
   } catch (error) {
     log(`Fatal error during server startup: ${error}`, 'error');
     process.exit(1);
@@ -164,81 +174,111 @@ app.use(securityMiddleware);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Configure PostgreSQL pool for session store
-const pool = new Pool({
-  connectionString: env.DATABASE_URL,
-  ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
+// Import session configuration
+import { createSessionConfig } from './config/session';
 
-// Session configuration
+// Set trust proxy in production
 if (env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
-const pgStore = connectPgSimple(session);
-// Configure session store with enhanced security and error handling
-const sessionConfig = {
-  store: new pgStore({
-    pool,
-    tableName: 'session',
-    createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15, // 15 minutes
-    errorLog: (error: Error) => {
-      log(error, 'error');
-      // Notify about session store errors but don't crash
-      console.error('Session store error:', error);
+// Initialize all middleware with proper error handling
+async function initializeMiddleware() {
+  try {
+    // Test database connection first
+    await db.execute(sql`SELECT NOW()`);
+    log('Initial database connection successful', 'info');
+    
+    // Initialize session with async configuration
+    const sessionConfig = await createSessionConfig();
+    
+    // Add session middleware
+    app.use(session(sessionConfig));
+    
+    // Add basic middleware
+    app.use(express.json({ limit: '10mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    
+    // Add security middleware
+    app.use(cors(corsOptions));
+    app.use(limiter);
+    app.use(securityMiddleware);
+    
+    // Configure trust proxy for production
+    if (env.NODE_ENV === 'production') {
+      app.set('trust proxy', 1);
     }
-  }),
-  name: 'sid',
-  secret: env.JWT_SECRET!,
-  resave: false,
-  saveUninitialized: false,
-  proxy: true,
-  rolling: true,
-  cookie: {
-    secure: env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    path: '/',
-    domain: undefined
+    
+    log('All middleware initialized successfully', 'info');
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    log({
+      message: `Failed to initialize middleware: ${errorMessage}`,
+      stack: error instanceof Error ? error.stack : undefined
+    }, 'error');
+    throw error;
   }
-} satisfies session.SessionOptions;
-
-// Cast cookie options with proper type
-const cookieOptions = sessionConfig.cookie as session.CookieOptions & {
-  sameSite: 'none' | 'lax';
-};
-
-// Validate session configuration
-if (!env.JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required for session security');
 }
 
-if (env.NODE_ENV === 'production' && !cookieOptions.secure) {
-  log('Warning: Session cookies should be secure in production', 'warn');
+// Setup error handlers with proper error typing and logging
+function setupErrorHandlers() {
+  // Handle 404 errors
+  app.use((_req: Request, res: Response) => {
+    res.status(404).json({ message: 'Not Found' });
+  });
+
+  // Session error handler
+  app.use((err: Error, _req: Request, _res: Response, next: NextFunction) => {
+    if (err.name === 'SessionError') {
+      log({
+        message: 'Session error occurred',
+        stack: err.stack
+      }, 'error');
+    }
+    next(err);
+  });
+
+  // Database error handler
+  app.use((err: Error, _req: Request, _res: Response, next: NextFunction) => {
+    if (err.name === 'DatabaseError' || err.message.includes('database')) {
+      log({
+        message: 'Database error occurred',
+        stack: err.stack
+      }, 'error');
+    }
+    next(err);
+  });
+
+  // Final error handler
+  app.use((err: ExtendedError, req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || 'Internal Server Error';
+    
+    // Enhanced error logging
+    log({
+      message: `Error processing request: ${message}`,
+      path: req.path,
+      method: req.method,
+      status,
+      stack: err.stack
+    }, 'error');
+
+    // Send safe error response
+    const response = {
+      message,
+      status,
+      ...(env.NODE_ENV === 'development' ? { stack: err.stack } : {})
+    };
+
+    res.status(status).json(response);
+  });
 }
 
-// Initialize session with comprehensive error handling
-try {
-  app.use(session(sessionConfig));
-  log('Session middleware initialized successfully', 'info');
-} catch (error) {
-  log(`Failed to initialize session middleware: ${error}`, 'error');
-  if (error instanceof Error) {
-    log(error.stack || 'No stack trace available', 'error');
-  }
-  // Fail fast if session initialization fails as it's critical for app security
-  process.exit(1);
-}
-
-// Add session error handler with detailed logging
+// Session error handler
 app.use((err: Error, _req: Request, _res: Response, next: NextFunction) => {
   if (err.name === 'SessionError') {
     log(`Session error occurred: ${err.message}`, 'error');
-    if (err.stack) {
-      log(`Session error stack trace: ${err.stack}`, 'error');
-    }
+    log(err.stack || 'No stack trace available', 'error');
   }
   next(err);
 });
@@ -311,13 +351,127 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(publicPath, 'index.html'));
 });
 
-// Global error handler
-app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
-  const status = err.status || err.statusCode || 500;
-  const message = err.message || "Internal Server Error";
-  log(message, 'error');
-  res.status(status).json({ message });
-});
+// Define extended error type for better type safety
+interface ExtendedError extends Error {
+  status?: number;
+  statusCode?: number;
+}
 
-// Start the server
-startServer();
+// Start the server with enhanced error handling
+async function main() {
+  try {
+    // Test database connection first with retries
+    let retries = 5;
+    let isConnected = false;
+    while (retries > 0 && !isConnected) {
+      try {
+        await db.execute(sql`SELECT NOW()`);
+        log('Database connection successful', 'info');
+        isConnected = true;
+      } catch (dbError) {
+        retries--;
+        if (retries === 0) {
+          throw new Error(`Failed to connect to database after 5 attempts: ${dbError}`);
+        }
+        log(`Database connection attempt failed, retrying... (${retries} attempts remaining)`, 'warn');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+
+    // Initialize session config after database is confirmed
+    const sessionConfig = await createSessionConfig();
+    if (!sessionConfig) {
+      throw new Error('Failed to create session configuration');
+    }
+
+    // Apply session middleware
+    app.use(session(sessionConfig));
+    log('Session middleware initialized', 'info');
+
+    // Setup basic middleware
+    app.use(express.json({ limit: '10mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    app.use(cors(corsOptions));
+    app.use(limiter);
+    app.use(securityMiddleware);
+
+    // Setup error handlers
+    setupErrorHandlers();
+    log('Error handlers configured', 'info');
+
+    // Register routes
+    registerRoutes(app);
+    log('Routes registered', 'info');
+
+    // Start HTTP server
+    const server = createServer(app);
+    
+    // Register server error handler
+    server.on('error', (error: Error & { code?: string }) => {
+      if (error.code === 'EADDRINUSE') {
+        log(`Port ${process.env.PORT || 5000} is already in use`, 'error');
+        process.exit(1);
+      }
+      log(`Server error: ${error.message}`, 'error');
+      process.exit(1);
+    });
+
+    // Configure environment-specific settings
+    if (env.NODE_ENV === "development") {
+      await setupVite(app, server);
+      log('Vite middleware setup successful', 'info');
+    } else {
+      serveStatic(app);
+      log('Static file serving setup successful', 'info');
+    }
+
+    // Start listening
+    const PORT = process.env.PORT || 5000;
+    server.listen(PORT, '0.0.0.0', () => {
+      log(`Server running in ${env.NODE_ENV} mode on port ${PORT}`, 'info');
+      log(`APP_URL: ${env.APP_URL}`, 'info');
+    });
+
+    // Setup process handlers
+    process.on('SIGTERM', () => {
+      log('SIGTERM received. Starting graceful shutdown...', 'info');
+      server.close(() => {
+        log('Server closed', 'info');
+        process.exit(0);
+      });
+    });
+
+    process.on('uncaughtException', (error: Error) => {
+      log({
+        message: 'Uncaught Exception detected',
+        stack: error.stack
+      }, 'error');
+      server.close(() => process.exit(1));
+    });
+
+    process.on('unhandledRejection', (reason: unknown) => {
+      log({
+        message: 'Unhandled Promise Rejection detected',
+        stack: reason instanceof Error ? reason.stack : String(reason)
+      }, 'error');
+      server.close(() => process.exit(1));
+    });
+
+    return server;
+  } catch (error) {
+    log({
+      message: 'Fatal error during server startup',
+      stack: error instanceof Error ? error.stack : String(error)
+    }, 'error');
+    process.exit(1);
+  }
+}
+
+// Start the application
+main().catch((error: Error) => {
+  log({
+    message: 'Fatal error in main process',
+    stack: error.stack
+  }, 'error');
+  process.exit(1);
+});
