@@ -8,7 +8,7 @@ channel = "stable-24_05"
 [deployment]
 deploymentTarget = "cloudrun"
 build = ["npm", "run", "build"]
-run = ["sh", "-c", "NODE_ENV=development DEBUG=express:* tsx watch --clear-screen=false server/index.ts"]
+run = ["npm", "run", "start"]
 
 [[ports]]
 localPort = 5000
@@ -24,7 +24,25 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
+args = "Build Client"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
 args = "Development Server"
+
+[[workflows.workflow]]
+name = "Build Client"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
 
 [[workflows.workflow]]
 name = "Development Server"
@@ -38,7 +56,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "NODE_ENV=development DEBUG=express:* tsx watch --clear-screen=false server/index.ts"
+args = "NODE_ENV=development tsx watch --clear-screen=false server/index.ts"
 waitForPort = 5000
 
 [objectStorage]

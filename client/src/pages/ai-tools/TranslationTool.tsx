@@ -264,12 +264,19 @@ export default function TranslationTool() {
     }
   };
 
-  // Filter tense options based on search term
-  const filteredTenseOptions = tenseOptions.filter(tense => 
-    searchTerm.trim() === '' || 
-    tense.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tense.value.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Handle search input separately from select events
+  const handleSearchInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.target as HTMLInputElement;
+    setSearchTerm(target.value.toLowerCase());
+  };
+
+  // Prevent select from closing when clicking inside search input
+  const handleSearchClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -284,7 +291,7 @@ export default function TranslationTool() {
                 value={sourceText}
                 onChange={(e) => setSourceText(e.target.value)}
                 placeholder="Enter text to translate..."
-                className="min-h-[200px] bg-background text-foreground placeholder:text-muted-foreground"
+                className="min-h-[200px]"
               />
             </div>
             
@@ -309,55 +316,59 @@ export default function TranslationTool() {
               
               <div>
                 <label className="block text-sm font-medium mb-2">Translation Tense</label>
-                <div className="space-y-2">
-                  <div className="space-y-2">
-                    <div className="relative">
+                <Select 
+                  value={selectedTense} 
+                  onValueChange={(value) => {
+                    setSelectedTense(value);
+                    setSearchTerm('');
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <div
+                      className="px-3 py-2"
+                      onClick={handleSearchClick}
+                      onMouseDown={handleSearchClick}
+                    >
                       <input
                         type="text"
-                        className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         placeholder="Search tenses..."
                         value={searchTerm}
-                        onChange={(e) => {
-                          e.preventDefault();
-                          setSearchTerm(e.target.value);
-                        }}
-                        onKeyDown={(e) => {
-                          // Prevent the select from capturing keyboard events
-                          e.stopPropagation();
-                        }}
+                        onChange={handleSearchInput}
+                        onClick={handleSearchClick}
+                        onMouseDown={handleSearchClick}
                       />
                     </div>
-                    
-                    <Select 
-                      value={selectedTense} 
-                      onValueChange={(value) => {
-                        setSelectedTense(value);
-                        setSearchTerm(""); // Clear search after selection
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a tense" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {filteredTenseOptions.map((tense) => (
-                            <SelectItem 
-                              key={tense.value} 
-                              value={tense.value}
-                            >
-                              {tense.label}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                        {filteredTenseOptions.length === 0 && (
-                          <div className="px-3 py-2 text-sm text-muted-foreground text-center">
-                            No tenses found
-                          </div>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                    <SelectGroup>
+                      {tenseOptions
+                        .filter(tense => 
+                          !searchTerm || 
+                          tense.label.toLowerCase().includes(searchTerm) ||
+                          tense.value.toLowerCase().includes(searchTerm)
+                        )
+                        .map((tense) => (
+                          <SelectItem 
+                            key={tense.value} 
+                            value={tense.value}
+                          >
+                            {tense.label}
+                          </SelectItem>
+                        ))}
+                      {tenseOptions.filter(tense => 
+                        !searchTerm || 
+                        tense.label.toLowerCase().includes(searchTerm) ||
+                        tense.value.toLowerCase().includes(searchTerm)
+                      ).length === 0 && (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          No tenses found
+                        </div>
+                      )}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -367,7 +378,7 @@ export default function TranslationTool() {
                 value={customization}
                 onChange={(e) => setCustomization(e.target.value)}
                 placeholder="Add any specific translation instructions or preferences..."
-                className="min-h-[100px] bg-background text-foreground placeholder:text-muted-foreground"
+                className="min-h-[100px]"
               />
             </div>
 
@@ -396,7 +407,7 @@ export default function TranslationTool() {
                 value={translatedText}
                 readOnly
                 placeholder="Translation will appear here..."
-                className="min-h-[200px] bg-background text-foreground placeholder:text-muted-foreground"
+                className="min-h-[200px]"
               />
             </div>
           </div>
