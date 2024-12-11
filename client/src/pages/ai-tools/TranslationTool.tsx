@@ -87,7 +87,18 @@ export default function TranslationTool() {
       return;
     }
 
+    if (!navigator.onLine) {
+      showNotification({
+        message: "No internet connection. Please check your network and try again.",
+        type: "error",
+      });
+      return;
+    }
+
     setIsTranslating(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
     try {
       const response = await fetch("/api/ai/translate", {
         method: "POST",
@@ -99,7 +110,8 @@ export default function TranslationTool() {
           targetLanguage,
           tense: selectedTense,
         }),
-        credentials: 'include'
+        credentials: 'include',
+        signal: controller.signal
       });
 
       let data;
@@ -168,11 +180,31 @@ export default function TranslationTool() {
       });
     } catch (error) {
       console.error("Translation error:", error);
-      showNotification({
-        message: error instanceof Error ? error.message : "Failed to translate text. Please try again.",
-        type: "error",
-      });
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          showNotification({
+            message: "Request timed out. Please try again.",
+            type: "error",
+          });
+        } else if (error.message.includes('Failed to fetch')) {
+          showNotification({
+            message: "Network error. Please check your connection and try again.",
+            type: "error",
+          });
+        } else {
+          showNotification({
+            message: error.message,
+            type: "error",
+          });
+        }
+      } else {
+        showNotification({
+          message: "An unexpected error occurred. Please try again.",
+          type: "error",
+        });
+      }
     } finally {
+      clearTimeout(timeoutId);
       setIsTranslating(false);
     }
   };
@@ -237,19 +269,28 @@ export default function TranslationTool() {
                           className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                           placeholder="Search tenses..."
                           onChange={(e) => {
-                            const searchTerm = e.target.value.toLowerCase();
-                            const filteredTenses = getTenseOptions(targetLanguage)
-                              .filter(tense => 
-                                tense.label.toLowerCase().includes(searchTerm)
-                              );
-                            // Update the visible options
-                            e.currentTarget.parentElement?.parentElement
-                              ?.querySelectorAll('[role="option"]')
-                              .forEach(option => {
-                                const shouldShow = filteredTenses
-                                  .some(t => t.value === option.getAttribute('data-value'));
-                                (option as HTMLElement).style.display = shouldShow ? '' : 'none';
+                            try {
+                              const searchTerm = e.target.value.toLowerCase();
+                              const filteredTenses = getTenseOptions(targetLanguage)
+                                .filter(tense => 
+                                  tense.label.toLowerCase().includes(searchTerm)
+                                );
+                              // Get the select content element
+                              const selectContent = e.currentTarget.closest('.SelectContent');
+                              if (!selectContent) return;
+                              
+                              // Update the visible options
+                              const options = selectContent.querySelectorAll('[role="option"]');
+                              options.forEach(option => {
+                                const value = option.getAttribute('data-value');
+                                const shouldShow = filteredTenses.some(t => t.value === value);
+                                if (option instanceof HTMLElement) {
+                                  option.style.display = shouldShow ? '' : 'none';
+                                }
                               });
+                            } catch (error) {
+                              console.error('Error filtering tenses:', error);
+                            }
                           }}
                         />
                       </div>

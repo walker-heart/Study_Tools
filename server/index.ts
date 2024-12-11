@@ -141,6 +141,10 @@ app.use('/assets', express.static(path.join(publicPath, 'assets'), {
   fallthrough: true
 }));
 
+// Configure request size limits and parsers first
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 // Handle static file errors
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   if (err.code === 'ENOENT') {
@@ -154,20 +158,27 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 
 // Log static file paths for debugging
 log(`Serving static files from: ${publicPath}`);
-
-// Configure request size limits and parsers
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Configure PostgreSQL pool for session store
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
   ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Test database connection
-pool.query('SELECT NOW()', (err) => {
+interface PostgresError extends Error {
+  code?: string;
+}
+
+// Test database connection with detailed error logging
+pool.query('SELECT NOW()', (err: PostgresError | null) => {
   if (err) {
-    console.error('Database connection error:', err);
+    console.error('Database connection error details:', {
+      error: err.message,
+      code: err.code,
+      stack: err.stack,
+      connectionString: env.DATABASE_URL?.replace(/:[^:@]*@/, ':****@') // Mask password
+    });
+    log('Failed to connect to database. Check connection string and credentials.');
+    process.exit(1); // Exit if we can't connect to database
   } else {
     log('Database connection successful');
   }
@@ -186,13 +197,16 @@ const sessionConfig: session.SessionOptions = {
     tableName: 'session',
     createTableIfMissing: true,
     pruneSessionInterval: 60 * 15, // 15 minutes
-    errorLog: console.error.bind(console, 'Session store error:')
+    errorLog: (error: Error) => {
+      console.error('Session store error:', error);
+      log(`Session store error: ${error.message}`);
+    }
   }),
   name: 'sid',
   secret: env.JWT_SECRET!,
   resave: false,
   saveUninitialized: false,
-  proxy: true,
+  proxy: env.NODE_ENV === 'production',
   rolling: true,
   cookie: {
     secure: env.NODE_ENV === 'production',
@@ -200,11 +214,21 @@ const sessionConfig: session.SessionOptions = {
     sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: '/',
-    domain: undefined // Let browser set the cookie domain
   } as session.CookieOptions & {
     sameSite: 'none' | 'lax'
   }
 };
+
+// Add process-level error handling
+process.on('uncaughtException', (error: Error) => {
+  log(`Uncaught Exception: ${error.message}`);
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason: unknown) => {
+  log(`Unhandled Rejection: ${reason instanceof Error ? reason.message : String(reason)}`);
+  console.error('Unhandled Rejection:', reason);
+});
 
 // Log session configuration for debugging
 console.log('Session configuration:', {
@@ -217,23 +241,69 @@ console.log('Session configuration:', {
 
 app.use(session(sessionConfig));
 
-// Add session error handling
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  if (err.name === 'UnauthorizedError') {
-    res.status(401).json({ message: 'Invalid token' });
-  } else {
-    next(err);
-  }
-});
+interface ApplicationError extends Error {
+  status?: number;
+  statusCode?: number;
+  code?: string;
+  originalError?: Error;
+}
 
-// Add static file error handling
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  if (err.code === 'ENOENT') {
-    log(`Static file not found: ${req.url}`);
-    next();
-  } else {
-    next(err);
+// Global error handling middleware
+app.use((err: ApplicationError, req: Request, res: Response, next: NextFunction) => {
+  const timestamp = new Date().toISOString();
+  const errorId = Math.random().toString(36).substring(7);
+  
+  log(`[${errorId}] Error handling request to ${req.path}: ${err.message}`);
+  console.error(`[${errorId}] Request error:`, {
+    timestamp,
+    path: req.path,
+    error: err.message,
+    stack: err.stack,
+    code: err.code,
+    method: req.method,
+    query: req.query,
+    headers: req.headers,
+    originalError: err.originalError
+  });
+
+  // Handle specific error types
+  if (err.name === 'UnauthorizedError') {
+    return res.status(401).json({ 
+      message: 'Invalid token',
+      errorId 
+    });
   }
+
+  if (err.code === 'ENOENT') {
+    log(`[${errorId}] Static file not found: ${req.url}`);
+    return next();
+  }
+
+  // Handle known error types with specific status codes
+  const knownErrors: Record<string, number> = {
+    'ValidationError': 400,
+    'AuthenticationError': 401,
+    'ForbiddenError': 403,
+    'NotFoundError': 404,
+    'ConflictError': 409,
+    'RateLimitError': 429
+  };
+
+  const status = err.status || err.statusCode || knownErrors[err.name] || 500;
+  const message = err.message || 'Internal Server Error';
+  
+  // Don't expose internal error details in production
+  const response = {
+    message,
+    status,
+    errorId,
+    ...(env.NODE_ENV !== 'production' && { 
+      stack: err.stack,
+      code: err.code 
+    })
+  };
+
+  res.status(status).json(response);
 });
 
 app.use((req, res, next) => {
@@ -268,23 +338,36 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
-    // Verify database connection first
+    // Validate required environment variables first
+    const requiredEnvVars = {
+      'DATABASE_URL': process.env.DATABASE_URL,
+      'JWT_SECRET': process.env.JWT_SECRET,
+      'NODE_ENV': process.env.NODE_ENV,
+    };
+
+    const missingVars = Object.entries(requiredEnvVars)
+      .filter(([_, value]) => !value)
+      .map(([key]) => key);
+
+    if (missingVars.length > 0) {
+      log(`Error: Missing required environment variables: ${missingVars.join(', ')}`);
+      process.exit(1);
+    }
+
+    log('Environment variables validated successfully');
+
+    // Verify database connection with enhanced error handling
     try {
       await db.execute(sql`SELECT 1`);
-      log('Database connection successful');
+      log('Database connection test successful');
     } catch (error) {
-      log('Error connecting to database: ' + error);
-      process.exit(1);
-    }
-
-    // Check for required environment variables
-    if (!process.env.JWT_SECRET) {
-      log('Error: JWT_SECRET is not set. Authentication will not work properly.');
-      process.exit(1);
-    }
-
-    if (!process.env.DATABASE_URL) {
-      log('Error: DATABASE_URL is not set. Database connections will fail.');
+      const err = error as Error;
+      log('Database connection test failed:');
+      console.error('Database Error Details:', {
+        message: err.message,
+        stack: err.stack,
+        time: new Date().toISOString()
+      });
       process.exit(1);
     }
 
