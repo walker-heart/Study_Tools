@@ -31,45 +31,12 @@ function log(message: string) {
 }
 
 const app = express();
-// Configure CORS middleware
-const allowedOrigins = [
-  'https://wtoolsw.com',
-  'https://wtoolsw.repl.co',
-  'http://localhost:3000',
-  'http://localhost:5000',
-  /^https:\/\/.*\.repl\.co$/,
-  /^https:\/\/.*\.spock\.replit\.dev$/
-];
-
-function isOriginAllowed(origin: string | undefined) {
-  if (!origin) return true;
-  return allowedOrigins.some(allowedOrigin => 
-    allowedOrigin instanceof RegExp 
-      ? allowedOrigin.test(origin)
-      : allowedOrigin === origin
-  );
-}
-
+// Configure CORS middleware with simpler setup for development
 const corsOptions: cors.CorsOptions = {
-  origin: function(origin, callback) {
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-    
-    if (isOriginAllowed(origin)) {
-      callback(null, origin);
-    } else {
-      console.error(`Origin ${origin} not allowed by CORS`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins in development
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
-  exposedHeaders: ['Set-Cookie', 'Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials', 'Content-Length'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   maxAge: 86400 // 24 hours in seconds
 };
 
@@ -79,21 +46,12 @@ app.use(cors(corsOptions));
 // Handle OPTIONS preflight requests
 app.options('*', cors(corsOptions));
 
-// Add security headers and CORS handling
+// Add security headers
 app.use((req, res, next) => {
   // Security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
-  
-  // Additional CORS headers for specific cases
-  const origin = req.headers.origin;
-  if (origin && isOriginAllowed(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Vary', 'Origin');
-  }
-  
   next();
 });
 
@@ -101,44 +59,9 @@ app.use((req, res, next) => {
 const publicPath = path.join(__dirname, '..', 'dist', 'public');
 log(`Serving static files from: ${publicPath}`);
 
-// Configure static file serving with proper CORS and caching
-const staticOptions = {
-  maxAge: '1h',
-  etag: true,
-  lastModified: true,
-  setHeaders: (res: Response, path: string) => {
-    // Set aggressive caching for assets
-    const cacheControl = path.includes('/assets/') 
-      ? 'public, max-age=31536000' // 1 year for assets
-      : 'public, max-age=3600';    // 1 hour for other static files
-
-    res.setHeader('Cache-Control', cacheControl);
-    
-    const origin = res.req.headers.origin;
-    if (origin && allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Range, Authorization, Cache-Control');
-      res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
-      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-      res.setHeader('Vary', 'Origin');
-    }
-  }
-};
-
-// Serve the main public directory
+// Basic static file serving configuration
 app.use(express.static(publicPath, {
-  ...staticOptions,
-  index: false, // Let our router handle the index route
-  fallthrough: true // Continue to next middleware if file not found
-}));
-
-// Explicitly serve assets directory with additional caching
-app.use('/assets', express.static(path.join(publicPath, 'assets'), {
-  ...staticOptions,
-  immutable: true, // Never validate the cache for versioned assets
-  fallthrough: true
+  index: false // Let our router handle the index route
 }));
 
 // Handle static file errors
@@ -268,42 +191,31 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
+    // Check required environment variables
+    const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
+    const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    
+    if (missingEnvVars.length > 0) {
+      log(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+      throw new Error('Missing required environment variables');
+    }
+
     // Verify database connection first
     try {
       await db.execute(sql`SELECT 1`);
       log('Database connection successful');
     } catch (error) {
       log('Error connecting to database: ' + error);
-      process.exit(1);
+      throw error;
     }
 
-    // Check for required environment variables
-    if (!process.env.JWT_SECRET) {
-      log('Error: JWT_SECRET is not set. Authentication will not work properly.');
-      process.exit(1);
-    }
-
-    if (!process.env.DATABASE_URL) {
-      log('Error: DATABASE_URL is not set. Database connections will fail.');
-      process.exit(1);
-    }
-
-    // Set up error handling middleware first
-    app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
-      const status = (err.status || err.statusCode || 500);
-      const message = err.message || "Internal Server Error";
-      
-      log(`Error: ${message}`);
-      res.status(status).json({ message });
-    });
-
-    // Register routes after error handling is set up
+    // Register routes after successful database connection
     registerRoutes(app);
     
     const server = createServer(app);
 
     // Configure environment-specific settings
-    if (app.get("env") === "development") {
+    if (process.env.NODE_ENV === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
@@ -312,13 +224,18 @@ app.use((req, res, next) => {
       });
     }
 
+    // Generic error handler
+    app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+      const status = (err.status || err.statusCode || 500);
+      const message = err.message || "Internal Server Error";
+      log(`Error: ${message}`);
+      res.status(status).json({ message });
+    });
+
     // Start the server
     const PORT = parseInt(process.env.PORT || '5000', 10);
-    server.listen({
-      port: PORT,
-      host: '0.0.0.0'
-    }, () => {
-      log(`Server running in ${app.get("env")} mode on port ${PORT}`);
+    server.listen(PORT, '0.0.0.0', () => {
+      log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
       log(`APP_URL: ${env.APP_URL}`);
     });
   } catch (error) {
