@@ -199,11 +199,34 @@ async function initializeMiddleware() {
       fs.mkdirSync(publicPath, { recursive: true });
     }
 
-    app.use(express.static(publicPath, {
+    // Configure static file serving
+    app.use('/assets', express.static(path.join(publicPath, 'assets'), {
       maxAge: env.NODE_ENV === 'production' ? '1y' : 0,
+      etag: true,
+      lastModified: true,
+      fallthrough: false // Return 404 if file not found
+    }));
+
+    // Serve other static files
+    app.use(express.static(publicPath, {
+      maxAge: env.NODE_ENV === 'production' ? '1d' : 0,
       etag: true,
       lastModified: true
     }));
+
+    // Add error handler for static files
+    app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
+      if (err.message.includes('ENOENT')) {
+        error({
+          message: 'Static file not found',
+          path: req.path,
+          error: err.message
+        });
+        res.status(404).json({ message: 'File not found' });
+      } else {
+        next(err);
+      }
+    });
 
     info('Middleware initialized successfully');
   } catch (err) {
