@@ -13,6 +13,20 @@ import {
 } from "@/components/ui/select";
 import { useNotification } from "@/components/ui/notification";
 import { Loader2 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command"
+import { Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export default function TranslationTool() {
   const [sourceText, setSourceText] = useState("");
@@ -22,9 +36,25 @@ export default function TranslationTool() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [, setLocation] = useLocation();
   const { showNotification } = useNotification();
+  const [customPrompt, setCustomPrompt] = useState("");
 
   // Define tenses for each language
   const languageTenses = {
+    en: [
+      { value: "neutral", label: "Natural" },
+      { value: "present", label: "Present Simple" },
+      { value: "present_continuous", label: "Present Continuous" },
+      { value: "present_perfect", label: "Present Perfect" },
+      { value: "present_perfect_continuous", label: "Present Perfect Continuous" },
+      { value: "past", label: "Past Simple" },
+      { value: "past_continuous", label: "Past Continuous" },
+      { value: "past_perfect", label: "Past Perfect" },
+      { value: "past_perfect_continuous", label: "Past Perfect Continuous" },
+      { value: "future", label: "Future Simple" },
+      { value: "future_continuous", label: "Future Continuous" },
+      { value: "future_perfect", label: "Future Perfect" },
+      { value: "future_perfect_continuous", label: "Future Perfect Continuous" }
+    ],
     es: [
       { value: "neutral", label: "Natural" },
       { value: "present", label: "Present (Presente)" },
@@ -146,6 +176,7 @@ export default function TranslationTool() {
   const tenseOptions = getTenseOptions(targetLanguage);
 
   const languages = [
+    { code: "en", name: "English" },
     { code: "es", name: "Spanish (Español)" },
     { code: "fr", name: "French (Français)" },
     { code: "de", name: "German (Deutsch)" },
@@ -178,6 +209,7 @@ export default function TranslationTool() {
           text: sourceText,
           targetLanguage,
           tense: selectedTense,
+          customPrompt: customPrompt.trim(),
         }),
         credentials: 'include'
       });
@@ -273,74 +305,110 @@ export default function TranslationTool() {
                 className="min-h-[200px]"
               />
             </div>
-            
+
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Additional Instructions (Optional)
+                <span className="text-muted-foreground ml-2 text-sm font-normal">
+                  e.g., "Make it more formal" or "Use simple vocabulary"
+                </span>
+              </label>
+              <Textarea
+                value={customPrompt}
+                onChange={(e) => setCustomPrompt(e.target.value)}
+                placeholder="Add any specific instructions for the translation..."
+                className="min-h-[100px]"
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Target Language</label>
-                <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {languages.map((lang) => (
-                        <SelectItem key={lang.code} value={lang.code}>
-                          {lang.name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between"
+                    >
+                      {targetLanguage
+                        ? languages.find((lang) => lang.code === targetLanguage)?.name
+                        : "Select language..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search languages..." />
+                      <CommandEmpty>No language found.</CommandEmpty>
+                      <CommandGroup className="max-h-[200px] overflow-auto">
+                        {languages.map((lang) => (
+                          <CommandItem
+                            key={lang.code}
+                            value={`${lang.code} ${lang.name}`}
+                            onSelect={(currentValue) => {
+                              setTargetLanguage(lang.code);
+                              setSelectedTense('neutral');
+                              (document.querySelector('[role="combobox"]') as HTMLButtonElement)?.click();
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                targetLanguage === lang.code ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {lang.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               
               <div>
                 <label className="block text-sm font-medium mb-2">Translation Tense</label>
-                <Select 
-                  value={selectedTense} 
-                  onValueChange={(value) => {
-                    setSelectedTense(value);
-                    // Reset tense to neutral when changing languages if the current tense
-                    // isn't available in the new language
-                    const newTenseOptions = getTenseOptions(targetLanguage);
-                    if (!newTenseOptions.some(t => t.value === value)) {
-                      setSelectedTense('neutral');
-                    }
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <div className="px-3 py-2">
-                        <input
-                          className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                          placeholder="Search tenses..."
-                          onChange={(e) => {
-                            const searchTerm = e.target.value.toLowerCase();
-                            const filteredTenses = getTenseOptions(targetLanguage)
-                              .filter(tense => 
-                                tense.label.toLowerCase().includes(searchTerm)
-                              );
-                            // Update the visible options
-                            e.currentTarget.parentElement?.parentElement
-                              ?.querySelectorAll('[role="option"]')
-                              .forEach(option => {
-                                const shouldShow = filteredTenses
-                                  .some(t => t.value === option.getAttribute('data-value'));
-                                (option as HTMLElement).style.display = shouldShow ? '' : 'none';
-                              });
-                          }}
-                        />
-                      </div>
-                      {tenseOptions.map((tense) => (
-                        <SelectItem key={tense.value} value={tense.value}>
-                          {tense.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between"
+                    >
+                      {selectedTense
+                        ? tenseOptions.find((tense) => tense.value === selectedTense)?.label
+                        : "Select tense..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search tenses..." />
+                      <CommandEmpty>No tense found.</CommandEmpty>
+                      <CommandGroup className="max-h-[200px] overflow-auto">
+                        {tenseOptions.map((tense) => (
+                          <CommandItem
+                            key={tense.value}
+                            value={tense.value}
+                            onSelect={(currentValue) => {
+                              setSelectedTense(currentValue);
+                              (document.querySelector('[role="combobox"]') as HTMLButtonElement)?.click();
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedTense === tense.value ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {tense.label}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
