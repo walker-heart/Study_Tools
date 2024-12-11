@@ -757,7 +757,7 @@ export async function translateText(req: Request, res: Response) {
         messages: [
           {
             role: "system",
-            content: `You are a professional translator. Translate the following text to ${targetLanguage}. ${tenseInstruction} Provide only the direct translation without any additional notes or explanations.`
+            content: `You are a professional translator. Translate the following text to ${targetLanguage}. ${tenseInstruction} ${req.body.customization ? `Additional instructions: ${req.body.customization}` : ''} Provide only the direct translation without any additional notes or explanations.`
           },
           {
             role: "user",
