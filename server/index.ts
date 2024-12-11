@@ -14,7 +14,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 
-const PgSession = connectPgSimple(session);
+const pgSession = connectPgSimple(session);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,35 +32,68 @@ function log(message: string) {
 
 const app = express();
 // Configure CORS middleware
+const allowedOrigins = [
+  'https://wtoolsw.com',
+  'https://wtoolsw.repl.co',
+  'http://localhost:3000',
+  'http://localhost:5000',
+  /^https:\/\/.*\.repl\.co$/,
+  /^https:\/\/.*\.spock\.replit\.dev$/
+];
+
+function isOriginAllowed(origin: string | undefined) {
+  if (!origin) return true;
+  return allowedOrigins.some(allowedOrigin => 
+    allowedOrigin instanceof RegExp 
+      ? allowedOrigin.test(origin)
+      : allowedOrigin === origin
+  );
+}
+
 const corsOptions: cors.CorsOptions = {
-  origin: true, // Allow all origins in development
+  origin: function(origin, callback) {
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+    
+    if (isOriginAllowed(origin)) {
+      callback(null, origin);
+    } else {
+      console.error(`Origin ${origin} not allowed by CORS`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
   exposedHeaders: ['Set-Cookie', 'Access-Control-Allow-Origin', 'Access-Control-Allow-Credentials', 'Content-Length'],
   preflightContinue: false,
-  optionsSuccessStatus: 200,
+  optionsSuccessStatus: 204,
   maxAge: 86400 // 24 hours in seconds
 };
 
+// Apply CORS middleware
 app.use(cors(corsOptions));
+
+// Handle OPTIONS preflight requests
 app.options('*', cors(corsOptions));
 
-// Add error logging middleware
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error('Server error:', err);
-  res.status(err.status || 500).json({
-    message: err.message || 'Internal Server Error',
-    error: process.env.NODE_ENV === 'development' ? err : {}
-  });
-});
-
-// Add security headers
+// Add security headers and CORS handling
 app.use((req, res, next) => {
   // Security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
+  
+  // Additional CORS headers for specific cases
+  const origin = req.headers.origin;
+  if (origin && isOriginAllowed(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
+  
   next();
 });
 
@@ -82,39 +115,77 @@ const staticOptions = {
     res.setHeader('Cache-Control', cacheControl);
     
     const origin = res.req.headers.origin;
-    if (origin) {
+    if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
       res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Range');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Range, Authorization, Cache-Control');
       res.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
       res.setHeader('Vary', 'Origin');
     }
   }
 };
 
+// Serve the main public directory
+app.use(express.static(publicPath, {
+  ...staticOptions,
+  index: false, // Let our router handle the index route
+  fallthrough: true // Continue to next middleware if file not found
+}));
+
+// Explicitly serve assets directory with additional caching
+app.use('/assets', express.static(path.join(publicPath, 'assets'), {
+  ...staticOptions,
+  immutable: true, // Never validate the cache for versioned assets
+  fallthrough: true
+}));
+
+// Handle static file errors
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.code === 'ENOENT') {
+    log(`Static file not found: ${req.url}`);
+    next();
+  } else {
+    log(`Static file error: ${err.message}`);
+    next(err);
+  }
+});
+
+// Log static file paths for debugging
+log(`Serving static files from: ${publicPath}`);
+
 // Configure request size limits and parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
 // Configure PostgreSQL pool for session store
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
   ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Configure session middleware
+// Test database connection
+pool.query('SELECT NOW()', (err) => {
+  if (err) {
+    console.error('Database connection error:', err);
+  } else {
+    log('Database connection successful');
+  }
+});
+
+// Configure session middleware with enhanced debugging
 if (env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1);
+  app.set('trust proxy', 1); // Trust first proxy
 }
 
 console.log('Configuring session store with database connection');
+const pgStore = connectPgSimple(session);
 const sessionConfig: session.SessionOptions = {
-  store: new PgSession({
+  store: new pgStore({
     pool,
     tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 15,
+    pruneSessionInterval: 60 * 15, // 15 minutes
     errorLog: console.error.bind(console, 'Session store error:')
   }),
   name: 'sid',
@@ -127,17 +198,77 @@ const sessionConfig: session.SessionOptions = {
     secure: env.NODE_ENV === 'production',
     httpOnly: true,
     sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000,
-    path: '/'
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    path: '/',
+    domain: undefined // Let browser set the cookie domain
+  } as session.CookieOptions & {
+    sameSite: 'none' | 'lax'
   }
 };
 
+// Log session configuration for debugging
+console.log('Session configuration:', {
+  store: 'PostgreSQL',
+  cookieSecure: sessionConfig.cookie?.secure,
+  cookieSameSite: sessionConfig.cookie?.sameSite,
+  environment: env.NODE_ENV,
+  trustProxy: app.get('trust proxy')
+});
+
 app.use(session(sessionConfig));
 
+// Add session error handling
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.name === 'UnauthorizedError') {
+    res.status(401).json({ message: 'Invalid token' });
+  } else {
+    next(err);
+  }
+});
+
+// Add static file error handling
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.code === 'ENOENT') {
+    log(`Static file not found: ${req.url}`);
+    next();
+  } else {
+    next(err);
+  }
+});
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+  const originalResJson = res.json;
+  res.json = function (bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path.startsWith("/api")) {
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      }
+
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
+      }
+
+      log(logLine);
+    }
+  });
+
+  next();
+});
 
 (async () => {
   try {
-    // Verify database connection
+    // Verify database connection first
     try {
       await db.execute(sql`SELECT 1`);
       log('Database connection successful');
@@ -146,21 +277,47 @@ app.use(session(sessionConfig));
       process.exit(1);
     }
 
-    // Register routes
+    // Check for required environment variables
+    if (!process.env.JWT_SECRET) {
+      log('Error: JWT_SECRET is not set. Authentication will not work properly.');
+      process.exit(1);
+    }
+
+    if (!process.env.DATABASE_URL) {
+      log('Error: DATABASE_URL is not set. Database connections will fail.');
+      process.exit(1);
+    }
+
+    // Set up error handling middleware first
+    app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+      const status = (err.status || err.statusCode || 500);
+      const message = err.message || "Internal Server Error";
+      
+      log(`Error: ${message}`);
+      res.status(status).json({ message });
+    });
+
+    // Register routes after error handling is set up
     registerRoutes(app);
     
     const server = createServer(app);
 
     // Configure environment-specific settings
-    if (process.env.NODE_ENV === "development") {
+    if (app.get("env") === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
+      app.get('*', (_req, res) => {
+        res.sendFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'));
+      });
     }
 
     // Start the server
     const PORT = parseInt(process.env.PORT || '5000', 10);
-    server.listen(PORT, '0.0.0.0', () => {
+    server.listen({
+      port: PORT,
+      host: '0.0.0.0'
+    }, () => {
       log(`Server running in ${app.get("env")} mode on port ${PORT}`);
       log(`APP_URL: ${env.APP_URL}`);
     });
