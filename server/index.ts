@@ -54,15 +54,45 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files
-const publicPath = path.join(__dirname, '..', 'dist', 'public');
-app.use(express.static(publicPath));
+// Serve static files with proper MIME types and error handling
+let publicPath: string;
+if (process.env.NODE_ENV === 'development') {
+  publicPath = path.resolve(__dirname, '..', 'client');
+} else {
+  publicPath = path.resolve(__dirname, '..', 'dist', 'public');
+}
+
+console.log('Environment:', process.env.NODE_ENV);
+console.log('Static files path:', publicPath);
+
+// Verify the directory exists
+if (!fs.existsSync(publicPath)) {
+  console.error(`Error: Static files directory not found at ${publicPath}`);
+  fs.mkdirSync(publicPath, { recursive: true });
+}
+
+app.use(express.static(publicPath, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript');
+    } else if (filePath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css');
+    } else if (filePath.endsWith('.json')) {
+      res.setHeader('Content-Type', 'application/json');
+    } else if (filePath.endsWith('.svg')) {
+      res.setHeader('Content-Type', 'image/svg+xml');
+    }
+  },
+  fallthrough: true,
+  index: false
+}));
 
 // Handle client-side routing
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return next();
   }
+  res.setHeader('Content-Type', 'text/html');
   res.sendFile(path.join(publicPath, 'index.html'));
 });
 
