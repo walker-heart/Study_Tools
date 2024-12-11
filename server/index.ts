@@ -81,14 +81,16 @@ const corsOptions: cors.CorsOptions = {
 
 // Configure basic rate limiting for DoS protection
 const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 500, // Allow more requests
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 1000, // Increased limit
   message: { error: 'Too many requests, please try again shortly.' },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => {
-    // Skip rate limiting for auth routes and in development
-    return req.path.startsWith('/api/auth/') || env.NODE_ENV === 'development';
+  skip: (req: Request) => {
+    // Skip rate limiting for essential routes and development
+    return req.path.startsWith('/api/auth/') || 
+           req.path.startsWith('/api/user/') ||
+           env.NODE_ENV === 'development';
   },
   handler: (req: Request, res: Response) => {
     log({
@@ -99,17 +101,17 @@ const limiter = rateLimit({
     }, 'warn');
     res.status(429).json({ 
       error: 'Too many requests',
-      message: 'Please try again shortly'
+      message: 'Please try again in a few minutes'
     });
-  },
-  // Configure trust proxy more securely
-  trustProxy: (ip) => {
-    // Only trust Replit's infrastructure and local development
-    return ip === '127.0.0.1' || 
-           ip.startsWith('10.') || 
-           ip.startsWith('172.16.') || 
-           ip.startsWith('192.168.');
   }
+});
+
+// Configure trust proxy settings separately
+app.set('trust proxy', (ip: string) => {
+  return ip === '127.0.0.1' || 
+         ip.startsWith('10.') || 
+         ip.startsWith('172.16.') || 
+         ip.startsWith('192.168.');
 });
 
 import { securityHeaders, sanitizeInput, sessionSecurity, cleanupSessions } from './middleware/security';
