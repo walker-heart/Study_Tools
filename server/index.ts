@@ -58,16 +58,43 @@ app.use((req, res, next) => {
 // Serve static files from multiple directories
 const publicPath = path.join(__dirname, '..', 'dist', 'public');
 const clientPublicPath = path.join(__dirname, '..', 'client', 'public');
-log(`Serving static files from: ${publicPath} and ${clientPublicPath}`);
+const logoPath = path.join(__dirname, '..', 'Logo');
+log(`Serving static files from: ${publicPath}, ${clientPublicPath}, and ${logoPath}`);
 
-// Serve files from client/public first (for development)
+// Serve files from Logo directory with explicit error handling
+app.use('/Logo', (req, res, next) => {
+  log(`Attempting to serve: ${req.url} from Logo directory`);
+  express.static(logoPath, {
+    index: false,
+    fallthrough: true,
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+    }
+  })(req, res, (err) => {
+    if (err) {
+      log(`Error serving from Logo directory: ${err.message}`);
+      return next(err);
+    }
+    next();
+  });
+});
+
+// Serve files from client/public with explicit error handling
 app.use(express.static(clientPublicPath, {
-  index: false
+  index: false,
+  fallthrough: true,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+  }
 }));
 
-// Then serve from dist/public
+// Then serve from dist/public with explicit error handling
 app.use(express.static(publicPath, {
-  index: false // Let our router handle the index route
+  index: false, // Let our router handle the index route
+  fallthrough: true,
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+  }
 }));
 
 // Handle static file errors
@@ -87,6 +114,15 @@ log(`Serving static files from: ${publicPath}`);
 // Configure request size limits and parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Add error handling middleware for JSON parsing
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  if (err instanceof SyntaxError) {
+    log('JSON Parse Error: ' + err.message);
+    return res.status(400).json({ message: 'Invalid JSON' });
+  }
+  next(err);
+});
 // Configure PostgreSQL pool for session store
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
@@ -197,6 +233,17 @@ app.use((req, res, next) => {
 
 (async () => {
   try {
+    // Verify Logo directory exists
+    try {
+      await import('fs').then(fs => 
+        fs.promises.access(logoPath).catch(() => {
+          log(`Warning: Logo directory not found at ${logoPath}`);
+        })
+      );
+    } catch (error) {
+      log(`Error checking Logo directory: ${error}`);
+    }
+
     // Check required environment variables
     const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
     const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
