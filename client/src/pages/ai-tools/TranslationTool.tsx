@@ -264,6 +264,20 @@ export default function TranslationTool() {
     }
   };
 
+  // Handle search input separately from select events
+  const handleSearchInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const target = e.target as HTMLInputElement;
+    setSearchTerm(target.value.toLowerCase());
+  };
+
+  // Prevent select from closing when clicking inside search input
+  const handleSearchClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">AI Translation Tool</h1>
@@ -306,34 +320,26 @@ export default function TranslationTool() {
                   value={selectedTense} 
                   onValueChange={(value) => {
                     setSelectedTense(value);
-                    setSearchTerm(''); // Clear search when selection is made
-                    const newTenseOptions = getTenseOptions(targetLanguage);
-                    if (!newTenseOptions.some(t => t.value === value)) {
-                      setSelectedTense('neutral');
-                    }
+                    setSearchTerm('');
                   }}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <div className="px-3 py-2">
+                    <div
+                      className="px-3 py-2"
+                      onClick={handleSearchClick}
+                      onMouseDown={handleSearchClick}
+                    >
                       <input
                         type="text"
                         className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         placeholder="Search tenses..."
                         value={searchTerm}
-                        onChange={(e) => {
-                          e.stopPropagation(); // Prevent dropdown from closing
-                          setSearchTerm(e.target.value.toLowerCase());
-                        }}
-                        onClick={(e) => e.stopPropagation()} // Prevent dropdown from closing on click
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') {
-                            e.stopPropagation(); // Prevent dropdown from closing on Escape
-                            setSearchTerm(''); // Clear search instead
-                          }
-                        }}
+                        onChange={handleSearchInput}
+                        onClick={handleSearchClick}
+                        onMouseDown={handleSearchClick}
                       />
                     </div>
                     <SelectGroup>
@@ -347,10 +353,6 @@ export default function TranslationTool() {
                           <SelectItem 
                             key={tense.value} 
                             value={tense.value}
-                            onMouseDown={(e) => {
-                              e.preventDefault(); // Prevent dropdown from closing on mouse interaction
-                              e.stopPropagation();
-                            }}
                           >
                             {tense.label}
                           </SelectItem>
