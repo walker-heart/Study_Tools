@@ -81,12 +81,12 @@ const corsOptions: cors.CorsOptions = {
 
 // Configure rate limiting with proper proxy handling and improved security
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: env.NODE_ENV === 'production' ? 100 : 1000, // Limit each IP
-  message: { error: 'Too many requests from this IP, please try again later.' },
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  skip: (req) => env.NODE_ENV === 'development', // Skip rate limiting in development
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: env.NODE_ENV === 'production' ? 200 : 1000, // Increased limit
+  message: { error: 'Too many requests, please try again after 5 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => env.NODE_ENV === 'development',
   handler: (req: Request, res: Response) => {
     log({
       message: 'Rate limit exceeded',
@@ -98,15 +98,13 @@ const limiter = rateLimit({
     }, 'warn');
     res.status(429).json({ 
       error: 'Too many requests',
-      message: 'Please try again later',
+      message: 'Please try again after 5 minutes',
       retryAfter: res.getHeader('Retry-After')
     });
   },
+  trustProxy: false, // Disable trust proxy validation
   keyGenerator: (req) => {
-    // Use X-Forwarded-For in production, fallback to IP
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const clientIP = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : req.ip;
-    return clientIP || 'unknown';
+    return req.ip || 'unknown';
   }
 });
 
