@@ -395,15 +395,61 @@ app.use((req, res, next) => {
       });
     }
 
-    // Start the server
-    const PORT = parseInt(process.env.PORT || '5000', 10);
-    server.listen({
-      port: PORT,
-      host: '0.0.0.0'
-    }, () => {
-      log(`Server running in ${app.get("env")} mode on port ${PORT}`);
-      log(`APP_URL: ${env.APP_URL}`);
+    // Start the server with enhanced logging
+    const PORT = parseInt(process.env.PORT || '3000', 10);
+    const VITE_PORT = parseInt(process.env.VITE_PORT || '5000', 10);
+    
+    log(`Environment: ${app.get("env")}`);
+    log(`Attempting to start server on port ${PORT}...`);
+    
+    // Configure port based on environment
+    const serverPort = app.get("env") === "development" ? PORT : VITE_PORT;
+    
+    // Add event listeners before starting the server
+    server.on('error', (error: Error & { code?: string }) => {
+      if (error.code === 'EADDRINUSE') {
+        log(`Critical Error: Port ${serverPort} is already in use`);
+        // Try alternative port in development
+        if (app.get("env") === "development" && serverPort === PORT) {
+          log(`Attempting to use alternative port ${VITE_PORT}...`);
+          server.listen({
+            port: VITE_PORT,
+            host: '0.0.0.0'
+          });
+          return;
+        }
+      } else {
+        log(`Critical Error starting server: ${error.message}`);
+        console.error('Server start error details:', {
+          error: error.message,
+          stack: error.stack,
+          code: error.code,
+          time: new Date().toISOString()
+        });
+      }
+      process.exit(1);
     });
+
+    server.on('listening', () => {
+      const addr = server.address();
+      const actualPort = typeof addr === 'string' ? addr : addr?.port;
+      log(`Server successfully bound to port ${actualPort}`);
+      log(`Server running in ${app.get("env")} mode`);
+      log(`APP_URL: ${env.APP_URL}`);
+      log('Server startup sequence completed');
+    });
+
+    // Attempt to start the server
+    try {
+      server.listen({
+        port: serverPort,
+        host: '0.0.0.0'
+      });
+    } catch (error) {
+      log(`Fatal error during server.listen(): ${error}`);
+      console.error('Server listen error:', error);
+      process.exit(1);
+    }
   } catch (error) {
     log(`Fatal error during server startup: ${error}`);
     process.exit(1);
