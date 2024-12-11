@@ -5,6 +5,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 import session from "express-session";
+import type { Session, SessionData } from "express-session";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
@@ -33,9 +34,10 @@ interface ExtendedError extends Error {
 }
 
 interface TypedRequest extends Request {
-  session: Session & SessionData;
+  session: Session & Partial<SessionData>;
   sessionID?: string;
   requestId?: string;
+  user?: any; // TODO: Replace with proper user type
 }
 
 // Configure CORS options
@@ -224,7 +226,7 @@ function setupErrorHandlers() {
   app.use(initRequestTracking());
 
   // API route not found handler
-  app.use('/api/*', (req: Request, res: Response) => {
+  app.use('/api/*', (req: TypedRequest, res: Response) => {
     const context = trackError(
       new AppError('API endpoint not found', {
         errorCode: 'NOT_FOUND',
@@ -240,7 +242,7 @@ function setupErrorHandlers() {
   });
 
   // Authentication error handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
     if (err instanceof AuthenticationError || err.name === 'SessionError') {
       const context = trackError(err, req);
       return res.status(401).json({ 
@@ -253,7 +255,7 @@ function setupErrorHandlers() {
   });
 
   // Validation error handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
     if (err instanceof ValidationError) {
       const context = trackError(err, req);
       return res.status(400).json({
@@ -266,7 +268,7 @@ function setupErrorHandlers() {
   });
 
   // Database error handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
     if (err instanceof DatabaseError || err.message.includes('database')) {
       const context = trackError(err, req);
       return res.status(503).json({ 
@@ -279,9 +281,9 @@ function setupErrorHandlers() {
   });
 
   // Final error handler
-  app.use((err: Error | AppError, req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: Error | AppError, req: TypedRequest, res: Response, _next: NextFunction) => {
     const context = trackError(err, req, res);
-    const status = 'context' in err ? err.context.statusCode || 500 : 500;
+    const status = 'context' in err && err.context?.statusCode ? err.context.statusCode : 500;
     
     const response = {
       message: env.NODE_ENV === 'production' 
