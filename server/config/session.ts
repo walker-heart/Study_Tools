@@ -8,36 +8,66 @@ import { log } from '../lib/log';
 
 const MemoryStoreSession = MemoryStore(session);
 
-// Create PostgreSQL pool with enhanced error handling
-const createPool = () => new Pool({
-  connectionString: env.DATABASE_URL,
-  ssl: env.NODE_ENV === 'production' 
-    ? { rejectUnauthorized: false } 
-    : undefined,
-  max: env.NODE_ENV === 'production' ? 20 : 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000
-});
+// Create PostgreSQL pool with enhanced error handling and connection management
+const createPool = () => {
+  const pool = new Pool({
+    connectionString: env.DATABASE_URL,
+    ssl: env.NODE_ENV === 'production' 
+      ? { rejectUnauthorized: false } 
+      : undefined,
+    max: env.NODE_ENV === 'production' ? 20 : 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+    allowExitOnIdle: false,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000
+  });
 
-// Test database connection with retries
+  // Add event listeners for connection issues
+  pool.on('error', (err: Error) => {
+    log({
+      message: 'Unexpected error on idle client',
+      stack: err.stack,
+      error_message: err.message
+    }, 'error');
+  });
+
+  pool.on('connect', () => {
+    log('New client connected to database pool', 'debug');
+  });
+
+  return pool;
+};
+
+// Test database connection with retries and exponential backoff
 async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<boolean> {
+  let backoff = 1000; // Start with 1 second
+  
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       await pool.query('SELECT NOW()');
-      log('Database connection successful', 'info');
+      log({
+        message: 'Database connection successful',
+        attempt,
+        total_attempts: maxRetries
+      }, 'info');
       return true;
     } catch (error) {
+      const isLastAttempt = attempt === maxRetries;
       log({
         message: `Database connection attempt ${attempt}/${maxRetries} failed`,
-        stack: error instanceof Error ? error.stack : undefined
-      }, attempt === maxRetries ? 'error' : 'warn');
+        next_retry: isLastAttempt ? null : `${backoff/1000} seconds`,
+        stack: error instanceof Error ? error.stack : undefined,
+        error_message: error instanceof Error ? error.message : String(error)
+      }, isLastAttempt ? 'error' : 'warn');
 
-      if (attempt === maxRetries) {
+      if (isLastAttempt) {
         return false;
       }
 
       // Wait before retry with exponential backoff
-      await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      backoff *= 2; // Double the backoff time for next attempt
     }
   }
   return false;
