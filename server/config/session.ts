@@ -44,14 +44,17 @@ const createPool = (): pkg.Pool => {
   });
 
   // Add event listeners for connection issues
-  pool.on('error', (err: Error) => {
+  pool.on('error', (err: unknown) => {
     const logMessage: LogMessage = {
       message: 'Unexpected error on idle client',
-      stack: err.stack,
-      error_message: err.message,
-      level: 'error'
+      stack: err instanceof Error ? err.stack : undefined,
+      error_message: err instanceof Error ? err.message : String(err),
+      level: 'error' as LogLevel,
+      metadata: {
+        operation: 'pool_error'
+      }
     };
-    log(logMessage);
+    log(logMessage, 'error');
   });
 
   pool.on('connect', () => {
@@ -77,6 +80,7 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
       return true;
     } catch (error) {
       const isLastAttempt = attempt === maxRetries;
+      const level: LogLevel = isLastAttempt ? 'error' : 'warn';
       const logMessage: LogMessage = {
         message: `Database connection attempt ${attempt}/${maxRetries} failed`,
         next_retry: isLastAttempt ? null : `${backoff/1000} seconds`,
@@ -84,9 +88,12 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
         error_message: error instanceof Error ? error.message : String(error),
         attempt,
         total_attempts: maxRetries,
-        level: isLastAttempt ? 'error' : 'warn'
+        level,
+        metadata: {
+          operation: 'db_connection_test'
+        }
       };
-      log(logMessage);
+      log(logMessage, level);
 
       if (isLastAttempt) {
         return false;
@@ -123,7 +130,7 @@ async function initializeSessionStore(): Promise<session.Store> {
       createTableIfMissing: true,
       pruneSessionInterval: 60 * 15, // Prune every 15 minutes
       // Enhanced error logging with context
-      errorLog: (err: Error) => {
+      errorLog: (err: unknown) => {
         const poolConfig = {
           max: 20,
           idleTimeoutMillis: 30000,
@@ -131,10 +138,10 @@ async function initializeSessionStore(): Promise<session.Store> {
         };
         
         const logMessage: LogMessage = {
-          message: `Session store error: ${err.message}`,
+          message: `Session store error: ${err instanceof Error ? err.message : 'Unknown error'}`,
           level: 'error',
-          error_message: err.message,
-          stack: err.stack,
+          error_message: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
           metadata: {
             path: 'session-store',
             status: 500,
@@ -143,7 +150,7 @@ async function initializeSessionStore(): Promise<session.Store> {
             poolConfig
           }
         };
-        error(logMessage);
+        log(logMessage);
       },
       // Connection configuration
       ttl: 24 * 60 * 60,
@@ -171,10 +178,16 @@ async function initializeSessionStore(): Promise<session.Store> {
       return store;
       
     } catch (verifyError) {
-      error({
+      const logMessage: LogMessage = {
         message: `Session store verification failed: ${verifyError instanceof Error ? verifyError.message : 'Unknown error'}`,
-        stack: verifyError instanceof Error ? verifyError.stack : undefined
-      });
+        stack: verifyError instanceof Error ? verifyError.stack : undefined,
+        error_message: verifyError instanceof Error ? verifyError.message : String(verifyError),
+        level: 'error' as LogLevel,
+        metadata: {
+          operation: 'session_store_verify'
+        }
+      };
+      log(logMessage, 'error');
       throw verifyError;
     }
   } catch (error) {
@@ -192,13 +205,13 @@ async function initializeSessionStore(): Promise<session.Store> {
           message: 'Error closing pool during fallback',
           stack: poolError instanceof Error ? poolError.stack : undefined,
           error_message: poolError instanceof Error ? poolError.message : String(poolError),
-          level: 'error',
+          level: 'error' as LogLevel,
           metadata: {
             operation: 'pool_cleanup',
             fallback: 'memory_store'
           }
         };
-        log(logMessage);
+        log(logMessage, 'error');
       }
     }
 
