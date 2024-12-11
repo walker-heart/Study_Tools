@@ -562,17 +562,25 @@ export async function generateSpeech(req: Request, res: Response) {
 }
 
 export async function translateText(req: Request, res: Response) {
-  // Set JSON content type for all responses
+  // Ensure consistent JSON response
   res.setHeader('Content-Type', 'application/json');
+  
+  // Wrap in error boundary to ensure JSON responses
+  const sendError = (status: number, message: string, details?: string) => {
+    return res.status(status).json({
+      message,
+      details: details || message
+    });
+  };
   
   try {
     if (!req.session.user?.id) {
-      return res.status(401).json({ message: "Not authenticated" });
+      return sendError(401, "Not authenticated");
     }
 
     const { text, targetLanguage } = req.body;
     if (!text || !targetLanguage) {
-      return res.status(400).json({ message: "Missing required fields" });
+      return sendError(400, "Missing required fields");
     }
 
     const result = await db
@@ -581,10 +589,7 @@ export async function translateText(req: Request, res: Response) {
       .where(eq(users.id, req.session.user.id));
 
     if (!result.length || !result[0].openaiApiKey) {
-      return res.status(400).json({ 
-        message: "OpenAI API key not configured",
-        details: "Please configure your OpenAI API key in settings"
-      });
+      return sendError(400, "OpenAI API key not configured", "Please configure your OpenAI API key in settings");
     }
 
     const openai = new OpenAI({ apiKey: result[0].openaiApiKey });

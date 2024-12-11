@@ -58,9 +58,22 @@ export default function TranslationTool() {
         credentials: 'include'
       });
 
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('Invalid content type:', contentType);
+        throw new Error('Invalid response from server. Expected JSON.');
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.error('JSON parse error:', e);
+        throw new Error('Failed to parse server response');
+      }
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (response.status === 400 && errorData.details?.includes("API key")) {
+        if (response.status === 400 && data.details?.includes("API key")) {
           showNotification({
             message: "OpenAI API key not configured. Please configure it in settings.",
             type: "error",
@@ -76,10 +89,9 @@ export default function TranslationTool() {
           setLocation("/signin");
           return;
         }
-        throw new Error(errorData.details || errorData.message || "Translation failed");
+        throw new Error(data.details || data.message || "Translation failed");
       }
 
-      const data = await response.json();
       if (!data?.translation) {
         throw new Error("Invalid translation response from server");
       }
