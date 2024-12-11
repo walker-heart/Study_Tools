@@ -562,27 +562,31 @@ export async function generateSpeech(req: Request, res: Response) {
 }
 
 export async function translateText(req: Request, res: Response) {
-  // Ensure consistent JSON response
+  // Set response type to JSON
   res.setHeader('Content-Type', 'application/json');
   
-  // Wrap in error boundary to ensure JSON responses
   const sendError = (status: number, message: string, details?: string) => {
+    console.error(`Translation error: ${message}`, details);
     return res.status(status).json({
+      success: false,
       message,
       details: details || message
     });
   };
-  
+
   try {
+    // Check authentication
     if (!req.session.user?.id) {
-      return sendError(401, "Not authenticated");
+      return sendError(401, "Please sign in to use the translation feature");
     }
 
+    // Validate request body
     const { text, targetLanguage } = req.body;
-    if (!text || !targetLanguage) {
-      return sendError(400, "Missing required fields");
+    if (!text?.trim() || !targetLanguage?.trim()) {
+      return sendError(400, "Missing required fields", "Both text and target language are required");
     }
 
+    // Get API key from database
     const result = await db
       .select({ openaiApiKey: users.openaiApiKey })
       .from(users)
@@ -592,17 +596,26 @@ export async function translateText(req: Request, res: Response) {
       return sendError(400, "OpenAI API key not configured", "Please configure your OpenAI API key in settings");
     }
 
-    console.log('Creating OpenAI client with API key length:', result[0].openaiApiKey?.length);
-    const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
+    const apiKey = result[0].openaiApiKey;
+    console.log('Retrieved API key from database, length:', apiKey.length);
+
+    // Initialize OpenAI client
+    const openai = new OpenAI({ apiKey });
 
     try {
-      console.log('Sending translation request to OpenAI:', { targetLanguage, textLength: text.length });
+      console.log('Sending translation request:', { 
+        targetLanguage, 
+        textLength: text.length,
+        timestamp: new Date().toISOString()
+      });
+
+      // Make API request
       const response = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
         messages: [
           {
             role: "system",
-            content: `You are a professional translator. Your task is to accurately translate text to ${targetLanguage}. Translate directly without adding any explanations or notes.`
+            content: `You are a professional translator. Translate the following text to ${targetLanguage}. Provide only the direct translation without any additional notes or explanations.`
           },
           {
             role: "user",
@@ -610,40 +623,54 @@ export async function translateText(req: Request, res: Response) {
           }
         ],
         temperature: 0.3,
-        max_tokens: Math.max(1000, text.length * 2) // Ensure enough tokens for translation
+        max_tokens: Math.max(1000, text.length * 2)
       });
 
-      console.log('Received OpenAI response:', {
+      console.log('OpenAI response received:', {
         status: 'success',
         hasChoices: !!response.choices?.length,
-        firstChoice: !!response.choices?.[0]?.message
+        messagePresent: !!response.choices?.[0]?.message,
+        tokensUsed: response.usage?.total_tokens
       });
 
+      // Validate response
       if (!response.choices?.[0]?.message?.content) {
         console.error('Invalid OpenAI response structure:', response);
-        throw new Error('Invalid response from OpenAI API');
+        throw new Error('Received invalid response format from OpenAI');
       }
 
       const translation = response.choices[0].message.content.trim();
 
       // Log successful API usage
-      await logAPIUsage({
-        userId: req.session.user.id,
-        endpoint: "/api/ai/translate",
-        tokensUsed: response.usage?.total_tokens || 0,
-        cost: calculateTokenCost(response.usage?.total_tokens || 0),
-        success: true
-      }).catch(error => {
-        console.error('Error logging API usage:', error);
+      try {
+        await logAPIUsage({
+          userId: req.session.user.id,
+          endpoint: "/api/ai/translate",
+          tokensUsed: response.usage?.total_tokens || 0,
+          cost: calculateTokenCost(response.usage?.total_tokens || 0),
+          success: true
+        });
+      } catch (logError) {
+        console.error('Failed to log successful API usage:', logError);
+        // Continue execution despite logging error
+      }
+
+      // Send successful response
+      return res.json({
+        success: true,
+        translation,
+        tokensUsed: response.usage?.total_tokens || 0
       });
 
-      return res.json({ translation });
-
     } catch (openaiError: any) {
-      console.error('OpenAI API error:', openaiError);
+      console.error('OpenAI API error:', {
+        error: openaiError,
+        status: openaiError?.status,
+        message: openaiError?.message
+      });
       
       // Log failed API usage
-      if (req.session.user?.id) {
+      try {
         await logAPIUsage({
           userId: req.session.user.id,
           endpoint: "/api/ai/translate",
@@ -651,23 +678,26 @@ export async function translateText(req: Request, res: Response) {
           cost: 0,
           success: false,
           errorMessage: openaiError?.message || "OpenAI API error"
-        }).catch(error => {
-          console.error('Error logging API usage:', error);
         });
+      } catch (logError) {
+        console.error('Failed to log failed API usage:', logError);
       }
 
+      // Handle specific OpenAI errors
       if (openaiError?.status === 401) {
         return sendError(401, "Invalid OpenAI API key", "Please check your API key in settings");
+      } else if (openaiError?.status === 429) {
+        return sendError(429, "Rate limit exceeded", "Too many requests. Please try again later.");
       }
 
       return sendError(500, "Translation failed", openaiError?.message || "Error calling OpenAI API");
     }
 
   } catch (error: unknown) {
-    console.error('Translation error:', error);
+    console.error('Unexpected translation error:', error);
     
     // Log failed API usage for unexpected errors
-    if (req.session.user?.id) {
+    try {
       await logAPIUsage({
         userId: req.session.user.id,
         endpoint: "/api/ai/translate",
@@ -675,9 +705,9 @@ export async function translateText(req: Request, res: Response) {
         cost: 0,
         success: false,
         errorMessage: error instanceof Error ? error.message : "Unknown error"
-      }).catch(error => {
-        console.error('Error logging API usage:', error);
       });
+    } catch (logError) {
+      console.error('Failed to log API usage for unexpected error:', logError);
     }
 
     return sendError(500, "Translation failed", error instanceof Error ? error.message : "Unexpected error occurred");

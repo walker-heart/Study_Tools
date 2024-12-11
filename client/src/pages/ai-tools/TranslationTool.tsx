@@ -73,6 +73,7 @@ export default function TranslationTool() {
 
       if (!response.ok) {
         const errorMessage = data.details || data.message || "Translation failed";
+        console.log('Translation error response:', { status: response.status, data });
         
         if (response.status === 400 && errorMessage.includes("API key")) {
           showNotification({
@@ -100,9 +101,18 @@ export default function TranslationTool() {
           return;
         }
         
+        if (response.status === 429) {
+          showNotification({
+            message: "Too many requests. Please try again later.",
+            type: "error",
+          });
+          return;
+        }
+        
         throw new Error(errorMessage);
       }
 
+      console.log('Translation response:', data);
       if (!data?.translation) {
         throw new Error("Invalid translation response from server");
       }
