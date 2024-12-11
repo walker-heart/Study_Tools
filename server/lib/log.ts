@@ -8,6 +8,11 @@ interface LogMessage {
   method?: string;
   status?: number;
   stack?: string;
+  origin?: string;
+  ip?: string;
+  realIP?: string | string[];
+  forwardedFor?: string | string[];
+  allowedOrigins?: string[];
 }
 
 function formatMessage(level: LogLevel, message: string, details?: Partial<LogMessage>): string {

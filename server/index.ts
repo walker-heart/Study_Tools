@@ -104,9 +104,9 @@ const limiter = rateLimit({
   },
   keyGenerator: (req) => {
     // Use X-Forwarded-For in production, fallback to IP
-    return env.NODE_ENV === 'production'
-      ? (req.headers['x-forwarded-for'] as string || req.ip)
-      : req.ip;
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const clientIP = typeof forwardedFor === 'string' ? forwardedFor.split(',')[0].trim() : req.ip;
+    return clientIP || 'unknown';
   }
 });
 
