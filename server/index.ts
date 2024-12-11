@@ -337,7 +337,11 @@ async function main() {
         if (error.code === 'EADDRINUSE') {
           // Try the next available port
           log(`Port ${PORT} is in use, trying ${PORT + 1}`, 'warn');
-          server.listen(PORT + 1, '0.0.0.0');
+          if (server) {
+            server.listen(PORT + 1, '0.0.0.0');
+          } else {
+            reject(new Error('Server is not initialized'));
+          }
         } else {
           log(`Server error: ${error.message}`, 'error');
           reject(error);
