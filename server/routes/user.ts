@@ -626,7 +626,6 @@ export async function translateText(req: Request, res: Response) {
         success: true
       }).catch(error => {
         console.error('Error logging API usage:', error);
-        // Don't throw, just log the error
       });
 
       return res.json({ translation });
@@ -634,13 +633,6 @@ export async function translateText(req: Request, res: Response) {
     } catch (openaiError: any) {
       console.error('OpenAI API error:', openaiError);
       
-      if (openaiError?.status === 401) {
-        return res.status(401).json({
-          message: "Invalid OpenAI API key",
-          details: "Please check your API key in settings"
-        });
-      }
-
       // Log failed API usage
       if (req.session.user?.id) {
         await logAPIUsage({
@@ -655,10 +647,11 @@ export async function translateText(req: Request, res: Response) {
         });
       }
 
-      return res.status(500).json({ 
-        message: "Translation failed",
-        details: openaiError?.message || "Error calling OpenAI API"
-      });
+      if (openaiError?.status === 401) {
+        return sendError(401, "Invalid OpenAI API key", "Please check your API key in settings");
+      }
+
+      return sendError(500, "Translation failed", openaiError?.message || "Error calling OpenAI API");
     }
 
   } catch (error: unknown) {
@@ -678,9 +671,6 @@ export async function translateText(req: Request, res: Response) {
       });
     }
 
-    return res.status(500).json({ 
-      message: "Translation failed",
-      details: error instanceof Error ? error.message : "Unexpected error occurred"
-    });
+    return sendError(500, "Translation failed", error instanceof Error ? error.message : "Unexpected error occurred");
   }
 }

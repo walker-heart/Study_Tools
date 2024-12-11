@@ -58,22 +58,23 @@ export default function TranslationTool() {
         credentials: 'include'
       });
 
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        console.error('Invalid content type:', contentType);
-        throw new Error('Invalid response from server. Expected JSON.');
-      }
-
       let data;
       try {
+        const contentType = response.headers.get('content-type');
+        if (!contentType?.toLowerCase().includes('application/json')) {
+          console.error('Invalid content type:', contentType);
+          throw new Error('Unexpected server response format');
+        }
         data = await response.json();
-      } catch (e) {
-        console.error('JSON parse error:', e);
-        throw new Error('Failed to parse server response');
+      } catch (parseError) {
+        console.error('Response parsing error:', parseError);
+        throw new Error('Failed to process server response. Please try again.');
       }
 
       if (!response.ok) {
-        if (response.status === 400 && data.details?.includes("API key")) {
+        const errorMessage = data.details || data.message || "Translation failed";
+        
+        if (response.status === 400 && errorMessage.includes("API key")) {
           showNotification({
             message: "OpenAI API key not configured. Please configure it in settings.",
             type: "error",
@@ -81,15 +82,25 @@ export default function TranslationTool() {
           setLocation("/settings/api");
           return;
         }
+        
         if (response.status === 401) {
-          showNotification({
-            message: "Please sign in to use the translation feature",
-            type: "error",
-          });
-          setLocation("/signin");
+          if (errorMessage.includes("OpenAI API key")) {
+            showNotification({
+              message: "Invalid OpenAI API key. Please check your settings.",
+              type: "error",
+            });
+            setLocation("/settings/api");
+          } else {
+            showNotification({
+              message: "Please sign in to use the translation feature",
+              type: "error",
+            });
+            setLocation("/signin");
+          }
           return;
         }
-        throw new Error(data.details || data.message || "Translation failed");
+        
+        throw new Error(errorMessage);
       }
 
       if (!data?.translation) {
