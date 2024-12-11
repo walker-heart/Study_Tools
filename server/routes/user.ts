@@ -607,7 +607,11 @@ export async function translateText(req: Request, res: Response) {
       const tense = req.body.tense?.toLowerCase() || "neutral";
       
       // Validate tense parameter
-      const validTenses = ["present", "past", "future", "neutral"];
+      const validTenses = [
+        "neutral", "present", "past", "future", 
+        "preterite", "imperfect", "conditional", 
+        "present_perfect"
+      ];
       if (!validTenses.includes(tense)) {
         return res.status(400).json({
           success: false,
@@ -638,13 +642,25 @@ export async function translateText(req: Request, res: Response) {
           tenseInstruction = "Use present tense in the translation.";
           break;
         case "past":
-          tenseInstruction = "Use past tense in the translation.";
+          tenseInstruction = "Use simple past tense in the translation.";
           break;
         case "future":
           tenseInstruction = "Use future tense in the translation.";
           break;
+        case "preterite":
+          tenseInstruction = "Use preterite (simple past) tense in the translation.";
+          break;
+        case "imperfect":
+          tenseInstruction = "Use imperfect past tense in the translation.";
+          break;
+        case "conditional":
+          tenseInstruction = "Use conditional tense in the translation.";
+          break;
+        case "present_perfect":
+          tenseInstruction = "Use present perfect tense in the translation.";
+          break;
         default:
-          tenseInstruction = "Use the most natural tense for the context.";
+          tenseInstruction = "Use the most natural and appropriate tense for the context.";
       }
 
       // Make API request with detailed logging
