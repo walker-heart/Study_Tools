@@ -35,20 +35,38 @@ const corsOptions: cors.CorsOptions = {
       env.APP_URL,
       'http://localhost:3000',
       'http://localhost:5000',
-      // Allow all subdomains of repl.co
-      /\.repl\.co$/
+      // Allow all subdomains of repl.co and replit.dev
+      /\.repl\.co$/,
+      /\.replit\.dev$/
     ];
     
-    // Allow all origins in development, or check against allowedOrigins in production
-    if (!origin || env.NODE_ENV === 'development' || 
-        allowedOrigins.some(allowed => 
-          typeof allowed === 'string' 
-            ? allowed === origin 
-            : allowed.test(origin)
-        )) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    // Allow all origins in development
+    if (env.NODE_ENV === 'development') {
+      callback(null, true);
+      return;
+    }
+
+    // Check against allowed origins in production
+    const isAllowed = allowedOrigins.some(allowed => 
+      typeof allowed === 'string' 
+        ? allowed === origin 
+        : allowed.test(origin)
+    );
+
+    if (isAllowed) {
       callback(null, true);
     } else {
-      log(`CORS blocked origin: ${origin}`, 'warn');
+      log({
+        message: 'CORS blocked origin',
+        origin,
+        allowedOrigins: allowedOrigins.map(o => o.toString())
+      }, 'warn');
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -57,7 +75,8 @@ const corsOptions: cors.CorsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
   exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie'],
   maxAge: 86400,
-  optionsSuccessStatus: 204
+  optionsSuccessStatus: 204,
+  preflightContinue: false
 };
 
 // Configure rate limiting with proper proxy handling and improved security
@@ -72,7 +91,10 @@ const limiter = rateLimit({
     log({
       message: 'Rate limit exceeded',
       path: req.path,
-      method: req.method
+      method: req.method,
+      ip: req.ip,
+      realIP: req.headers['x-real-ip'],
+      forwardedFor: req.headers['x-forwarded-for']
     }, 'warn');
     res.status(429).json({ 
       error: 'Too many requests',
@@ -80,8 +102,12 @@ const limiter = rateLimit({
       retryAfter: res.getHeader('Retry-After')
     });
   },
-  // Trust proxy settings
-  trusted: env.NODE_ENV === 'production' ? ['loopback', 'linklocal', 'uniquelocal'] : []
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For in production, fallback to IP
+    return env.NODE_ENV === 'production'
+      ? (req.headers['x-forwarded-for'] as string || req.ip)
+      : req.ip;
+  }
 });
 
 // Configure security middleware
@@ -125,7 +151,9 @@ async function initializeMiddleware() {
   try {
     // Environment-specific settings
     if (env.NODE_ENV === 'production') {
-      app.set('trust proxy', 1);
+      // Trust first proxy and configure for Replit's environment
+      app.set('trust proxy', true);
+      app.enable('trust proxy');
     } else {
       app.set('json spaces', 2);
     }
