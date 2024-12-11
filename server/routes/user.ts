@@ -562,6 +562,9 @@ export async function generateSpeech(req: Request, res: Response) {
 }
 
 export async function translateText(req: Request, res: Response) {
+  // Set JSON content type for all responses
+  res.setHeader('Content-Type', 'application/json');
+  
   try {
     if (!req.session.user?.id) {
       return res.status(401).json({ message: "Not authenticated" });
@@ -579,48 +582,84 @@ export async function translateText(req: Request, res: Response) {
 
     if (!result.length || !result[0].openaiApiKey) {
       return res.status(400).json({ 
-        message: "No API key configured",
-        details: "Please configure your OpenAI API key in the settings page"
+        message: "OpenAI API key not configured",
+        details: "Please configure your OpenAI API key in settings"
       });
     }
 
     const openai = new OpenAI({ apiKey: result[0].openaiApiKey });
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: `You are a professional translator. Translate the following text to ${targetLanguage}. Provide only the translation, no explanations.`
-        },
-        {
-          role: "user",
-          content: text
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 1000
-    });
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: `You are a professional translator. Translate the following text to ${targetLanguage}. Provide only the translation, no explanations.`
+          },
+          {
+            role: "user",
+            content: text
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 1000
+      });
 
-    if (!response.choices?.[0]?.message?.content) {
-      throw new Error('Invalid response from OpenAI API');
+      if (!response.choices?.[0]?.message?.content) {
+        throw new Error('Invalid response from OpenAI API');
+      }
+
+      const translation = response.choices[0].message.content.trim();
+
+      // Log successful API usage
+      await logAPIUsage({
+        userId: req.session.user.id,
+        endpoint: "/api/ai/translate",
+        tokensUsed: response.usage?.total_tokens || 0,
+        cost: calculateTokenCost(response.usage?.total_tokens || 0),
+        success: true
+      }).catch(error => {
+        console.error('Error logging API usage:', error);
+        // Don't throw, just log the error
+      });
+
+      return res.json({ translation });
+
+    } catch (openaiError: any) {
+      console.error('OpenAI API error:', openaiError);
+      
+      if (openaiError?.status === 401) {
+        return res.status(401).json({
+          message: "Invalid OpenAI API key",
+          details: "Please check your API key in settings"
+        });
+      }
+
+      // Log failed API usage
+      if (req.session.user?.id) {
+        await logAPIUsage({
+          userId: req.session.user.id,
+          endpoint: "/api/ai/translate",
+          tokensUsed: 0,
+          cost: 0,
+          success: false,
+          errorMessage: openaiError?.message || "OpenAI API error"
+        }).catch(error => {
+          console.error('Error logging API usage:', error);
+        });
+      }
+
+      return res.status(500).json({ 
+        message: "Translation failed",
+        details: openaiError?.message || "Error calling OpenAI API"
+      });
     }
-
-    const translation = response.choices[0].message.content.trim();
-
-    await logAPIUsage({
-      userId: req.session.user.id,
-      endpoint: "/api/ai/translate",
-      tokensUsed: response.usage?.total_tokens || 0,
-      cost: calculateTokenCost(response.usage?.total_tokens || 0),
-      success: true
-    });
-
-    res.json({ translation });
 
   } catch (error: unknown) {
     console.error('Translation error:', error);
     
+    // Log failed API usage for unexpected errors
     if (req.session.user?.id) {
       await logAPIUsage({
         userId: req.session.user.id,
@@ -629,22 +668,14 @@ export async function translateText(req: Request, res: Response) {
         cost: 0,
         success: false,
         errorMessage: error instanceof Error ? error.message : "Unknown error"
+      }).catch(error => {
+        console.error('Error logging API usage:', error);
       });
     }
 
-    if (error && typeof error === 'object' && 'status' in error) {
-      const apiError = error as OpenAIAPIError;
-      if (apiError.status === 401) {
-        return res.status(401).json({
-          message: "Invalid API key",
-          details: "Please check your OpenAI API key in settings"
-        });
-      }
-    }
-
-    res.status(500).json({ 
-      message: "Error translating text",
-      details: error instanceof Error ? error.message : "Unknown error"
+    return res.status(500).json({ 
+      message: "Translation failed",
+      details: error instanceof Error ? error.message : "Unexpected error occurred"
     });
   }
 }
