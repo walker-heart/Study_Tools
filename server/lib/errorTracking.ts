@@ -64,7 +64,7 @@ export function trackError(error: Error | AppError, req?: Request, res?: Respons
     Object.assign(context, (error as AppError).context);
   }
 
-  log({
+  const logMessage: LogMessage = {
     message: error.message,
     errorCode: 'context' in error ? error.context.errorCode : 'UNKNOWN_ERROR',
     level: 'error',
@@ -73,7 +73,9 @@ export function trackError(error: Error | AppError, req?: Request, res?: Respons
       errorType: error.constructor.name,
       ...context
     }
-  }, 'error');
+  };
+  
+  log(logMessage, 'error');
 
   return context;
 }
