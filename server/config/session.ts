@@ -3,54 +3,62 @@ import pkg from 'pg';
 const { Pool } = pkg;
 import connectPgSimple from 'connect-pg-simple';
 import MemoryStore from 'memorystore';
+import { env } from '../lib/env';
+import { log } from '../lib/log';
 
 const MemoryStoreSession = MemoryStore(session);
 
-// Verify required environment variables
-if (!process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required for session security');
-}
-
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is required for session storage');
-}
-
-// Create PostgreSQL pool and session store
+// Create PostgreSQL pool with proper error handling
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: env.DATABASE_URL,
+  ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+// Test database connection
+pool.query('SELECT NOW()', (err) => {
+  if (err) {
+    log('Database connection error: ' + err.message, 'error');
+  } else {
+    log('Database connection successful', 'info');
+  }
 });
 
 const pgSession = connectPgSimple(session);
 
-// Configure session settings with fallback to MemoryStore
+// Configure session store with enhanced error handling
 let sessionStore;
 try {
   sessionStore = new pgSession({
     pool,
     tableName: 'session',
     createTableIfMissing: true,
+    pruneSessionInterval: 60 * 15, // Prune every 15 minutes
+    errorLog: (error: Error) => {
+      log('Session store error: ' + error.message, 'error');
+    }
   });
+  log('PostgreSQL session store initialized', 'info');
 } catch (error) {
-  console.warn('Failed to create PostgreSQL session store, falling back to MemoryStore');
+  log('Failed to create PostgreSQL session store, falling back to MemoryStore: ' + error, 'warn');
   sessionStore = new MemoryStoreSession({
     checkPeriod: 86400000 // Prune expired entries every 24h
   });
 }
 
-// Export session configuration
+// Type-safe session configuration
 export const sessionConfig = {
   store: sessionStore,
-  secret: process.env.JWT_SECRET,
-  resave: true, // Required for rolling sessions
+  secret: env.JWT_SECRET,
+  resave: false,
   saveUninitialized: false,
-  rolling: true, // Refresh session with each request
+  rolling: true,
+  proxy: env.NODE_ENV === 'production',
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true, // Prevent JavaScript access to the cookie
+    secure: env.NODE_ENV === 'production',
+    httpOnly: true,
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    sameSite: (process.env.NODE_ENV === 'production' ? 'strict' : 'lax') as 'strict' | 'lax',
-    path: '/', // Cookie is available for all paths
+    sameSite: (env.NODE_ENV === 'production' ? 'strict' : 'lax') as 'strict' | 'lax',
+    path: '/',
   },
-  name: 'sessionId',
-  proxy: process.env.NODE_ENV === 'production', // Trust proxy in production
-};
+  name: 'sid'
+} satisfies session.SessionOptions;
