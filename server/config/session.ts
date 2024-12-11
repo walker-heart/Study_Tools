@@ -7,16 +7,24 @@ import { env } from '../lib/env';
 import { log, debug, info, warn, error } from '../lib/log';
 import type { LogMessage, LogLevel } from '../lib/log';
 
-// Define a type for the error message
-type SessionError = Omit<LogMessage, 'level'> & {
+// Define types for session error handling
+interface SessionErrorContext {
+  operation?: string;
+  fallback?: string;
+  tableName?: string;
+  poolConfig?: Record<string, number>;
+}
+
+interface SessionError extends LogMessage {
   level: LogLevel;
-  context?: {
+  metadata?: {
+    path?: string;
+    status?: number;
     operation?: string;
-    fallback?: string;
     tableName?: string;
     poolConfig?: Record<string, number>;
-  };
-};
+  }
+}
 
 const MemoryStoreSession = MemoryStore(session);
 
@@ -115,7 +123,7 @@ async function initializeSessionStore(): Promise<session.Store> {
       createTableIfMissing: true,
       pruneSessionInterval: 60 * 15, // Prune every 15 minutes
       // Enhanced error logging with context
-      errorLog: (error: Error) => {
+      errorLog: (err: Error) => {
         const poolConfig = {
           max: 20,
           idleTimeoutMillis: 30000,
@@ -123,17 +131,19 @@ async function initializeSessionStore(): Promise<session.Store> {
         };
         
         const logMessage: LogMessage = {
-          message: `Session store error: ${error.message}`,
-          path: 'session-store',
-          status: 500,
-          stack: error.stack,
+          message: `Session store error: ${err.message}`,
           level: 'error',
-          context: {
+          error_message: err.message,
+          stack: err.stack,
+          metadata: {
+            path: 'session-store',
+            status: 500,
+            operation: 'session_store',
             tableName: 'session',
             poolConfig
           }
         };
-        log(logMessage);
+        error(logMessage);
       },
       // Connection configuration
       ttl: 24 * 60 * 60,
@@ -178,17 +188,17 @@ async function initializeSessionStore(): Promise<session.Store> {
       try {
         await pool.end();
       } catch (poolError: unknown) {
-        const errorMessage: SessionError = {
+        const logMessage: LogMessage = {
           message: 'Error closing pool during fallback',
           stack: poolError instanceof Error ? poolError.stack : undefined,
           error_message: poolError instanceof Error ? poolError.message : String(poolError),
-          level: 'error' as const,
-          context: {
+          level: 'error',
+          metadata: {
             operation: 'pool_cleanup',
             fallback: 'memory_store'
           }
         };
-        error(errorMessage as LogMessage);
+        log(logMessage);
       }
     }
 
