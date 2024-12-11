@@ -34,10 +34,14 @@ interface ExtendedError extends Error {
 }
 
 interface TypedRequest extends Request {
-  session: Session & Partial<SessionData>;
+  session: Session & Partial<SessionData> & {
+    user?: {
+      id: string | number;
+      [key: string]: any;
+    };
+  };
   sessionID?: string;
   requestId?: string;
-  user?: any; // TODO: Replace with proper user type
 }
 
 // Configure CORS options
