@@ -306,9 +306,30 @@ async function main() {
   let server: ReturnType<typeof createServer> | undefined;
 
   try {
-    // Test database connection
-    await db.execute(sql`SELECT NOW()`);
-    log('Database connection successful', 'info');
+    // Test database connection with retry mechanism
+    let retries = 5;
+    let backoff = 1000; // Start with 1 second
+
+    while (retries > 0) {
+      try {
+        await db.execute(sql`SELECT NOW()`);
+        log('Database connection successful', 'info');
+        break;
+      } catch (error) {
+        retries--;
+        if (retries === 0) {
+          throw new Error('Failed to connect to database after multiple attempts');
+        }
+        log({
+          message: `Database connection failed, retrying in ${backoff/1000} seconds...`,
+          retries_left: retries,
+          error: error instanceof Error ? error.message : String(error)
+        }, 'warn');
+        
+        await new Promise(resolve => setTimeout(resolve, backoff));
+        backoff *= 2; // Exponential backoff
+      }
+    }
 
     // Initialize middleware
     await initializeMiddleware();
