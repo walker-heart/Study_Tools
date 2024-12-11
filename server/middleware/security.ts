@@ -101,9 +101,28 @@ export function sanitizeInput(req: Request, _res: Response, next: NextFunction) 
 
 // Session security middleware
 export function sessionSecurity(req: Request, res: Response, next: NextFunction) {
-  // Regenerate session ID on login
+  // Skip session security for non-auth routes
+  if (!req.path.startsWith('/api/auth/')) {
+    return next();
+  }
+
+  // Ensure session exists
+  if (!req.session) {
+    log({
+      message: 'No session found',
+      path: req.path,
+      method: req.method
+    }, 'warn');
+    return res.status(500).json({ message: 'Session initialization failed' });
+  }
+
+  // Handle login requests
   if (req.path === '/api/auth/signin' && req.method === 'POST') {
-    req.session.regenerate((err) => {
+    // Store original session data
+    const originalUser = req.session.user;
+    
+    // Regenerate session
+    req.session.regenerate((err: Error | null) => {
       if (err) {
         log({
           message: 'Failed to regenerate session',
@@ -111,31 +130,41 @@ export function sessionSecurity(req: Request, res: Response, next: NextFunction)
           method: req.method,
           stack: err.stack
         }, 'error');
+        return res.status(500).json({ message: 'Session error' });
       }
+      
+      // Restore user data to new session
+      req.session.user = originalUser;
       next();
     });
     return;
   }
 
-  // Check for session fixation
-  const currentSessionID = req.sessionID;
-  if (req.session?.user && currentSessionID !== req.session.originalID) {
-    req.session.regenerate((err) => {
-      if (err) {
-        log({
-          message: 'Session fixation attempt detected',
-          path: req.path,
-          method: req.method,
-          stack: err.stack
-        }, 'warn');
-        req.session.destroy(() => {
-          res.status(401).json({ message: 'Session invalid' });
-        });
-        return;
-      }
-      next();
-    });
-    return;
+  // Check for session fixation on authenticated routes
+  if (req.session.user) {
+    const currentSessionID = req.sessionID;
+    const originalID = req.session.originalID;
+    
+    if (originalID && currentSessionID !== originalID) {
+      log({
+        message: 'Session fixation attempt detected',
+        path: req.path,
+        method: req.method
+      }, 'warn');
+      
+      req.session.destroy((err: Error | null) => {
+        if (err) {
+          log({
+            message: 'Error destroying suspicious session',
+            path: req.path,
+            method: req.method,
+            stack: err.stack
+          }, 'error');
+        }
+        res.status(401).json({ message: 'Session invalid' });
+      });
+      return;
+    }
   }
 
   next();
