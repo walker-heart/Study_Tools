@@ -72,18 +72,6 @@ interface ExtendedError extends Error {
   };
 }
 
-interface AppError extends ExtendedError {
-  context: {
-    statusCode: number;
-    errorCode: string;
-    metadata?: StaticFileMetadata;
-    requestId?: string;
-    path?: string;
-    method?: string;
-    timestamp?: Date;
-  };
-}
-
 interface StaticFileError extends ExtendedError {
   path?: string;
   error_message?: string;
@@ -93,20 +81,11 @@ interface StaticFileError extends ExtendedError {
   code?: 'ENOENT' | string;
 }
 
-type ErrorHandler = (
-  err: ExtendedError | StaticFileError,
-  req: TypedRequest,
-  res: Response,
-  next: NextFunction
-) => void;
-
-interface LogMessage {
-  message: string;
-  [key: string]: unknown;
+interface ErrorHandler {
+  (err: ExtendedError | StaticFileError, req: TypedRequest, res: Response, next: NextFunction): void;
 }
 
 interface StaticErrorLog extends Omit<LogMessage, "level"> {
-  message: string;
   path?: string;
   error_message?: string;
   metadata?: Record<string, unknown>;
@@ -116,23 +95,11 @@ interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
   session: Session & Partial<SessionData> & {
     user?: {
       id: string | number;
-      [key: string]: any;
+      [key: string]: unknown;
     };
   };
   sessionID: string;
   requestId?: string;
-}
-
-interface AppError extends ExtendedError {
-  context: {
-    statusCode: number;
-    errorCode: string;
-    metadata?: StaticFileMetadata;
-    requestId?: string;
-    path?: string;
-    method?: string;
-    timestamp?: Date;
-  };
 }
 
 function isAppError(error: Error | AppError): error is AppError {
@@ -187,6 +154,8 @@ const corsOptions: cors.CorsOptions = {
       env.APP_URL,
       'http://localhost:3000',
       'http://localhost:5000',
+      'http://0.0.0.0:3000',
+      'http://0.0.0.0:5000',
       // Allow all subdomains of repl.co and replit.dev
       /^https?:\/\/[^.]+\.repl\.co$/,
       /^https?:\/\/[^.]+\.replit\.dev$/
@@ -457,7 +426,9 @@ import {
   AuthenticationError,
   DatabaseError,
   ValidationError,
-  AppError 
+  AppError,
+  LogMessage,
+  ErrorHandler 
 } from './lib/errorTracking';
 
 // Setup error handlers
@@ -626,17 +597,28 @@ async function main() {
         resolve();
       });
 
-      server.listen(PORT, '0.0.0.0');
+      server.listen(PORT, '0.0.0.0', () => {
+        info(`Server is now listening on http://0.0.0.0:${PORT}`);
+      });
     });
 
   } catch (err) {
-    error({
+    const errorLog: LogMessage = {
       message: 'Fatal error in server startup',
-      stack: err instanceof Error ? err.stack : String(err)
-    });
+      error_details: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      timestamp: new Date().toISOString()
+    };
+    error(errorLog);
 
     if (server?.listening) {
-      await new Promise<void>((resolve) => server!.close(() => resolve()));
+      info('Closing server due to startup error');
+      await new Promise<void>((resolve) => {
+        server!.close(() => {
+          info('Server closed');
+          resolve();
+        });
+      });
     }
     
     process.exit(1);
@@ -660,7 +642,9 @@ try {
 } catch (err) {
   error({
     message: 'Fatal error starting server',
-    stack: err instanceof Error ? err.stack : String(err)
+    error_details: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack : undefined,
+    timestamp: new Date().toISOString()
   });
   process.exit(1);
 }
