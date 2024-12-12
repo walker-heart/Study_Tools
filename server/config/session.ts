@@ -16,9 +16,14 @@ interface SessionErrorContext {
   error?: unknown;
 }
 
-interface SessionError extends LogMessage {
+interface SessionError {
+  message: string;
   level: LogLevel;
   error_message?: string;
+  next_retry?: string | null;
+  stack?: string;
+  attempt?: number;
+  total_attempts?: number;
   metadata: {
     path?: string;
     status?: number;
@@ -105,21 +110,21 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
     } catch (unknownError) {
       const error = toErrorWithMessage(unknownError);
       const isLastAttempt = attempt === maxRetries;
-      const level: LogLevel = isLastAttempt ? 'error' : 'warn';
+      const logLevel: LogLevel = isLastAttempt ? 'error' : 'warn';
       const logMessage: SessionError = {
         message: `Database connection attempt ${attempt}/${maxRetries} failed`,
+        level: isLastAttempt ? 'error' : 'warn',
         next_retry: isLastAttempt ? null : `${backoff/1000} seconds`,
         stack: error instanceof Error ? error.stack : undefined,
         error_message: error.message,
         attempt,
         total_attempts: maxRetries,
-        level,
         metadata: {
           operation: 'db_connection_test',
           status: 500
         }
       };
-      log(logMessage, level);
+      log(logMessage);
 
       if (isLastAttempt) {
         return false;
@@ -189,8 +194,15 @@ async function initializeSessionStore(): Promise<session.Store> {
         new Promise<void>((resolve, reject) => {
           store.get('test-session', (err: unknown) => {
             if (err) {
-              const error = toErrorWithMessage(err);
-              reject(new Error(`Session store verification failed: ${error.message}`));
+              const errorMessage = toErrorWithMessage(err);
+              error({
+                message: 'Session store verification failed',
+                error_message: errorMessage.message,
+                metadata: {
+                  operation: 'session_store_verify'
+                }
+              });
+              reject(new Error(`Session store verification failed: ${errorMessage.message}`));
             } else {
               resolve();
             }

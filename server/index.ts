@@ -195,110 +195,86 @@ async function initializeMiddleware() {
     }));
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-    // Static file serving with proper caching
-    // Determine the correct base directory for static files
+    // Configure static file serving paths
     const rootDir = process.cwd();
     const publicPath = path.join(rootDir, 'dist', 'public');
     const assetsPath = path.join(publicPath, 'assets');
     
-    try {
-      // Create directories if they don't exist
-      [publicPath, assetsPath].forEach(dir => {
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true, mode: 0o755 });
-          info(`Created directory: ${dir}`);
-        }
-      });
-      
-      // Verify directory access
-      fs.accessSync(publicPath, fs.constants.R_OK);
-      fs.accessSync(assetsPath, fs.constants.R_OK);
-      
-      info({
-        message: 'Static directories verified and accessible',
-        metadata: {
-          rootDir,
-          publicPath,
-          assetsPath,
-          mode: env.NODE_ENV
-        }
-      });
-    } catch (err) {
-      const errorMessage: LogMessage = {
-        level: 'error' as LogLevel,
-        message: 'Failed to setup static directories',
-        error_message: err instanceof Error ? err.message : String(err),
-        metadata: { 
-          paths: { publicPath, assetsPath },
-          operation: 'static_directory_setup',
-          status: 500
-        }
-      };
-      error(errorMessage);
-      throw err;
-    }
+    // Log static serving configuration
+    info({
+      message: 'Configuring static file serving',
+      metadata: {
+        rootDir,
+        publicPath,
+        assetsPath,
+        mode: env.NODE_ENV
+      }
+    });
 
     // Configure static file serving with better error handling
     const serveStaticWithLogging = (staticPath: string, options: ServeStaticOptions) => {
-      if (!fs.existsSync(staticPath)) {
-        fs.mkdirSync(staticPath, { recursive: true });
-        info(`Created static directory: ${staticPath}`);
-      }
-
-      debug(`Setting up static file serving for path: ${staticPath}`);
-      
-      // Verify the directory is accessible
+      // Ensure the static directory exists
       try {
+        if (!fs.existsSync(staticPath)) {
+          fs.mkdirSync(staticPath, { recursive: true });
+          info(`Created static directory: ${staticPath}`);
+        }
         fs.accessSync(staticPath, fs.constants.R_OK);
+        debug(`Static directory verified: ${staticPath}`);
       } catch (err) {
         error({
-          message: 'Static directory not accessible',
+          message: 'Static directory setup failed',
           error_message: err instanceof Error ? err.message : String(err),
           metadata: {
             path: staticPath,
-            operation: 'static_directory_access',
+            operation: 'static_directory_setup',
             status: 500
           }
         });
-        throw new Error(`Static directory not accessible: ${staticPath}`);
+        // Don't throw, just log the error and continue
+        warn(`Static directory ${staticPath} not accessible, will attempt to serve files anyway`);
       }
 
       const staticHandler = express.static(staticPath, {
         ...options,
+        fallthrough: true, // Allow falling through to next middleware if file not found
         setHeaders: (res: Response, filePath: string) => {
           const ext = path.extname(filePath).toLowerCase();
-          const contentTypes: Record<string, string> = {
-            '.css': 'text/css',
-            '.js': 'application/javascript',
-            '.svg': 'image/svg+xml',
-            '.html': 'text/html; charset=utf-8',
-            '.json': 'application/json',
-            '.png': 'image/png',
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-            '.gif': 'image/gif',
-            '.ico': 'image/x-icon',
-            '.woff': 'font/woff',
-            '.woff2': 'font/woff2',
-            '.ttf': 'font/ttf',
-            '.eot': 'application/vnd.ms-fontobject'
-          };
-
-          if (contentTypes[ext]) {
-            res.setHeader('Content-Type', contentTypes[ext]);
+          // Set appropriate content type
+          switch (ext) {
+            case '.js':
+              res.setHeader('Content-Type', 'application/javascript');
+              break;
+            case '.css':
+              res.setHeader('Content-Type', 'text/css');
+              break;
+            case '.html':
+              res.setHeader('Content-Type', 'text/html; charset=utf-8');
+              break;
+            case '.json':
+              res.setHeader('Content-Type', 'application/json');
+              break;
+            // Add other content types as needed
           }
 
-          // Add security headers
-          res.setHeader('X-Content-Type-Options', 'nosniff');
-          
-          // Add cache control headers
+          // Set caching headers
           if (env.NODE_ENV === 'production') {
             if (ext === '.html') {
-              res.setHeader('Cache-Control', 'no-cache');
+              // Don't cache HTML files
+              res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+              res.setHeader('Pragma', 'no-cache');
+              res.setHeader('Expires', '0');
             } else {
+              // Cache static assets for 1 year
               res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
             }
+          } else {
+            // Disable caching in development
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
           }
+
+          // Security headers
+          res.setHeader('X-Content-Type-Options', 'nosniff');
         }
       });
 
@@ -320,10 +296,9 @@ async function initializeMiddleware() {
                 fullPath: path.join(staticPath, req.path)
               }
             });
-            next(err);
-          } else {
-            next();
           }
+          // Always call next() to allow falling through to other handlers
+          next(err);
         });
       };
     };
@@ -349,17 +324,32 @@ async function initializeMiddleware() {
       })
     };
 
-    // Serve assets first
-    app.use('/assets', serveStaticWithLogging(path.join(publicPath, 'assets'), {
-      ...staticOptions,
-      index: false
-    }));
+    // Configure static file serving
+    if (env.NODE_ENV === 'production') {
+      // In production, serve from the dist/public directory
+      app.use('/assets', serveStaticWithLogging(assetsPath, {
+        ...staticOptions,
+        index: false,
+        maxAge: '30d',
+        immutable: true
+      }));
 
-    // Then serve other static files
-    app.use(serveStaticWithLogging(publicPath, {
-      ...staticOptions,
-      index: false
-    }));
+      app.use(serveStaticWithLogging(publicPath, {
+        ...staticOptions,
+        index: false
+      }));
+    } else {
+      // In development, let Vite handle the static files
+      app.use('/assets', serveStaticWithLogging(assetsPath, {
+        ...staticOptions,
+        index: false
+      }));
+      
+      app.use(serveStaticWithLogging(publicPath, {
+        ...staticOptions,
+        index: false
+      }));
+    }
 
     // Final handler for static files
     app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
@@ -510,17 +500,29 @@ function setupErrorHandlers() {
     const context = trackError(err, req, res);
     const status = 'context' in err && err.context?.statusCode ? err.context.statusCode : 500;
     
-    const response = {
+    const response: {
+      message: string;
+      status: number;
+      requestId?: string;
+      stack?: string;
+      errorCode?: string;
+    } = {
       message: env.NODE_ENV === 'production' 
         ? 'An unexpected error occurred' 
         : err.message,
-      status,
-      requestId: context.requestId,
-      ...(env.NODE_ENV === 'development' ? { 
-        stack: err.stack,
-        errorCode: 'context' in err ? err.context.errorCode : 'UNKNOWN_ERROR'
-      } : {})
+      status
     };
+
+    if (context.requestId) {
+      response.requestId = context.requestId;
+    }
+
+    if (env.NODE_ENV === 'development') {
+      response.stack = err.stack;
+      response.errorCode = 'context' in err && err.context?.errorCode 
+        ? err.context.errorCode 
+        : 'UNKNOWN_ERROR';
+    }
 
     res.status(status).json(response);
   });
@@ -530,8 +532,37 @@ function setupErrorHandlers() {
     if (req.path.startsWith('/api/')) {
       next();
     } else {
-      res.sendFile('index.html', { 
-        root: path.join(__dirname, '..', 'dist', 'public')
+      const indexPath = path.join(process.cwd(), 'dist', 'public', 'index.html');
+      // Check if index.html exists first
+      fs.access(indexPath, fs.constants.R_OK, (accessErr) => {
+        if (accessErr) {
+          error({
+            message: 'index.html not found or not readable',
+            error_message: accessErr.message,
+            metadata: {
+              path: indexPath,
+              operation: 'serve_index_html',
+              status: 500
+            }
+          });
+          res.status(500).json({ message: 'Error serving page' });
+          return;
+        }
+        
+        res.sendFile(indexPath, (sendErr) => {
+          if (sendErr) {
+            error({
+              message: 'Error sending index.html',
+              error_message: sendErr.message,
+              metadata: {
+                path: req.path,
+                status: 500,
+                operation: 'serve_index_html'
+              }
+            });
+            res.status(500).json({ message: 'Error serving page' });
+          }
+        });
       });
     }
   });
