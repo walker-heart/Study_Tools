@@ -9,7 +9,6 @@ import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
 import { createServer } from "http";
 import session from "express-session";
-import type { Session, SessionData } from "express-session";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
