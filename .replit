@@ -18,6 +18,10 @@ externalPort = 3000
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 5001
+externalPort = 3001
+
 [workflows]
 runButton = "Project"
 
@@ -65,7 +69,7 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "NODE_ENV=production tsx watch --clear-screen=false server/index.ts"
-waitForPort = 3000
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Type Check"

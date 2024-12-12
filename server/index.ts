@@ -2,7 +2,7 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic } from "./vite";
+import { setupVite } from "./vite";
 import { createServer } from "http";
 import session from "express-session";
 import type { Session, SessionData } from "express-session";
@@ -24,13 +24,55 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Define extended error types for better type safety
+// Static file serving types
+interface StaticFileHeaders {
+  'Content-Type'?: string;
+  'Cache-Control'?: string;
+  'X-Content-Type-Options'?: string;
+  'Pragma'?: string;
+  'Expires'?: string;
+}
+
+interface StaticFileOptions {
+  index: boolean;
+  etag: boolean;
+  lastModified: boolean;
+  setHeaders: (res: Response, filepath: string) => void;
+}
+
+interface StaticFileMetadata {
+  request_headers: Record<string, string | string[] | undefined>;
+  response_headers: {
+    [key: string]: string | number | string[] | undefined;
+  };
+}
+
 interface ExtendedError extends Error {
   status?: number;
   statusCode?: number;
   context?: {
     statusCode?: number;
     errorCode?: string;
+    metadata?: StaticFileMetadata;
   };
+}
+
+interface StaticFileError extends Error {
+  path?: string;
+  error_message?: string;
+  metadata?: StaticFileMetadata;
+}
+
+interface LogMessage {
+  message: string;
+  [key: string]: unknown;
+}
+
+interface StaticErrorLog extends Omit<LogMessage, "level"> {
+  message: string;
+  path?: string;
+  error_message?: string;
+  metadata?: Record<string, unknown>;
 }
 
 interface TypedRequest extends Request {
@@ -215,52 +257,59 @@ async function initializeMiddleware() {
       });
 
       // Static file serving options
-      const staticOptions = {
+      const staticOptions: StaticFileOptions = {
         index: false,
         etag: true,
         lastModified: true,
         setHeaders: (res: Response, filepath: string) => {
           const ext = path.extname(filepath).toLowerCase();
-          
-          // Security headers
-          res.setHeader('X-Content-Type-Options', 'nosniff');
+          const headers: StaticFileHeaders = {
+            'X-Content-Type-Options': 'nosniff'
+          };
           
           // Cache control
           if (ext === '.html') {
-            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            res.setHeader('Pragma', 'no-cache');
-            res.setHeader('Expires', '0');
+            headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+            headers['Pragma'] = 'no-cache';
+            headers['Expires'] = '0';
           } else if (filepath.includes('/assets/')) {
             // Set correct MIME types for assets
             if (ext === '.js' || ext === '.mjs') {
-              res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+              headers['Content-Type'] = 'application/javascript; charset=UTF-8';
             } else if (ext === '.css') {
-              res.setHeader('Content-Type', 'text/css; charset=UTF-8');
+              headers['Content-Type'] = 'text/css; charset=UTF-8';
             }
-            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            headers['Cache-Control'] = 'public, max-age=31536000, immutable';
           } else {
-            res.setHeader('Cache-Control', 'public, max-age=86400');
+            headers['Cache-Control'] = 'public, max-age=86400';
           }
+          
+          // Apply all headers
+          Object.entries(headers).forEach(([key, value]) => {
+            if (value) res.setHeader(key, value);
+          });
         }
       };
 
       // Serve static files with specific routes first
-      app.use('/assets/js', serveStatic(path.join(publicPath, 'assets/js'), staticOptions));
+      app.use('/assets/js', express.static(path.join(publicPath, 'assets/js'), staticOptions));
       
-      app.use('/assets/css', serveStatic(path.join(publicPath, 'assets/css'), staticOptions));
+      app.use('/assets/css', express.static(path.join(publicPath, 'assets/css'), staticOptions));
 
-      app.use('/assets', serveStatic(path.join(publicPath, 'assets'), staticOptions));
-      app.use(serveStatic(publicPath, staticOptions));
+      app.use('/assets', express.static(path.join(publicPath, 'assets'), staticOptions));
+      app.use(express.static(publicPath, staticOptions));
 
       // Add static file error logging middleware
-      app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+      app.use((err: Error | StaticFileError, req: Request, res: Response, next: NextFunction) => {
         if (err && req.path.startsWith('/assets/')) {
           error({
             message: 'Static file serving error',
             path: req.path,
             error_message: err.message,
-            headers: req.headers,
-            response_headers: res.getHeaders()
+            metadata: {
+              request_headers: Object.fromEntries(Object.entries(req.headers)),
+              response_headers: Object.fromEntries(Object.entries(res.getHeaders()))
+            }
           });
         }
         next(err);
