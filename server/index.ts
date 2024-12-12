@@ -1,577 +1,327 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
-import type { ServeStaticOptions } from 'serve-static';
-import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
-import { setupVite } from "./vite";
+import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
-import session from "express-session";
-import type { Session, SessionData } from "express-session";
 import cors from "cors";
-import path from "path";
-import { fileURLToPath } from 'url';
-import fs from "fs";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import pkg from 'pg';
+const { Pool } = pkg;
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
-import { log, debug, info, warn, error } from "./lib/log";
-import { createSessionConfig } from './config/session';
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+import fs from 'fs';
 
-// ES Module compatibility
+const pgSession = connectPgSimple(session);
+
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirname(__filename);
 
-// Initialize express app
+function log(message: string) {
+  const formattedTime = new Date().toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  console.log(`${formattedTime} [express] ${message}`);
+}
+
 const app = express();
-
-// Define extended error types for better type safety
-// Static file serving types
-interface StaticFileHeaders extends Record<string, string | undefined> {
-  'Content-Type'?: string;
-  'Cache-Control'?: string;
-  'X-Content-Type-Options'?: string;
-  'Pragma'?: string;
-  'Expires'?: string;
-  'ETag'?: string;
-  'Last-Modified'?: string;
-}
-
-interface StaticFileOptions extends Omit<ServeStaticOptions, 'setHeaders'> {
-  index: boolean;
-  etag: boolean;
-  lastModified: boolean;
-  maxAge?: number;
-  immutable?: boolean;
-  setHeaders?: (res: Response, path: string, stat: fs.Stats) => void;
-  dotfiles?: 'allow' | 'deny' | 'ignore';
-  extensions?: string[] | false;
-  fallthrough?: boolean;
-  redirect?: boolean;
-}
-
-interface StaticFileMetadata {
-  request_headers: Record<string, string | string[] | undefined>;
-  response_headers: StaticFileHeaders;
-  path?: string;
-  size?: number;
-  mimeType?: string;
-  encoding?: string;
-  lastModified?: Date;
-}
-
-interface ExtendedError extends Error {
-  status?: number;
-  statusCode?: number;
-  code?: string;
-  context?: {
-    statusCode?: number;
-    errorCode?: string;
-    metadata?: StaticFileMetadata;
-    requestId?: string;
-    path?: string;
-    method?: string;
-    timestamp?: Date;
-    details?: string;
-    message?: string;
-  };
-  name: string;
-}
-
-interface StaticFileError extends ExtendedError {
-  path?: string;
-  error_message?: string;
-  metadata?: StaticFileMetadata;
-  syscall?: string;
-  errno?: number;
-  code?: string;
-}
-
-type ErrorHandler = (
-  err: ExtendedError | StaticFileError,
-  req: TypedRequest,
-  res: Response,
-  next: NextFunction
-) => void;
-
-interface LogMessage {
-  message: string;
-  [key: string]: unknown;
-}
-
-interface StaticErrorLog extends Omit<LogMessage, "level"> {
-  message: string;
-  path?: string;
-  error_message?: string;
-  metadata?: Record<string, unknown>;
-}
-
-interface TypedRequest extends Request {
-  session: Session & Partial<SessionData> & {
-    user?: {
-      id: string | number;
-      isAdmin?: boolean;
-      [key: string]: any;
-    };
-    originalID?: string;
-  };
-  sessionID: string;
-  requestId?: string;
-}
-
-// Configure CORS options
+// Configure CORS middleware
 const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      env.APP_URL,
-      'http://localhost:3000',
-      'http://localhost:5000',
-      // Allow all subdomains of repl.co and replit.dev
-      /\.repl\.co$/,
-      /\.replit\.dev$/
-    ];
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-
-    // Allow all origins in development
-    if (env.NODE_ENV === 'development') {
-      callback(null, true);
-      return;
-    }
-
-    // Check against allowed origins in production
-    const isAllowed = allowedOrigins.some(allowed => 
-      typeof allowed === 'string' 
-        ? allowed === origin 
-        : allowed.test(origin)
-    );
-
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      warn({
-        message: 'CORS blocked origin',
-        origin,
-        allowedOrigins: allowedOrigins.map(o => o.toString())
-      });
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins in development and production
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
-  exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  exposedHeaders: ['Content-Type', 'Content-Length'],
   maxAge: 86400,
-  optionsSuccessStatus: 204,
-  preflightContinue: false
+  optionsSuccessStatus: 204
 };
 
-// Configure basic rate limiting for DoS protection
-const limiter = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 1000, // Increased limit
-  message: { error: 'Too many requests, please try again shortly.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req: Request) => {
-    // Skip rate limiting for essential routes and development
-    return req.path.startsWith('/api/auth/') || 
-           req.path.startsWith('/api/user/') ||
-           env.NODE_ENV === 'development';
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+// Basic security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
+
+// Serve static files with proper MIME types and error handling
+const publicPath = path.resolve(__dirname, '..', process.env.NODE_ENV === 'development' ? 'client' : 'dist/public');
+
+console.log('Environment:', process.env.NODE_ENV);
+console.log('Static files path:', publicPath);
+
+// Configure static file serving
+const staticFileOptions: Parameters<typeof express.static>[1] = {
+  setHeaders: (res: express.Response, filePath: string) => {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.css') {
+      res.setHeader('Content-Type', 'text/css');
+    } else if (ext === '.js') {
+      res.setHeader('Content-Type', 'application/javascript');
+    } else if (ext === '.svg') {
+      res.setHeader('Content-Type', 'image/svg+xml');
+    }
+    // Set development-specific cache headers
+    if (process.env.NODE_ENV === 'development') {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+    }
   },
-  handler: (req: Request, res: Response) => {
-    warn({
-      message: 'Rate limit exceeded',
-      path: req.path,
-      method: req.method,
-      ip: req.ip
-    });
-    res.status(429).json({ 
-      error: 'Too many requests',
-      message: 'Please try again in a few minutes'
-    });
-  }
-});
+  fallthrough: true,
+  index: false,
+  dotfiles: 'ignore',
+  extensions: ['html', 'css', 'js'],
+  etag: true,
+  lastModified: true,
+  maxAge: process.env.NODE_ENV === 'development' ? 0 : '1y'
+};
 
-// Configure trust proxy settings separately
-app.set('trust proxy', (ip: string) => {
-  return ip === '127.0.0.1' || 
-         ip.startsWith('10.') || 
-         ip.startsWith('172.16.') || 
-         ip.startsWith('192.168.');
-});
-
-import { securityHeaders, sanitizeInput, sessionSecurity, cleanupSessions } from './middleware/security';
-
-// Initialize middleware
-async function initializeMiddleware() {
-  try {
-    // Environment-specific settings
-    if (env.NODE_ENV === 'production') {
-      // Configure trust proxy for Replit's environment
-      app.set('trust proxy', (ip: string) => {
-        return ip === '127.0.0.1' || 
-               ip.startsWith('10.') || 
-               ip.startsWith('172.16.') || 
-               ip.startsWith('192.168.');
-      });
-    } else {
-      app.set('json spaces', 2);
-    }
-    app.set('x-powered-by', false);
-    
-    info(`Server initializing in ${env.NODE_ENV} mode`);
-
-    // Initialize session first
-    const sessionConfig = await createSessionConfig();
-    if (!sessionConfig) {
-      throw new Error('Failed to create session configuration');
-    }
-    app.use(session(sessionConfig));
-    
-    // Add session cleanup middleware
-    app.use(cleanupSessions);
-
-    // Apply basic security headers
-    app.use(securityHeaders);
-    
-    // Apply CORS
-    app.use(cors(corsOptions));
-    
-    // Apply general rate limiting for DoS protection
-    app.use(limiter);
-    
-    // Apply parameter sanitization
-    app.use(sanitizeInput);
-    
-    // Apply session security
-    app.use(sessionSecurity);
-
-    // Body parsing middleware with size limits and validation
-    app.use(express.json({ 
-      limit: '10mb',
-      verify: (req: Request, res: Response, buf: Buffer) => {
-        if (req.headers['content-type']?.includes('application/json')) {
-          try {
-            JSON.parse(buf.toString());
-          } catch (e) {
-            res.status(400).json({ message: 'Invalid JSON' });
-            throw new Error('Invalid JSON');
-          }
-        }
-        return true;
-      }
-    }));
-    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-    // Static file serving with proper caching
-    const publicPath = path.resolve(__dirname, '..', 'dist', 'public');
-    if (!fs.existsSync(publicPath)) {
-      fs.mkdirSync(publicPath, { recursive: true });
-    }
-
-    // Configure static file serving
-    if (env.NODE_ENV === 'production') {
-      // Middleware to explicitly set content types
-      app.use((req, res, next) => {
-        const ext = path.extname(req.path).toLowerCase();
-        if (ext === '.js' || ext === '.mjs') {
-          res.type('application/javascript');
-        } else if (ext === '.css') {
-          res.type('text/css');
-        } else if (ext === '.json') {
-          res.type('application/json');
-        }
-        next();
-      });
-
-      // Static file serving options
-      const staticOptions: StaticFileOptions = {
-        index: false,
-        etag: true,
-        lastModified: true,
-        setHeaders: (res: Response, filepath: string) => {
-          const ext = path.extname(filepath).toLowerCase();
-          const headers: StaticFileHeaders = {
-            'X-Content-Type-Options': 'nosniff'
-          };
-          
-          // Cache control
-          if (ext === '.html') {
-            headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-            headers['Pragma'] = 'no-cache';
-            headers['Expires'] = '0';
-          } else if (filepath.includes('/assets/')) {
-            // Set correct MIME types for assets
-            if (ext === '.js' || ext === '.mjs') {
-              headers['Content-Type'] = 'application/javascript; charset=UTF-8';
-            } else if (ext === '.css') {
-              headers['Content-Type'] = 'text/css; charset=UTF-8';
-            }
-            headers['Cache-Control'] = 'public, max-age=31536000, immutable';
-          } else {
-            headers['Cache-Control'] = 'public, max-age=86400';
-          }
-          
-          // Apply all headers
-          Object.entries(headers).forEach(([key, value]) => {
-            if (value) res.setHeader(key, value);
-          });
-        }
-      };
-
-      // Serve static files with specific routes first
-      app.use('/assets/js', express.static(path.join(publicPath, 'assets/js'), staticOptions));
-      
-      app.use('/assets/css', express.static(path.join(publicPath, 'assets/css'), staticOptions));
-
-      app.use('/assets', express.static(path.join(publicPath, 'assets'), staticOptions));
-      app.use(express.static(publicPath, staticOptions));
-
-      // Add static file error logging middleware
-      app.use((err: Error | StaticFileError, req: Request, res: Response, next: NextFunction) => {
-        if (err && req.path.startsWith('/assets/')) {
-          error({
-            message: 'Static file serving error',
-            path: req.path,
-            error_message: err.message,
-            metadata: {
-              request_headers: Object.fromEntries(Object.entries(req.headers)),
-              response_headers: Object.fromEntries(Object.entries(res.getHeaders()))
-            }
-          });
-        }
-        next(err);
-      });
-    } else {
-      // In development, use Vite's built-in static serving
-      const server = createServer(app);
-      await setupVite(app, server);
-    }
-
-    info('Middleware initialized successfully');
-  } catch (err) {
-    error({
-      message: 'Failed to initialize middleware',
-      stack: err instanceof Error ? err.stack : undefined
-    });
-    throw err;
-  }
+// Ensure the directory exists
+if (!fs.existsSync(publicPath)) {
+  console.log(`Creating directory: ${publicPath}`);
+  fs.mkdirSync(publicPath, { recursive: true });
 }
 
-import { 
-  trackError, 
-  initRequestTracking, 
-  AuthenticationError,
-  DatabaseError,
-  ValidationError,
-  AppError 
-} from './lib/errorTracking';
+// Serve static files
+app.use(express.static(publicPath, staticFileOptions));
 
-// Setup error handlers
-function setupErrorHandlers() {
-  // Add request tracking
-  app.use(initRequestTracking());
-
-  // API route not found handler
-  app.use('/api/*', (req: TypedRequest, res: Response) => {
-    const context = trackError(
-      new AppError('API endpoint not found', {
-        errorCode: 'NOT_FOUND',
-        statusCode: 404
-      }), 
-      req
-    );
-    
-    res.status(404).json({ 
-      message: 'API endpoint not found',
-      requestId: context.requestId
-    });
+// Handle CSS files in development
+if (process.env.NODE_ENV === 'development') {
+  app.get('*.css', (req, res, next) => {
+    res.type('text/css');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    next();
   });
-
-  // Authentication error handler
-  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
-    if (err instanceof AuthenticationError || err.name === 'SessionError') {
-      const context = trackError(err, req);
-      return res.status(401).json({ 
-        message: 'Authentication failed',
-        error: 'Please sign in again',
-        requestId: context.requestId
-      });
-    }
-    next(err);
-  });
-
-  // Validation error handler
-  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
-    if (err instanceof ValidationError) {
-      const context = trackError(err, req);
-      return res.status(400).json({
-        message: 'Validation failed',
-        error: err.message,
-        requestId: context.requestId
-      });
-    }
-    next(err);
-  });
-
-  // Database error handler
-  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
-    if (err instanceof DatabaseError || err.message.includes('database')) {
-      const context = trackError(err, req);
-      return res.status(503).json({ 
-        message: 'Service temporarily unavailable',
-        error: 'Please try again later',
-        requestId: context.requestId
-      });
-    }
-    next(err);
-  });
-
-  // Final error handler
-  app.use((err: Error | AppError, req: TypedRequest, res: Response, _next: NextFunction) => {
-    const context = trackError(err, req, res);
-    const status = 'context' in err && err.context?.statusCode ? err.context.statusCode : 500;
-    
-    const response = {
-      message: env.NODE_ENV === 'production' 
-        ? 'An unexpected error occurred' 
-        : err.message,
-      status,
-      requestId: context.requestId,
-      ...(env.NODE_ENV === 'development' ? { 
-        stack: err.stack,
-        errorCode: 'context' in err ? err.context.errorCode : 'UNKNOWN_ERROR'
-      } : {})
-    };
-
-    res.status(status).json(response);
-  });
-
-  // Handle client-side routing for non-API routes
-  app.get('*', (req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith('/api/')) {
-      next();
-    } else {
-      res.sendFile('index.html', { 
-        root: path.join(__dirname, '..', 'dist', 'public')
-      });
-    }
+  
+  // Handle CSS module imports
+  app.get('*.module.css', (req, res, next) => {
+    res.type('text/css');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    next();
   });
 }
 
-// Main application entry point
-async function main() {
-  const PORT = parseInt(process.env.PORT || '5000', 10);
-  let server: ReturnType<typeof createServer> | undefined;
+// Handle client-side routing
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  res.setHeader('Content-Type', 'text/html');
+  res.sendFile(path.join(publicPath, 'index.html'));
+});
 
-  try {
-    // Test database connection with retry mechanism
-    let retries = 5;
-    let backoff = 1000; // Start with 1 second
+// Configure request size limits and parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Configure PostgreSQL pool for session store
+const pool = new Pool({
+  connectionString: env.DATABASE_URL,
+  ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
 
-    while (retries > 0) {
-      try {
-        await db.execute(sql`SELECT NOW()`);
-        info('Database connection successful');
-        break;
-      } catch (err) {
-        retries--;
-        if (retries === 0) {
-          throw new Error('Failed to connect to database after multiple attempts');
-        }
-        warn({
-          message: `Database connection failed, retrying in ${backoff/1000} seconds...`,
-          error_message: err instanceof Error ? err.message : String(err)
-        });
-        
-        await new Promise(resolve => setTimeout(resolve, backoff));
-        backoff *= 2; // Exponential backoff
+// Test database connection
+pool.query('SELECT NOW()', (err) => {
+  if (err) {
+    console.error('Database connection error:', err);
+  } else {
+    log('Database connection successful');
+  }
+});
+
+// Configure session middleware with enhanced debugging
+if (env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1); // Trust first proxy
+}
+
+console.log('Configuring session store with database connection');
+const pgStore = connectPgSimple(session);
+const sessionConfig: session.SessionOptions = {
+  store: new pgStore({
+    pool,
+    tableName: 'session',
+    createTableIfMissing: true,
+    pruneSessionInterval: 60 * 15, // 15 minutes
+    errorLog: console.error.bind(console, 'Session store error:')
+  }),
+  name: 'sid',
+  secret: env.JWT_SECRET!,
+  resave: false,
+  saveUninitialized: false,
+  proxy: true,
+  rolling: true,
+  cookie: {
+    secure: env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    path: '/',
+    domain: undefined // Let browser set the cookie domain
+  } as session.CookieOptions & {
+    sameSite: 'none' | 'lax'
+  }
+};
+
+// Log session configuration for debugging
+console.log('Session configuration:', {
+  store: 'PostgreSQL',
+  cookieSecure: sessionConfig.cookie?.secure,
+  cookieSameSite: sessionConfig.cookie?.sameSite,
+  environment: env.NODE_ENV,
+  trustProxy: app.get('trust proxy')
+});
+
+app.use(session(sessionConfig));
+
+// Add session error handling
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.name === 'UnauthorizedError') {
+    res.status(401).json({ message: 'Invalid token' });
+  } else {
+    next(err);
+  }
+});
+
+// Add static file error handling
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.code === 'ENOENT') {
+    log(`Static file not found: ${req.url}`);
+    next();
+  } else {
+    next(err);
+  }
+});
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  const path = req.path;
+  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+
+  const originalResJson = res.json;
+  res.json = function (bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path.startsWith("/api")) {
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      if (capturedJsonResponse) {
+        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
+
+      if (logLine.length > 80) {
+        logLine = logLine.slice(0, 79) + "…";
+      }
+
+      log(logLine);
+    }
+  });
+
+  next();
+});
+
+(async () => {
+  log('Starting server initialization...');
+  try {
+    // Check required environment variables
+    log('Checking environment variables...');
+    const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET'];
+    const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+    
+    if (missingEnvVars.length > 0) {
+      log(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+      throw new Error('Missing required environment variables');
     }
 
-    // Initialize middleware
-    await initializeMiddleware();
-    info('Middleware initialized successfully');
+    // Verify database connection first
+    try {
+      log('Attempting to connect to database...');
+      await db.execute(sql`SELECT 1`);
+      log('Database connection successful');
+    } catch (error) {
+      log('Error connecting to database: ' + (error instanceof Error ? error.message : String(error)));
+      log('Database connection string (redacted): ' + env.DATABASE_URL.replace(/\/\/.*@/, '//***:***@'));
+      throw new Error('Failed to connect to database. Check DATABASE_URL and database status.');
+    }
 
-    // Register routes
+    // Register routes after successful database connection
     registerRoutes(app);
-    info('Routes registered');
-
-    // Setup error handlers
-    setupErrorHandlers();
-    info('Error handlers configured');
-
-    // Create HTTP server
-    server = createServer(app);
-    info('HTTP server created');
-
-    // Start server
-    await new Promise<void>((resolve, reject) => {
-      if (!server) {
-        reject(new Error('Server initialization failed'));
-        return;
-      }
-
-      server.on('error', (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE') {
-          // Try the next available port
-          warn(`Port ${PORT} is in use, trying ${PORT + 1}`);
-          if (server) {
-            server.listen(PORT + 1, '0.0.0.0');
-          } else {
-            reject(new Error('Server is not initialized'));
-          }
-        } else {
-          error(`Server error: ${err.message}`);
-          reject(err);
-        }
-      });
-
-      server.on('listening', () => {
-        info(`Server running in ${env.NODE_ENV} mode on port ${PORT}`);
-        info(`APP_URL: ${env.APP_URL}`);
-        resolve();
-      });
-
-      server.listen(PORT, '0.0.0.0');
-    });
-
-  } catch (err) {
-    error({
-      message: 'Fatal error in server startup',
-      stack: err instanceof Error ? err.stack : String(err)
-    });
-
-    if (server?.listening) {
-      await new Promise<void>((resolve) => server!.close(() => resolve()));
-    }
     
+    const server = createServer(app);
+
+    // Configure environment-specific settings
+    if (process.env.NODE_ENV === "development") {
+      console.log('Setting up Vite middleware for development...');
+      try {
+        await setupVite(app, server);
+        console.log('Vite middleware setup successful');
+      } catch (error) {
+        console.error('Failed to setup Vite middleware:', error);
+        throw error;
+      }
+    } else {
+      console.log('Setting up static file serving for production...');
+      try {
+        serveStatic(app);
+        
+        // Serve index.html for all routes in production
+        app.get('*', (_req, res) => {
+          const indexPath = path.join(__dirname, '..', 'dist', 'public', 'index.html');
+          if (!fs.existsSync(indexPath)) {
+            console.error(`Index file not found at ${indexPath}`);
+            return res.status(404).send('Application not built properly');
+          }
+          res.set('Content-Type', 'text/html');
+          res.sendFile(indexPath, {
+            headers: {
+              'Cache-Control': 'no-cache',
+            }
+          });
+        });
+        console.log('Static file serving setup successful');
+      } catch (error) {
+        console.error('Failed to setup static file serving:', error);
+        throw error;
+      }
+    }
+
+    // Generic error handler
+    app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
+      const status = (err.status || err.statusCode || 500);
+      const message = err.message || "Internal Server Error";
+      log(`Error: ${message}`);
+      res.status(status).json({ message });
+    });
+
+    // Start the server
+    const PORT = parseInt(process.env.PORT || '5000', 10);
+    server.listen(PORT, '0.0.0.0', () => {
+      log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+      log(`APP_URL: ${env.APP_URL}`);
+    }).on('error', (error: Error) => {
+      log(`Error starting server: ${error.message}`);
+      if ((error as any).code === 'EADDRINUSE') {
+        log('Port 5000 is already in use. Please free up the port or use a different one.');
+      }
+      process.exit(1);
+    });
+  } catch (error) {
+    log(`Fatal error during server startup: ${error}`);
     process.exit(1);
   }
-
-  // Handle process signals
-  process.on('SIGTERM', () => {
-    info('SIGTERM received, shutting down');
-    server?.close(() => process.exit(0));
-  });
-
-  process.on('SIGINT', () => {
-    info('SIGINT received, shutting down');
-    server?.close(() => process.exit(0));
-  });
-}
-
-// Start server
-try {
-  await main();
-} catch (err) {
-  error({
-    message: 'Fatal error starting server',
-    stack: err instanceof Error ? err.stack : String(err)
-  });
-  process.exit(1);
-}
+})();
