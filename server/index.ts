@@ -1,6 +1,6 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
-import type { ServeStaticOptions } from 'express-serve-static-core';
+import type { ServeStaticOptions } from 'serve-static';
 import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
@@ -36,13 +36,17 @@ interface StaticFileHeaders extends Record<string, string | undefined> {
   'Last-Modified'?: string;
 }
 
-interface StaticFileOptions extends ServeStaticOptions {
+interface StaticFileOptions extends Omit<ServeStaticOptions, 'setHeaders'> {
   index: boolean;
   etag: boolean;
   lastModified: boolean;
-  setHeaders: (res: Response, filepath: string, stat?: any) => void;
-  maxAge?: number | string;
+  maxAge?: number;
   immutable?: boolean;
+  setHeaders?: (res: Response, path: string, stat: fs.Stats) => void;
+  dotfiles?: 'allow' | 'deny' | 'ignore';
+  extensions?: string[] | false;
+  fallthrough?: boolean;
+  redirect?: boolean;
 }
 
 interface StaticFileMetadata {
@@ -67,7 +71,10 @@ interface ExtendedError extends Error {
     path?: string;
     method?: string;
     timestamp?: Date;
+    details?: string;
+    message?: string;
   };
+  name: string;
 }
 
 interface StaticFileError extends ExtendedError {
@@ -98,12 +105,14 @@ interface StaticErrorLog extends Omit<LogMessage, "level"> {
   metadata?: Record<string, unknown>;
 }
 
-interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
+interface TypedRequest extends Request {
   session: Session & Partial<SessionData> & {
     user?: {
       id: string | number;
+      isAdmin?: boolean;
       [key: string]: any;
     };
+    originalID?: string;
   };
   sessionID: string;
   requestId?: string;
