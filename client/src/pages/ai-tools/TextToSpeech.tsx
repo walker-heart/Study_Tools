@@ -1,8 +1,9 @@
+import { useState, useRef } from "react";
+import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSettings } from "@/contexts/SettingsContext";
-import { useState, useRef } from "react";
 import { useNotification } from "@/components/ui/notification";
 import {
   Select,
@@ -26,6 +27,7 @@ const VOICE_OPTIONS = [
 export default function TextToSpeech() {
   const { theme } = useSettings();
   const { showNotification } = useNotification();
+  const [, setLocation] = useLocation();
   const [textToRead, setTextToRead] = useState("");
   const [selectedVoice, setSelectedVoice] = useState("alloy");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -87,14 +89,60 @@ export default function TextToSpeech() {
           text: textToRead,
           voice: selectedVoice,
         }),
-        credentials: 'include' // Important for session cookies
+        credentials: 'include' // Important for session cookies and API key access
       });
 
       // Handle API errors
+      let data;
+      try {
+        const contentType = response.headers.get('content-type');
+        if (!contentType?.includes('audio/mpeg')) {
+          data = await response.json();
+        }
+      } catch (parseError) {
+        console.error('Response parsing error:', parseError);
+        throw new Error('Failed to process server response. Please try again.');
+      }
+
       if (!response.ok) {
-        const error = await response.json();
-        console.error('API Error:', error);
-        throw new Error(error.message || error.details || `HTTP error! status: ${response.status}`);
+        const errorMessage = data?.details || data?.message || "Speech generation failed";
+        console.error('Speech generation error response:', { status: response.status, data });
+        
+        if (response.status === 400 && errorMessage.includes("API key")) {
+          showNotification({
+            message: "OpenAI API key not configured. Please configure it in settings.",
+            type: "error",
+          });
+          setLocation("/settings/api");
+          return;
+        }
+        
+        if (response.status === 401) {
+          if (errorMessage.includes("OpenAI API key")) {
+            showNotification({
+              message: "Invalid OpenAI API key. Please check your settings.",
+              type: "error",
+            });
+            setLocation("/settings/api");
+          } else {
+            showNotification({
+              message: "Please sign in to use the text-to-speech feature",
+              type: "error",
+            });
+            setLocation("/signin");
+          }
+          return;
+        }
+        
+        if (response.status === 429) {
+          showNotification({
+            message: "Too many requests. Please try again later.",
+            type: "error",
+          });
+          return;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       console.log('Response received, processing audio data...');
