@@ -1,49 +1,41 @@
-import express, { Request, Response, NextFunction } from "express";
-import path from "path";
-import fs from "fs";
+import express from "express";
+import type { Request, Response, NextFunction } from "express";
+import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 import cors from "cors";
-import rateLimit from 'express-rate-limit';
-import helmet from 'helmet';
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import pkg from 'pg';
-import { sql } from "drizzle-orm";
-import { registerRoutes } from "./routes";
-import { db } from "./db";
-import { env } from "./lib/env";
-import { log } from "./lib/logger";
-
 const { Pool } = pkg;
+import { db } from "./db";
+import { sql } from "drizzle-orm";
+import { env } from "./lib/env";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+import fs from 'fs';
 
-declare module 'express-session' {
-  interface SessionData {
-    user?: {
-      id: number;
-      email: string;
-      isAdmin?: boolean;
-    };
-    authenticated?: boolean;
-  }
+const pgSession = connectPgSimple(session);
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+function log(message: string) {
+  const formattedTime = new Date().toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  console.log(`${formattedTime} [express] ${message}`);
 }
 
 const app = express();
-
-// Configure CORS middleware with enhanced security
+// Configure CORS middleware
 const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
-    const allowedOrigins = [env.APP_URL];
-    if (env.NODE_ENV === 'development') {
-      allowedOrigins.push('http://localhost:5000', 'http://localhost:3000');
-    }
-    
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins in development and production
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
@@ -55,51 +47,16 @@ const corsOptions: cors.CorsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// Configure security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'", process.env.APP_URL || '*'],
-      frameSrc: ["'none'"],
-      objectSrc: ["'none'"]
-    },
-  },
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
-
-// Configure rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Apply rate limiting to all API routes
-app.use('/api/', limiter);
-
-// Additional security headers
+// Basic security headers
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   next();
 });
 
 // Serve static files with proper MIME types and error handling
-const publicPath = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
-  '..',
-  process.env.NODE_ENV === 'development' ? 'client' : 'dist/public'
-);
+const publicPath = path.resolve(__dirname, '..', process.env.NODE_ENV === 'development' ? 'client' : 'dist/public');
 
 console.log('Environment:', process.env.NODE_ENV);
 console.log('Static files path:', publicPath);
@@ -142,41 +99,47 @@ if (!fs.existsSync(publicPath)) {
 // Serve static files
 app.use(express.static(publicPath, staticFileOptions));
 
+// Handle CSS files in development
+if (process.env.NODE_ENV === 'development') {
+  app.get('*.css', (req, res, next) => {
+    res.type('text/css');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    next();
+  });
+  
+  // Handle CSS module imports
+  app.get('*.module.css', (req, res, next) => {
+    res.type('text/css');
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    next();
+  });
+}
+
+// Handle client-side routing
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  res.setHeader('Content-Type', 'text/html');
+  res.sendFile(path.join(publicPath, 'index.html'));
+});
+
 // Configure request size limits and parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
 // Configure PostgreSQL pool for session store
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
   ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Test database connection with retries
-async function testDatabaseConnection(retries = 5, delay = 5000) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      await pool.query('SELECT NOW()');
-      log('Database connection successful');
-      return true;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      log(`Database connection attempt ${i + 1}/${retries} failed: ${errorMessage}`);
-      if (i < retries - 1) {
-        log(`Retrying in ${delay/1000} seconds...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        throw new Error(`Failed to connect to database after ${retries} attempts`);
-      }
-    }
+// Test database connection
+pool.query('SELECT NOW()', (err) => {
+  if (err) {
+    console.error('Database connection error:', err);
+  } else {
+    log('Database connection successful');
   }
-  return false;
-}
-
-// Initialize database connection
-testDatabaseConnection().catch(err => {
-  console.error('Fatal database connection error:', err);
-  process.exit(1);
 });
 
 // Configure session middleware with enhanced debugging
@@ -191,7 +154,7 @@ const sessionConfig: session.SessionOptions = {
     pool,
     tableName: 'session',
     createTableIfMissing: true,
-    pruneSessionInterval: 60 * 30, // 30 minutes
+    pruneSessionInterval: 60 * 15, // 15 minutes
     errorLog: console.error.bind(console, 'Session store error:')
   }),
   name: 'sid',
@@ -242,7 +205,6 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
