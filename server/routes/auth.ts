@@ -115,15 +115,13 @@ export async function signIn(req: Request, res: Response) {
 }
 export async function signOut(req: Request, res: Response) {
   try {
-    const userId = req.session?.user?.id;
-    
     // Clear user session from database if user exists
-    if (userId) {
+    if (req.session?.user?.id) {
       try {
         await db.execute(sql`
           UPDATE user_sessions 
           SET ended_at = NOW() 
-          WHERE user_id = ${userId} 
+          WHERE user_id = ${req.session.user.id} 
           AND ended_at IS NULL
         `);
       } catch (dbError) {
@@ -132,37 +130,31 @@ export async function signOut(req: Request, res: Response) {
       }
     }
 
-    // Clear session data
+    // Clear authentication flag
     req.session.authenticated = false;
     req.session.user = undefined;
 
     // Destroy session and clear cookie
-    await new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       req.session.destroy((err: Error | null) => {
         if (err) {
           console.error('Error destroying session:', err);
-          reject(err);
+          res.status(500).json({ message: "Error signing out" });
         } else {
-          resolve();
+          res.clearCookie('sid', {
+            path: '/',
+            httpOnly: true,
+            secure: env.NODE_ENV === 'production',
+            sameSite: 'lax'
+          });
+          res.json({ message: "Signed out successfully" });
         }
+        resolve();
       });
     });
-
-    // Clear cookies after session is destroyed
-    res.clearCookie('sid', {
-      path: '/',
-      httpOnly: true,
-      secure: env.NODE_ENV === 'production',
-      sameSite: 'lax'
-    });
-
-    res.status(200).json({ message: "Signed out successfully" });
   } catch (error) {
     console.error('Sign out error:', error);
-    // Ensure we haven't already sent headers
-    if (!res.headersSent) {
-      res.status(500).json({ message: "Error signing out" });
-    }
+    res.status(500).json({ message: "Error signing out" });
   }
 }
 
