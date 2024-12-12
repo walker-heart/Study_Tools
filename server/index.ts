@@ -1,8 +1,10 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import type { ServeStaticOptions } from 'serve-static';
-import type { ServerResponse } from 'http';
+import type { ServerResponse, IncomingMessage } from 'http';
+import type { Response as ExpressResponse } from 'express-serve-static-core';
 import rateLimit from 'express-rate-limit';
+import type { Session, SessionData } from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
 import { createServer } from "http";
@@ -41,7 +43,7 @@ interface StaticFileOptions extends Omit<ServeStaticOptions, 'setHeaders'> {
   index: boolean;
   etag: boolean;
   lastModified: boolean;
-  setHeaders: (res: Response | ServerResponse, filepath: string, stat: any) => void;
+  setHeaders: (res: ServerResponse<IncomingMessage>, filepath: string, stat: any) => void;
   maxAge?: number | string;
   immutable?: boolean;
 }
@@ -71,13 +73,82 @@ interface ExtendedError extends Error {
   };
 }
 
+interface AppError extends ExtendedError {
+  context: {
+    statusCode: number;
+    errorCode: string;
+    metadata?: StaticFileMetadata;
+    requestId?: string;
+    path?: string;
+    method?: string;
+    timestamp?: Date;
+  };
+}
+
 interface StaticFileError extends ExtendedError {
   path?: string;
   error_message?: string;
   metadata?: StaticFileMetadata;
   syscall?: string;
   errno?: number;
-  code?: string;
+  code?: 'ENOENT' | string;
+}
+
+type ErrorHandler = (
+  err: ExtendedError | StaticFileError,
+  req: TypedRequest,
+  res: Response,
+  next: NextFunction
+) => void;
+
+interface LogMessage {
+  message: string;
+  [key: string]: unknown;
+}
+
+interface StaticErrorLog extends Omit<LogMessage, "level"> {
+  message: string;
+  path?: string;
+  error_message?: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
+  session: Session & Partial<SessionData> & {
+    user?: {
+      id: string | number;
+      [key: string]: any;
+    };
+  };
+  sessionID: string;
+  requestId?: string;
+}
+
+interface AppError extends ExtendedError {
+  context: {
+    statusCode: number;
+    errorCode: string;
+    metadata?: StaticFileMetadata;
+    requestId?: string;
+    path?: string;
+    method?: string;
+    timestamp?: Date;
+  };
+}
+
+function isAppError(error: Error | AppError): error is AppError {
+  return 'context' in error && 
+         typeof (error as AppError).context?.statusCode === 'number' &&
+         typeof (error as AppError).context?.errorCode === 'string';
+}
+
+interface StaticFileError extends ExtendedError {
+  path?: string;
+  error_message?: string;
+  metadata?: StaticFileMetadata;
+  syscall?: string;
+  errno?: number;
+  code?: 'ENOENT' | string;
 }
 
 type ErrorHandler = (
@@ -112,7 +183,7 @@ interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
 
 // Configure CORS options
 const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
+  origin: (origin: string | undefined, callback: (err: Error | null, origin?: boolean | string | RegExp | (string | RegExp)[]) => void) => {
     const allowedOrigins = [
       env.APP_URL,
       'http://localhost:3000',
@@ -135,7 +206,7 @@ const corsOptions: cors.CorsOptions = {
     }
 
     // Allow access to static assets from any origin
-    if (origin && /\.(js|css|png|jpg|jpeg|gif|ico|svg)$/.test(origin)) {
+    if (/\.(js|css|png|jpg|jpeg|gif|ico|svg)$/.test(origin)) {
       callback(null, true);
       return;
     }
@@ -291,38 +362,36 @@ async function initializeMiddleware() {
         index: false,
         etag: true,
         lastModified: true,
-        setHeaders: (res, filepath) => {
-          const ext = path.extname(filepath).toLowerCase();
-          
-          // Set secure headers
-          res.setHeader('X-Content-Type-Options', 'nosniff');
-          
-          // Set MIME types and caching based on file type
-          switch (ext) {
-            case '.html':
-              res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-              res.setHeader('Pragma', 'no-cache');
-              res.setHeader('Expires', '0');
-              break;
-            case '.js':
-            case '.mjs':
+        setHeaders: (res: ServerResponse<IncomingMessage>, filepath: string) => {
+          try {
+            // Set secure headers
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            
+            const ext = path.extname(filepath).toLowerCase();
+            const cacheControl = (() => {
+              if (ext === '.html') {
+                res.setHeader('Pragma', 'no-cache');
+                res.setHeader('Expires', '0');
+                return 'no-cache, no-store, must-revalidate';
+              }
+              
+              if (['.js', '.mjs', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg'].includes(ext)) {
+                return 'public, max-age=31536000, immutable';
+              }
+              
+              return 'public, max-age=86400';
+            })();
+
+            res.setHeader('Cache-Control', cacheControl);
+
+            // Set content type for script and style files
+            if (ext === '.js' || ext === '.mjs') {
               res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
-              res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-              break;
-            case '.css':
+            } else if (ext === '.css') {
               res.setHeader('Content-Type', 'text/css; charset=UTF-8');
-              res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-              break;
-            case '.png':
-            case '.jpg':
-            case '.jpeg':
-            case '.gif':
-            case '.ico':
-            case '.svg':
-              res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-              break;
-            default:
-              res.setHeader('Cache-Control', 'public, max-age=86400');
+            }
+          } catch (err) {
+            console.error('Error setting headers:', err);
           }
         }
       };
@@ -336,13 +405,12 @@ async function initializeMiddleware() {
       app.use(express.static(publicPath, staticOptions));
 
       // Add static file error handling middleware
-      app.use((err: Error | StaticFileError, req: Request, res: Response, next: NextFunction) => {
+      app.use((err: Error | StaticFileError, req: TypedRequest, res: Response, next: NextFunction) => {
         if (err && (req.path.startsWith('/assets/') || req.path.includes('.'))) {
-          const errorDetails = {
+          const errorDetails: StaticErrorLog = {
             message: 'Static file serving error',
             path: req.path,
             error_message: err.message,
-            code: err.code,
             metadata: {
               request_headers: Object.fromEntries(Object.entries(req.headers)),
               response_headers: Object.fromEntries(Object.entries(res.getHeaders())),
@@ -353,8 +421,7 @@ async function initializeMiddleware() {
           
           error(errorDetails);
           
-          // Return appropriate error response
-          if (err.code === 'ENOENT') {
+          if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
             return res.status(404).json({ 
               message: 'File not found',
               path: req.path,
@@ -457,7 +524,7 @@ function setupErrorHandlers() {
   // Final error handler
   app.use((err: Error | AppError, req: TypedRequest, res: Response, _next: NextFunction) => {
     const context = trackError(err, req, res);
-    const status = 'context' in err && err.context?.statusCode ? err.context.statusCode : 500;
+    const status = isAppError(err) ? err.context.statusCode : 500;
     
     const response = {
       message: env.NODE_ENV === 'production' 
@@ -467,7 +534,7 @@ function setupErrorHandlers() {
       requestId: context.requestId,
       ...(env.NODE_ENV === 'development' ? { 
         stack: err.stack,
-        errorCode: 'context' in err ? err.context.errorCode : 'UNKNOWN_ERROR'
+        errorCode: isAppError(err) ? err.context.errorCode : 'UNKNOWN_ERROR'
       } : {})
     };
 
