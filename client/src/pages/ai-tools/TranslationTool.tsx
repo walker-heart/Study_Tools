@@ -199,8 +199,9 @@ export default function TranslationTool() {
     }
 
     setIsTranslating(true);
+    let response: Response | undefined;
     try {
-      const response = await fetch("/api/ai/translate", {
+      response = await fetch("/api/ai/translate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -251,7 +252,7 @@ export default function TranslationTool() {
       });
 
       // If it's an authentication error, redirect to API settings
-      if (response.status === 401) {
+      if (response && !response.ok && response.status === 401) {
         navigate("/settings/api");
       }
     } finally {
