@@ -339,17 +339,47 @@ async function initializeMiddleware() {
         index: false,
         etag: true,
         lastModified: true,
-        setHeaders: (res, path) => {
-          if (path.endsWith('.html')) {
-            // No caching for HTML files
+        setHeaders: (res, filePath) => {
+          // Set appropriate content type based on file extension
+          const ext = path.extname(filePath).toLowerCase();
+          switch (ext) {
+            case '.js':
+              res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+              break;
+            case '.css':
+              res.setHeader('Content-Type', 'text/css; charset=utf-8');
+              break;
+            case '.html':
+              res.setHeader('Content-Type', 'text/html; charset=utf-8');
+              break;
+            case '.json':
+              res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              break;
+            case '.png':
+              res.setHeader('Content-Type', 'image/png');
+              break;
+            case '.jpg':
+            case '.jpeg':
+              res.setHeader('Content-Type', 'image/jpeg');
+              break;
+            case '.svg':
+              res.setHeader('Content-Type', 'image/svg+xml');
+              break;
+          }
+
+          // Set caching headers based on file type
+          if (ext === '.html') {
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-          } else if (path.includes('/assets/')) {
-            // Long-term caching for assets
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+          } else if (filePath.includes('/assets/')) {
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
           } else {
-            // Short-term caching for other static files
             res.setHeader('Cache-Control', 'public, max-age=86400');
           }
+
+          // Security headers
+          res.setHeader('X-Content-Type-Options', 'nosniff');
         }
       }));
     } else {
