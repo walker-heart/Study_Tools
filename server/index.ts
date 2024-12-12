@@ -1,5 +1,6 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
+import type { ServeStaticOptions } from 'express-serve-static-core';
 import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
@@ -25,43 +26,65 @@ const app = express();
 
 // Define extended error types for better type safety
 // Static file serving types
-interface StaticFileHeaders {
+interface StaticFileHeaders extends Record<string, string | undefined> {
   'Content-Type'?: string;
   'Cache-Control'?: string;
   'X-Content-Type-Options'?: string;
   'Pragma'?: string;
   'Expires'?: string;
+  'ETag'?: string;
+  'Last-Modified'?: string;
 }
 
-interface StaticFileOptions {
+interface StaticFileOptions extends ServeStaticOptions {
   index: boolean;
   etag: boolean;
   lastModified: boolean;
-  setHeaders: (res: Response, filepath: string) => void;
+  setHeaders: (res: Response, filepath: string, stat?: any) => void;
+  maxAge?: number | string;
+  immutable?: boolean;
 }
 
 interface StaticFileMetadata {
   request_headers: Record<string, string | string[] | undefined>;
-  response_headers: {
-    [key: string]: string | number | string[] | undefined;
-  };
+  response_headers: StaticFileHeaders;
+  path?: string;
+  size?: number;
+  mimeType?: string;
+  encoding?: string;
+  lastModified?: Date;
 }
 
 interface ExtendedError extends Error {
   status?: number;
   statusCode?: number;
+  code?: string;
   context?: {
     statusCode?: number;
     errorCode?: string;
     metadata?: StaticFileMetadata;
+    requestId?: string;
+    path?: string;
+    method?: string;
+    timestamp?: Date;
   };
 }
 
-interface StaticFileError extends Error {
+interface StaticFileError extends ExtendedError {
   path?: string;
   error_message?: string;
   metadata?: StaticFileMetadata;
+  syscall?: string;
+  errno?: number;
+  code?: string;
 }
+
+type ErrorHandler = (
+  err: ExtendedError | StaticFileError,
+  req: TypedRequest,
+  res: Response,
+  next: NextFunction
+) => void;
 
 interface LogMessage {
   message: string;
@@ -75,14 +98,14 @@ interface StaticErrorLog extends Omit<LogMessage, "level"> {
   metadata?: Record<string, unknown>;
 }
 
-interface TypedRequest extends Request {
+interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
   session: Session & Partial<SessionData> & {
     user?: {
       id: string | number;
       [key: string]: any;
     };
   };
-  sessionID?: string;
+  sessionID: string;
   requestId?: string;
 }
 
