@@ -80,69 +80,79 @@ export default function TextToSpeech() {
       });
 
       // Make API request
-      const response = await fetch('/api/user/generate-speech', {
+      console.log('Making TTS request with:', {
+        text: textToRead.substring(0, 50) + '...',
+        voice: selectedVoice
+      });
+
+      const response = await fetch('/api/ai/text-to-speech', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, audio/mpeg',
         },
         body: JSON.stringify({
           text: textToRead,
           voice: selectedVoice,
         }),
-        credentials: 'include' // Important for session cookies and API key access
+        credentials: 'include'
       });
 
-      // Handle API errors
-      let data;
-      try {
-        const contentType = response.headers.get('content-type');
-        if (!contentType?.includes('audio/mpeg')) {
-          data = await response.json();
-        }
-      } catch (parseError) {
-        console.error('Response parsing error:', parseError);
-        throw new Error('Failed to process server response. Please try again.');
-      }
-
-      if (!response.ok) {
-        const errorMessage = data?.details || data?.message || "Speech generation failed";
-        console.error('Speech generation error response:', { status: response.status, data });
+      // First check for error responses
+      const contentType = response.headers.get('content-type');
+      if (contentType?.includes('application/json')) {
+        const data = await response.json();
         
-        if (response.status === 400 && errorMessage.includes("API key")) {
-          showNotification({
-            message: "OpenAI API key not configured. Please configure it in settings.",
-            type: "error",
-          });
-          setLocation("/settings/api");
-          return;
-        }
-        
-        if (response.status === 401) {
-          if (errorMessage.includes("OpenAI API key")) {
+        if (!response.ok) {
+          const errorMessage = data.details || data.message || "Speech generation failed";
+          console.error('Speech generation error response:', { status: response.status, data });
+          
+          if (response.status === 400 && errorMessage.includes("API key")) {
             showNotification({
-              message: "Invalid OpenAI API key. Please check your settings.",
+              message: "OpenAI API key not configured. Please configure it in settings.",
               type: "error",
             });
             setLocation("/settings/api");
-          } else {
+            return;
+          }
+          
+          if (response.status === 401) {
+            if (errorMessage.includes("OpenAI API key")) {
+              showNotification({
+                message: "Invalid OpenAI API key. Please check your settings.",
+                type: "error",
+              });
+              setLocation("/settings/api");
+            } else {
+              showNotification({
+                message: "Please sign in to use the text-to-speech feature",
+                type: "error",
+              });
+              setLocation("/signin");
+            }
+            return;
+          }
+          
+          if (response.status === 429) {
             showNotification({
-              message: "Please sign in to use the text-to-speech feature",
+              message: "Too many requests. Please try again later.",
               type: "error",
             });
-            setLocation("/signin");
+            return;
           }
-          return;
+          
+          throw new Error(errorMessage);
         }
-        
-        if (response.status === 429) {
-          showNotification({
-            message: "Too many requests. Please try again later.",
-            type: "error",
-          });
-          return;
-        }
-        
-        throw new Error(errorMessage);
+      }
+
+      // If not an error response, expect audio data
+      if (!contentType?.includes('audio/mpeg')) {
+        console.error('Unexpected content type:', contentType);
+        throw new Error('Server returned unexpected content type');
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to generate speech');
       }
 
       console.log('Response received, processing audio data...');
@@ -160,62 +170,34 @@ export default function TextToSpeech() {
       const arrayBuffer = await response.arrayBuffer();
       console.log('Received array buffer size:', arrayBuffer.byteLength);
       
-      // Create audio blob with specific MIME type for MP3
+      if (arrayBuffer.byteLength === 0) {
+        throw new Error('Received empty response from server');
+      }
+
+      // Create audio blob
       const audioBlob = new Blob([arrayBuffer], { 
-        type: response.headers.get('content-type') || 'audio/mpeg'
+        type: contentType || 'audio/mpeg'
       });
       
       // Validate blob
       if (audioBlob.size === 0) {
-        throw new Error('Received empty audio data');
+        throw new Error('Failed to create audio blob');
       }
-
-      // Read the first few bytes to validate the audio format
-      const firstBytes = new Uint8Array(arrayBuffer.slice(0, 4));
-      
-      // Check if we received an error response (usually starts with '{')
-      if (firstBytes[0] === 0x7B) { // '{' character
-        const text = await new Blob([arrayBuffer]).text();
-        const error = JSON.parse(text);
-        throw new Error(error.message || error.details || 'Server returned error response');
-      }
-      
-      // Check if we received HTML instead of audio
-      if (firstBytes[0] === 0x3C) { // '<' character, likely HTML/XML
-        const text = await new Blob([arrayBuffer]).text();
-        console.error('Received HTML instead of audio:', text);
-        throw new Error('Server returned HTML instead of audio data');
-      }
-      
-      // Validate MP3 format
-      const isMP3 = (
-        // Check for MP3 frame header
-        (firstBytes[0] === 0xFF && (firstBytes[1] & 0xE0) === 0xE0) ||
-        // Check for ID3 tag
-        (firstBytes[0] === 0x49 && firstBytes[1] === 0x44 && firstBytes[2] === 0x33)
-      );
-      
-      if (!isMP3) {
-        console.error('Invalid MP3 format:', {
-          firstBytes: Array.from(firstBytes),
-          contentType: response.headers.get('content-type'),
-          size: arrayBuffer.byteLength
-        });
-        throw new Error('Server returned invalid audio format');
-      }
-
-      console.log('Created audio blob, size:', audioBlob.size);
 
       // Clean up previous audio URL
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
 
-      // Create and validate new audio URL
+      // Create new audio URL
       const newAudioUrl = URL.createObjectURL(audioBlob);
       
       // Update state and show success message
       setAudioUrl(newAudioUrl);
+      showNotification({
+        message: 'Audio generated successfully',
+        type: 'success'
+      });
       showNotification({
         message: 'Audio generated successfully',
         type: 'success'
