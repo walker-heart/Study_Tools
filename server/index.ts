@@ -25,6 +25,11 @@ const __dirname = path.dirname(__filename);
 // Initialize express app
 const app = express();
 
+// Define static serving paths
+const rootDir = process.cwd();
+const publicPath = path.join(rootDir, 'dist', 'public');
+const assetsPath = path.join(publicPath, 'assets');
+
 // Define extended error types for better type safety
 interface ExtendedError extends Error {
   status?: number;
@@ -195,10 +200,13 @@ async function initializeMiddleware() {
     }));
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-    // Configure static file serving paths
-    const rootDir = process.cwd();
-    const publicPath = path.join(rootDir, 'dist', 'public');
-    const assetsPath = path.join(publicPath, 'assets');
+    // Ensure static directories exist before serving
+    [publicPath, assetsPath].forEach(dir => {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        info(`Created static directory: ${dir}`);
+      }
+    });
     
     // Log static serving configuration
     info({
@@ -326,17 +334,23 @@ async function initializeMiddleware() {
 
     // Configure static file serving
     if (env.NODE_ENV === 'production') {
-      // In production, serve from the dist/public directory
-      app.use('/assets', serveStaticWithLogging(assetsPath, {
-        ...staticOptions,
+      // In production, serve from the dist/public directory with strict caching
+      app.use('/', express.static(publicPath, {
         index: false,
-        maxAge: '30d',
-        immutable: true
-      }));
-
-      app.use(serveStaticWithLogging(publicPath, {
-        ...staticOptions,
-        index: false
+        etag: true,
+        lastModified: true,
+        setHeaders: (res, path) => {
+          if (path.endsWith('.html')) {
+            // No caching for HTML files
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          } else if (path.includes('/assets/')) {
+            // Long-term caching for assets
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else {
+            // Short-term caching for other static files
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+          }
+        }
       }));
     } else {
       // In development, let Vite handle the static files
@@ -529,41 +543,53 @@ function setupErrorHandlers() {
 
   // Handle client-side routing for non-API routes
   app.get('*', (req: Request, res: Response, next: NextFunction) => {
-    if (req.path.startsWith('/api/')) {
-      next();
-    } else {
-      const indexPath = path.join(process.cwd(), 'dist', 'public', 'index.html');
-      // Check if index.html exists first
-      fs.access(indexPath, fs.constants.R_OK, (accessErr) => {
-        if (accessErr) {
+    // Skip API routes and static asset requests
+    if (req.path.startsWith('/api/') || req.path.startsWith('/assets/')) {
+      return next();
+    }
+
+    const indexPath = path.join(publicPath, 'index.html');
+    
+    // Verify index.html exists and is readable
+    try {
+      fs.accessSync(indexPath, fs.constants.R_OK);
+      
+      // Send index.html with appropriate headers
+      res.sendFile(indexPath, {
+        maxAge: '0',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      }, (err) => {
+        if (err) {
           error({
-            message: 'index.html not found or not readable',
-            error_message: accessErr.message,
+            message: 'Error sending index.html',
+            error_message: err.message,
             metadata: {
-              path: indexPath,
+              path: req.path,
               operation: 'serve_index_html',
-              status: 500
+              indexPath
             }
           });
-          res.status(500).json({ message: 'Error serving page' });
-          return;
-        }
-        
-        res.sendFile(indexPath, (sendErr) => {
-          if (sendErr) {
-            error({
-              message: 'Error sending index.html',
-              error_message: sendErr.message,
-              metadata: {
-                path: req.path,
-                status: 500,
-                operation: 'serve_index_html'
-              }
-            });
-            res.status(500).json({ message: 'Error serving page' });
+          if (!res.headersSent) {
+            res.status(500).send('Server error: Failed to serve application');
           }
-        });
+        }
       });
+    } catch (err) {
+      error({
+        message: 'index.html not found or not readable',
+        error_message: err instanceof Error ? err.message : String(err),
+        metadata: {
+          path: indexPath,
+          operation: 'serve_index_html'
+        }
+      });
+      if (!res.headersSent) {
+        res.status(500).send('Server error: Application files not found');
+      }
     }
   });
 }
