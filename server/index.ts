@@ -26,7 +26,9 @@ import {
   ValidationError,
   AppError,
   type LogMessage,
-  type ErrorHandler 
+  type ErrorHandler,
+  type TypedRequest,
+  type TypedErrorHandler
 } from './lib/errorTracking';
 
 // ES Module compatibility
@@ -37,7 +39,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Define extended error types for better type safety
-// Static file serving types
+// Static file serving interfaces
 interface StaticFileHeaders extends Record<string, string | undefined> {
   'Content-Type'?: string;
   'Cache-Control'?: string;
@@ -91,18 +93,11 @@ interface StaticFileError extends ExtendedError {
   code?: 'ENOENT' | string;
 }
 
-
 interface StaticErrorLog extends Omit<LogMessage, "level"> {
   path?: string;
   error_message?: string;
   metadata?: Record<string, unknown>;
 }
-
-interface LogMessage {
-  message: string;
-  [key: string]: unknown;
-}
-
 
 // Configure CORS options
 const corsOptions: cors.CorsOptions = {
@@ -330,7 +325,7 @@ async function initializeMiddleware() {
       app.use(express.static(publicPath, staticOptions));
 
       // Add static file error handling middleware
-      app.use((err: Error | StaticFileError, req: TypedRequest, res: Response, next: NextFunction) => {
+      app.use((err: Error | StaticFileError, req: Request, res: Response, next: NextFunction) => {
         if (err && (req.path.startsWith('/assets/') || req.path.includes('.'))) {
           const errorDetails: StaticErrorLog = {
             message: 'Static file serving error',
@@ -377,14 +372,13 @@ async function initializeMiddleware() {
   }
 }
 
-
 // Setup error handlers
 function setupErrorHandlers() {
   // Add request tracking
   app.use(initRequestTracking());
 
   // API route not found handler
-  app.use('/api/*', (req: TypedRequest, res: Response) => {
+  app.use('/api/*', (req: Request, res: Response) => {
     const context = trackError(
       new AppError('API endpoint not found', {
         errorCode: 'NOT_FOUND',
@@ -400,7 +394,7 @@ function setupErrorHandlers() {
   });
 
   // Authentication error handler
-  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     if (err instanceof AuthenticationError || err.name === 'SessionError') {
       const context = trackError(err, req);
       return res.status(401).json({ 
@@ -413,7 +407,7 @@ function setupErrorHandlers() {
   });
 
   // Validation error handler
-  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     if (err instanceof ValidationError) {
       const context = trackError(err, req);
       return res.status(400).json({
@@ -426,7 +420,7 @@ function setupErrorHandlers() {
   });
 
   // Database error handler
-  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     if (err instanceof DatabaseError || err.message.includes('database')) {
       const context = trackError(err, req);
       return res.status(503).json({ 
@@ -439,11 +433,9 @@ function setupErrorHandlers() {
   });
 
   // Final error handler
-  app.use((err: Error | AppError, req: TypedRequest, res: Response, _next: NextFunction) => {
+  app.use((err: Error | AppError, req: Request, res: Response, _next: NextFunction) => {
     const context = trackError(err, req, res);
-    const status = isAppError(err) ? err.context.statusCode : 500;
-    
-    const statusCode = status || 500;
+    const statusCode = isAppError(err) && err.context.statusCode ? err.context.statusCode : 500;
     const response = {
       message: env.NODE_ENV === 'production' 
         ? 'An unexpected error occurred' 
@@ -559,9 +551,11 @@ async function main() {
   } catch (err) {
     const errorLog: LogMessage = {
       message: 'Fatal error in server startup',
-      error_details: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      timestamp: new Date().toISOString()
+      metadata: {
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+        timestamp: new Date().toISOString()
+      }
     };
     error(errorLog);
 

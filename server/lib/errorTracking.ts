@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Session, SessionData } from 'express-session';
 import { log, LogMessage } from './log';
 import { randomUUID } from 'crypto';
 
@@ -29,10 +30,11 @@ export interface ErrorContext {
 // Re-export LogMessage type from log for convenience
 export type { LogMessage } from './log';
 
-// Export the error handler type
-export interface ErrorHandler {
-  (err: Error | AppError, req: TypedRequest, res: Response, next: NextFunction): void;
-}
+// Export unified error handler type
+export type ErrorHandler = (err: Error | AppError, req: Request, res: Response, next: NextFunction) => void;
+
+// Export typed error handler for use with session
+export type TypedErrorHandler = (err: Error | AppError, req: TypedRequest, res: Response, next: NextFunction) => void;
 
 export class AppError extends Error {
   public context: ErrorContext;
@@ -99,7 +101,7 @@ export function trackError(error: Error | AppError, req?: Request, res?: Respons
 
   if (res) {
     res.setHeader('Content-Type', 'application/json');
-    res.status(context.statusCode).json({
+    res.status(context.statusCode || 500).json({
       error: error.message,
       errorCode: logMessage.errorCode,
       requestId: context.requestId
