@@ -199,11 +199,77 @@ async function initializeMiddleware() {
       fs.mkdirSync(publicPath, { recursive: true });
     }
 
-    app.use(express.static(publicPath, {
-      maxAge: env.NODE_ENV === 'production' ? '1y' : 0,
-      etag: true,
-      lastModified: true
-    }));
+    // Configure static file serving
+    if (env.NODE_ENV === 'production') {
+      // Middleware to explicitly set content types
+      app.use((req, res, next) => {
+        const ext = path.extname(req.path).toLowerCase();
+        if (ext === '.js' || ext === '.mjs') {
+          res.type('application/javascript');
+        } else if (ext === '.css') {
+          res.type('text/css');
+        } else if (ext === '.json') {
+          res.type('application/json');
+        }
+        next();
+      });
+
+      // Static file serving options
+      const staticOptions = {
+        index: false,
+        etag: true,
+        lastModified: true,
+        setHeaders: (res: Response, filepath: string) => {
+          const ext = path.extname(filepath).toLowerCase();
+          
+          // Security headers
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          
+          // Cache control
+          if (ext === '.html') {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+          } else if (filepath.includes('/assets/')) {
+            // Set correct MIME types for assets
+            if (ext === '.js' || ext === '.mjs') {
+              res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+            } else if (ext === '.css') {
+              res.setHeader('Content-Type', 'text/css; charset=UTF-8');
+            }
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else {
+            res.setHeader('Cache-Control', 'public, max-age=86400');
+          }
+        }
+      };
+
+      // Serve static files with specific routes first
+      app.use('/assets/js', serveStatic(path.join(publicPath, 'assets/js'), staticOptions));
+      
+      app.use('/assets/css', serveStatic(path.join(publicPath, 'assets/css'), staticOptions));
+
+      app.use('/assets', serveStatic(path.join(publicPath, 'assets'), staticOptions));
+      app.use(serveStatic(publicPath, staticOptions));
+
+      // Add static file error logging middleware
+      app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+        if (err && req.path.startsWith('/assets/')) {
+          error({
+            message: 'Static file serving error',
+            path: req.path,
+            error_message: err.message,
+            headers: req.headers,
+            response_headers: res.getHeaders()
+          });
+        }
+        next(err);
+      });
+    } else {
+      // In development, use Vite's built-in static serving
+      const server = createServer(app);
+      await setupVite(app, server);
+    }
 
     info('Middleware initialized successfully');
   } catch (err) {
