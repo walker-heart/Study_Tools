@@ -1,23 +1,9 @@
 import { Router } from 'express';
-import pkg from 'pg';
 import { env } from '../lib/env';
-const { Pool } = pkg;
+import { db } from '../db';
+import { log } from '../lib/log';
 
 const router = Router();
-
-// Create PostgreSQL pool
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-// Test database connection
-pool.query('SELECT NOW()', (err) => {
-  if (err) {
-    console.error('Database connection error:', err);
-  } else {
-    console.log('Database connection successful');
-  }
-});
 
 
 router.get('/', (_req, res) => {

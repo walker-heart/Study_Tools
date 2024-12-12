@@ -1,8 +1,9 @@
+import { useState, useRef, ChangeEvent } from "react";
+import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSettings } from "@/contexts/SettingsContext";
-import { useState, useRef } from "react";
 import { useNotification } from "@/components/ui/notification";
 import {
   Select,
@@ -13,6 +14,18 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Mic } from "lucide-react";
+
+// Define interfaces for API responses
+interface TTSErrorResponse {
+  details?: string;
+  message?: string;
+  error?: string;
+}
+
+interface TTSRequestBody {
+  text: string;
+  voice: string;
+}
 
 const VOICE_OPTIONS = [
   { value: "alloy", label: "Alloy" },
@@ -26,6 +39,7 @@ const VOICE_OPTIONS = [
 export default function TextToSpeech() {
   const { theme } = useSettings();
   const { showNotification } = useNotification();
+  const [, setLocation] = useLocation();
   const [textToRead, setTextToRead] = useState("");
   const [selectedVoice, setSelectedVoice] = useState("alloy");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -33,25 +47,28 @@ export default function TextToSpeech() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setSelectedFile(file);
-      
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setTextToRead(event.target.result as string);
-        }
-      };
-      reader.onerror = (error) => {
-        showNotification({
-          message: `Error reading file: ${error}`,
-          type: 'error'
-        });
-      };
-      reader.readAsText(file);
-    }
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setSelectedFile(file);
+    
+    const reader = new FileReader();
+    reader.onload = (event: ProgressEvent<FileReader>) => {
+      const result = event.target?.result;
+      if (typeof result === 'string') {
+        setTextToRead(result);
+      }
+    };
+    
+    reader.onerror = (error: ProgressEvent<FileReader>) => {
+      showNotification({
+        message: `Error reading file: ${error.target?.error?.message || 'Unknown error'}`,
+        type: 'error'
+      });
+    };
+    
+    reader.readAsText(file);
   };
 
   const handleGenerate = async () => {
@@ -78,29 +95,81 @@ export default function TextToSpeech() {
       });
 
       // Make API request
-      const response = await fetch('/api/user/generate-speech', {
+      console.log('Making TTS request with:', {
+        text: textToRead.substring(0, 50) + '...',
+        voice: selectedVoice
+      });
+
+      const response = await fetch('/api/ai/text-to-speech', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, audio/mpeg',
         },
         body: JSON.stringify({
           text: textToRead,
           voice: selectedVoice,
         }),
-        credentials: 'include' // Important for session cookies
+        credentials: 'include'
       });
 
-      // Handle API errors
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('API Error:', error);
-        throw new Error(error.message || error.details || `HTTP error! status: ${response.status}`);
-      }
-
-      console.log('Response received, processing audio data...');
-
-      // Check content type
+      // Get content type once and store it
       const contentType = response.headers.get('content-type');
+      
+      // Define response type
+  interface TTSErrorResponse {
+    details?: string;
+    message?: string;
+    error?: string;
+  }
+
+  // Handle JSON responses (usually errors)
+  if (contentType?.includes('application/json')) {
+    const data = await response.json() as TTSErrorResponse;
+    
+    if (!response.ok) {
+      const errorMessage = data.details || data.message || "Speech generation failed";
+      console.error('Speech generation error response:', { status: response.status, data });
+      
+      if (response.status === 400 && errorMessage.includes("API key")) {
+        showNotification({
+          message: "OpenAI API key not configured. Please configure it in settings.",
+          type: "error",
+        });
+        setLocation("/settings/api");
+        return;
+      }
+      
+      if (response.status === 401) {
+        if (errorMessage.includes("OpenAI API key")) {
+          showNotification({
+            message: "Invalid OpenAI API key. Please check your settings.",
+            type: "error",
+          });
+          setLocation("/settings/api");
+        } else {
+          showNotification({
+            message: "Please sign in to use the text-to-speech feature",
+            type: "error",
+          });
+          setLocation("/signin");
+        }
+        return;
+      }
+      
+      if (response.status === 429) {
+        showNotification({
+          message: "Too many requests. Please try again later.",
+          type: "error",
+        });
+        return;
+      }
+      
+      throw new Error(errorMessage);
+    }
+  }
+
+      // Verify audio response
       if (!contentType?.includes('audio/mpeg')) {
         console.error('Unexpected content type:', contentType);
         const text = await response.text();
@@ -108,62 +177,36 @@ export default function TextToSpeech() {
         throw new Error('Server returned non-audio data');
       }
 
+      if (!response.ok) {
+        throw new Error('Failed to generate speech');
+      }
+
+      console.log('Response received, processing audio data...');
+
       // Process audio response
       const arrayBuffer = await response.arrayBuffer();
       console.log('Received array buffer size:', arrayBuffer.byteLength);
       
-      // Create audio blob with specific MIME type for MP3
+      if (arrayBuffer.byteLength === 0) {
+        throw new Error('Received empty response from server');
+      }
+
+      // Create audio blob
       const audioBlob = new Blob([arrayBuffer], { 
-        type: response.headers.get('content-type') || 'audio/mpeg'
+        type: contentType || 'audio/mpeg'
       });
       
       // Validate blob
       if (audioBlob.size === 0) {
-        throw new Error('Received empty audio data');
+        throw new Error('Failed to create audio blob');
       }
-
-      // Read the first few bytes to validate the audio format
-      const firstBytes = new Uint8Array(arrayBuffer.slice(0, 4));
-      
-      // Check if we received an error response (usually starts with '{')
-      if (firstBytes[0] === 0x7B) { // '{' character
-        const text = await new Blob([arrayBuffer]).text();
-        const error = JSON.parse(text);
-        throw new Error(error.message || error.details || 'Server returned error response');
-      }
-      
-      // Check if we received HTML instead of audio
-      if (firstBytes[0] === 0x3C) { // '<' character, likely HTML/XML
-        const text = await new Blob([arrayBuffer]).text();
-        console.error('Received HTML instead of audio:', text);
-        throw new Error('Server returned HTML instead of audio data');
-      }
-      
-      // Validate MP3 format
-      const isMP3 = (
-        // Check for MP3 frame header
-        (firstBytes[0] === 0xFF && (firstBytes[1] & 0xE0) === 0xE0) ||
-        // Check for ID3 tag
-        (firstBytes[0] === 0x49 && firstBytes[1] === 0x44 && firstBytes[2] === 0x33)
-      );
-      
-      if (!isMP3) {
-        console.error('Invalid MP3 format:', {
-          firstBytes: Array.from(firstBytes),
-          contentType: response.headers.get('content-type'),
-          size: arrayBuffer.byteLength
-        });
-        throw new Error('Server returned invalid audio format');
-      }
-
-      console.log('Created audio blob, size:', audioBlob.size);
 
       // Clean up previous audio URL
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
 
-      // Create and validate new audio URL
+      // Create new audio URL
       const newAudioUrl = URL.createObjectURL(audioBlob);
       
       // Update state and show success message
