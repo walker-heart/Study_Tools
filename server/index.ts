@@ -196,8 +196,9 @@ async function initializeMiddleware() {
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
     // Static file serving with proper caching
-    // Ensure static directories exist and are accessible
-    const publicPath = path.resolve(__dirname, '..', 'dist', 'public');
+    // Determine the correct base directory for static files
+    const rootDir = process.cwd();
+    const publicPath = path.join(rootDir, 'dist', 'public');
     const assetsPath = path.join(publicPath, 'assets');
     
     try {
@@ -216,6 +217,7 @@ async function initializeMiddleware() {
       info({
         message: 'Static directories verified and accessible',
         metadata: {
+          rootDir,
           publicPath,
           assetsPath,
           mode: env.NODE_ENV
@@ -238,34 +240,86 @@ async function initializeMiddleware() {
 
     // Configure static file serving with better error handling
     const serveStaticWithLogging = (staticPath: string, options: ServeStaticOptions) => {
+      if (!fs.existsSync(staticPath)) {
+        fs.mkdirSync(staticPath, { recursive: true });
+        info(`Created static directory: ${staticPath}`);
+      }
+
+      debug(`Setting up static file serving for path: ${staticPath}`);
+      
+      // Verify the directory is accessible
+      try {
+        fs.accessSync(staticPath, fs.constants.R_OK);
+      } catch (err) {
+        error({
+          message: 'Static directory not accessible',
+          error_message: err instanceof Error ? err.message : String(err),
+          metadata: {
+            path: staticPath,
+            operation: 'static_directory_access',
+            status: 500
+          }
+        });
+        throw new Error(`Static directory not accessible: ${staticPath}`);
+      }
+
       const staticHandler = express.static(staticPath, {
         ...options,
-        setHeaders: (res, path) => {
-          // Set correct MIME types for different file extensions
-          if (path.endsWith('.css')) {
-            res.setHeader('Content-Type', 'text/css');
-          } else if (path.endsWith('.js')) {
-            res.setHeader('Content-Type', 'application/javascript');
-          } else if (path.endsWith('.svg')) {
-            res.setHeader('Content-Type', 'image/svg+xml');
+        setHeaders: (res: Response, filePath: string) => {
+          const ext = path.extname(filePath).toLowerCase();
+          const contentTypes: Record<string, string> = {
+            '.css': 'text/css',
+            '.js': 'application/javascript',
+            '.svg': 'image/svg+xml',
+            '.html': 'text/html; charset=utf-8',
+            '.json': 'application/json',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.gif': 'image/gif',
+            '.ico': 'image/x-icon',
+            '.woff': 'font/woff',
+            '.woff2': 'font/woff2',
+            '.ttf': 'font/ttf',
+            '.eot': 'application/vnd.ms-fontobject'
+          };
+
+          if (contentTypes[ext]) {
+            res.setHeader('Content-Type', contentTypes[ext]);
+          }
+
+          // Add security headers
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          
+          // Add cache control headers
+          if (env.NODE_ENV === 'production') {
+            if (ext === '.html') {
+              res.setHeader('Cache-Control', 'no-cache');
+            } else {
+              res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            }
           }
         }
       });
 
       return (req: Request, res: Response, next: NextFunction) => {
+        if (env.NODE_ENV === 'development') {
+          debug(`Static file request: ${req.path}`);
+        }
+        
         staticHandler(req, res, (err) => {
           if (err) {
-            const logMessage: LogMessage = {
-              level: 'error',
-              message: 'Static file error',
+            error({
+              message: 'Static file serving error',
               error_message: err instanceof Error ? err.message : String(err),
               metadata: {
                 path: req.path,
                 operation: 'static_file_serve',
-                status: 500
+                status: 500,
+                staticPath,
+                fullPath: path.join(staticPath, req.path)
               }
-            };
-            error(logMessage);
+            });
             next(err);
           } else {
             next();
@@ -274,54 +328,97 @@ async function initializeMiddleware() {
       };
     };
 
-    // Serve assets with long cache duration
-    app.use('/assets', serveStaticWithLogging(path.join(publicPath, 'assets'), {
-      maxAge: env.NODE_ENV === 'production' ? '1y' : 0,
+    // Ensure static directories exist
+    [publicPath, path.join(publicPath, 'assets')].forEach(dir => {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        info(`Created static directory: ${dir}`);
+      }
+    });
+
+    // Serve static assets with appropriate cache headers
+    const staticOptions = {
       etag: true,
       lastModified: true,
-      immutable: true,
-      index: false,
-      fallthrough: true
+      fallthrough: true,
+      ...(env.NODE_ENV === 'production' ? {
+        maxAge: '30d',
+        immutable: true
+      } : {
+        maxAge: 0
+      })
+    };
+
+    // Serve assets first
+    app.use('/assets', serveStaticWithLogging(path.join(publicPath, 'assets'), {
+      ...staticOptions,
+      index: false
     }));
 
-    // Serve other static files with shorter cache
+    // Then serve other static files
     app.use(serveStaticWithLogging(publicPath, {
-      maxAge: env.NODE_ENV === 'production' ? '1d' : 0,
-      etag: true,
-      lastModified: true,
+      ...staticOptions,
       index: false
     }));
 
     // Final handler for static files
     app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
       if (err.message?.includes('ENOENT') || err.message?.includes('not found')) {
+        const isAssetRequest = req.path.startsWith('/assets/');
+        
         error({
-          message: 'Static file not found',
+          message: isAssetRequest ? 'Static asset not found' : 'Static file not found',
           error_message: err.message,
           metadata: {
             path: req.path,
             status: 404,
-            operation: 'static_file_serve'
+            operation: 'static_file_serve',
+            isAssetRequest,
+            publicPath,
+            fullPath: path.join(publicPath, req.path)
           }
         });
         
-        if (req.path.startsWith('/assets/')) {
-          res.status(404).json({ message: 'Asset not found', path: req.path });
+        if (isAssetRequest) {
+          res.status(404).json({ 
+            message: 'Asset not found',
+            path: req.path,
+            error: env.NODE_ENV === 'development' ? err.message : undefined
+          });
         } else {
-          // For non-asset routes, let the client-side router handle it
-          res.sendFile(path.join(publicPath, 'index.html'), (sendErr) => {
-            if (sendErr) {
+          // For non-asset routes, serve index.html for client-side routing
+          const indexPath = path.join(publicPath, 'index.html');
+          
+          // Check if index.html exists first
+          fs.access(indexPath, fs.constants.R_OK, (accessErr) => {
+            if (accessErr) {
               error({
-                message: 'Error sending index.html',
-                error_message: sendErr.message,
+                message: 'index.html not found or not readable',
+                error_message: accessErr.message,
                 metadata: {
-                  path: req.path,
-                  status: 500,
-                  operation: 'serve_index_html'
+                  path: indexPath,
+                  operation: 'serve_index_html',
+                  status: 500
                 }
               });
               res.status(500).json({ message: 'Error serving page' });
+              return;
             }
+            
+            res.sendFile(indexPath, (sendErr) => {
+              if (sendErr) {
+                error({
+                  message: 'Error sending index.html',
+                  error_message: sendErr.message,
+                  metadata: {
+                    path: req.path,
+                    status: 500,
+                    operation: 'serve_index_html'
+                  }
+                });
+                res.status(500).json({ message: 'Error serving page' });
+              }
+            });
           });
         }
       } else {
@@ -447,7 +544,8 @@ async function main() {
 
   try {
     // Test database connection with retry mechanism
-    let retries = 5;
+    const MAX_RETRIES = 5;
+    let retries = MAX_RETRIES;
     let backoff = 1000; // Start with 1 second
 
     while (retries > 0) {
@@ -457,12 +555,29 @@ async function main() {
         break;
       } catch (err) {
         retries--;
-        if (retries === 0) {
+        const isLastAttempt = retries === 0;
+        
+        if (isLastAttempt) {
+          error({
+            message: 'Failed to connect to database after multiple attempts',
+            error_message: err instanceof Error ? err.message : String(err),
+            metadata: {
+              operation: 'database_connection',
+              attempts: MAX_RETRIES,
+              status: 500
+            }
+          });
           throw new Error('Failed to connect to database after multiple attempts');
         }
+
         warn({
           message: `Database connection failed, retrying in ${backoff/1000} seconds...`,
-          error_message: err instanceof Error ? err.message : String(err)
+          error_message: err instanceof Error ? err.message : String(err),
+          metadata: {
+            operation: 'database_connection',
+            attempt: MAX_RETRIES - retries,
+            next_retry: `${backoff/1000} seconds`
+          }
         });
         
         await new Promise(resolve => setTimeout(resolve, backoff));
