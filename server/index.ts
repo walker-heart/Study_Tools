@@ -1,6 +1,7 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import type { ServeStaticOptions } from 'serve-static';
+import type { ServerResponse } from 'http';
 import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
@@ -36,11 +37,11 @@ interface StaticFileHeaders extends Record<string, string | undefined> {
   'Last-Modified'?: string;
 }
 
-interface StaticFileOptions extends ServeStaticOptions {
+interface StaticFileOptions extends Omit<ServeStaticOptions, 'setHeaders'> {
   index: boolean;
   etag: boolean;
   lastModified: boolean;
-  setHeaders: (res: Response, filepath: string, stat: any) => void;
+  setHeaders: (res: Response | ServerResponse, filepath: string, stat: any) => void;
   maxAge?: number | string;
   immutable?: boolean;
 }
@@ -117,18 +118,24 @@ const corsOptions: cors.CorsOptions = {
       'http://localhost:3000',
       'http://localhost:5000',
       // Allow all subdomains of repl.co and replit.dev
-      /\.repl\.co$/,
-      /\.replit\.dev$/
+      /^https?:\/\/[^.]+\.repl\.co$/,
+      /^https?:\/\/[^.]+\.replit\.dev$/
     ];
     
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
+    // Allow requests with no origin (like mobile apps, curl requests, or same-origin)
+    if (!origin || origin === 'null') {
       callback(null, true);
       return;
     }
 
     // Allow all origins in development
     if (env.NODE_ENV === 'development') {
+      callback(null, true);
+      return;
+    }
+
+    // Allow access to static assets from any origin
+    if (origin && /\.(js|css|png|jpg|jpeg|gif|ico|svg)$/.test(origin)) {
       callback(null, true);
       return;
     }
@@ -154,7 +161,7 @@ const corsOptions: cors.CorsOptions = {
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
-  exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie'],
+  exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie', 'ETag', 'Cache-Control'],
   maxAge: 86400,
   optionsSuccessStatus: 204,
   preflightContinue: false
@@ -284,33 +291,39 @@ async function initializeMiddleware() {
         index: false,
         etag: true,
         lastModified: true,
-        setHeaders: (res: Response, filepath: string) => {
+        setHeaders: (res, filepath) => {
           const ext = path.extname(filepath).toLowerCase();
-          const headers: StaticFileHeaders = {
-            'X-Content-Type-Options': 'nosniff'
-          };
           
-          // Cache control
-          if (ext === '.html') {
-            headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-            headers['Pragma'] = 'no-cache';
-            headers['Expires'] = '0';
-          } else if (filepath.includes('/assets/')) {
-            // Set correct MIME types for assets
-            if (ext === '.js' || ext === '.mjs') {
-              headers['Content-Type'] = 'application/javascript; charset=UTF-8';
-            } else if (ext === '.css') {
-              headers['Content-Type'] = 'text/css; charset=UTF-8';
-            }
-            headers['Cache-Control'] = 'public, max-age=31536000, immutable';
-          } else {
-            headers['Cache-Control'] = 'public, max-age=86400';
+          // Set secure headers
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          
+          // Set MIME types and caching based on file type
+          switch (ext) {
+            case '.html':
+              res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+              res.setHeader('Pragma', 'no-cache');
+              res.setHeader('Expires', '0');
+              break;
+            case '.js':
+            case '.mjs':
+              res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+              res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+              break;
+            case '.css':
+              res.setHeader('Content-Type', 'text/css; charset=UTF-8');
+              res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+              break;
+            case '.png':
+            case '.jpg':
+            case '.jpeg':
+            case '.gif':
+            case '.ico':
+            case '.svg':
+              res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+              break;
+            default:
+              res.setHeader('Cache-Control', 'public, max-age=86400');
           }
-          
-          // Apply all headers
-          Object.entries(headers).forEach(([key, value]) => {
-            if (value) res.setHeader(key, value);
-          });
         }
       };
 
@@ -322,17 +335,36 @@ async function initializeMiddleware() {
       app.use('/assets', express.static(path.join(publicPath, 'assets'), staticOptions));
       app.use(express.static(publicPath, staticOptions));
 
-      // Add static file error logging middleware
+      // Add static file error handling middleware
       app.use((err: Error | StaticFileError, req: Request, res: Response, next: NextFunction) => {
-        if (err && req.path.startsWith('/assets/')) {
-          error({
+        if (err && (req.path.startsWith('/assets/') || req.path.includes('.'))) {
+          const errorDetails = {
             message: 'Static file serving error',
             path: req.path,
             error_message: err.message,
+            code: err.code,
             metadata: {
               request_headers: Object.fromEntries(Object.entries(req.headers)),
-              response_headers: Object.fromEntries(Object.entries(res.getHeaders()))
+              response_headers: Object.fromEntries(Object.entries(res.getHeaders())),
+              mime_type: req.get('Content-Type'),
+              method: req.method
             }
+          };
+          
+          error(errorDetails);
+          
+          // Return appropriate error response
+          if (err.code === 'ENOENT') {
+            return res.status(404).json({ 
+              message: 'File not found',
+              path: req.path,
+              requestId: req.headers['x-request-id']
+            });
+          }
+          
+          return res.status(500).json({ 
+            message: 'Error serving static file',
+            requestId: req.headers['x-request-id']
           });
         }
         next(err);
