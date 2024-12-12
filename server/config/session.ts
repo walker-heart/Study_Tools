@@ -13,45 +13,16 @@ interface SessionErrorContext {
   fallback?: string;
   tableName?: string;
   poolConfig?: Record<string, number>;
-  error?: unknown;
 }
 
-interface SessionError {
-  message: string;
+interface SessionError extends LogMessage {
   level: LogLevel;
-  error_message?: string;
-  next_retry?: string | null;
-  stack?: string;
-  attempt?: number;
-  total_attempts?: number;
-  metadata: {
+  metadata?: {
     path?: string;
     status?: number;
-    operation: string;
+    operation?: string;
     tableName?: string;
     poolConfig?: Record<string, number>;
-  }
-}
-
-type ErrorWithMessage = {
-  message: string;
-}
-
-function isErrorWithMessage(error: unknown): error is ErrorWithMessage {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'message' in error &&
-    typeof (error as Record<string, unknown>).message === 'string'
-  );
-}
-
-function toErrorWithMessage(maybeError: unknown): ErrorWithMessage {
-  if (isErrorWithMessage(maybeError)) return maybeError;
-  try {
-    return new Error(JSON.stringify(maybeError));
-  } catch {
-    return new Error(String(maybeError));
   }
 }
 
@@ -107,24 +78,22 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
       });
       info('Database connection successful');
       return true;
-    } catch (unknownError) {
-      const error = toErrorWithMessage(unknownError);
+    } catch (error) {
       const isLastAttempt = attempt === maxRetries;
-      const logLevel: LogLevel = isLastAttempt ? 'error' : 'warn';
-      const logMessage: SessionError = {
+      const level: LogLevel = isLastAttempt ? 'error' : 'warn';
+      const logMessage: LogMessage = {
         message: `Database connection attempt ${attempt}/${maxRetries} failed`,
-        level: isLastAttempt ? 'error' : 'warn',
         next_retry: isLastAttempt ? null : `${backoff/1000} seconds`,
         stack: error instanceof Error ? error.stack : undefined,
-        error_message: error.message,
+        error_message: error instanceof Error ? error.message : String(error),
         attempt,
         total_attempts: maxRetries,
+        level,
         metadata: {
-          operation: 'db_connection_test',
-          status: 500
+          operation: 'db_connection_test'
         }
       };
-      log(logMessage);
+      log(logMessage, level);
 
       if (isLastAttempt) {
         return false;
@@ -192,17 +161,9 @@ async function initializeSessionStore(): Promise<session.Store> {
     try {
       await Promise.race([
         new Promise<void>((resolve, reject) => {
-          store.get('test-session', (err: unknown) => {
+          store.get('test-session', (err) => {
             if (err) {
-              const errorMessage = toErrorWithMessage(err);
-              error({
-                message: 'Session store verification failed',
-                error_message: errorMessage.message,
-                metadata: {
-                  operation: 'session_store_verify'
-                }
-              });
-              reject(new Error(`Session store verification failed: ${errorMessage.message}`));
+              reject(new Error(`Session store verification failed: ${err.message}`));
             } else {
               resolve();
             }
@@ -227,8 +188,7 @@ async function initializeSessionStore(): Promise<session.Store> {
         }
       };
       log(logMessage, 'error');
-      // Rethrow with proper typing
-      throw new Error(verifyError instanceof Error ? verifyError.message : String(verifyError));
+      throw verifyError;
     }
   } catch (error) {
     warn({
