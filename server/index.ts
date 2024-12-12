@@ -1,6 +1,6 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
-import type { ServeStaticOptions } from 'express-serve-static-core';
+import type { ServeStaticOptions } from 'serve-static';
 import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
@@ -40,7 +40,7 @@ interface StaticFileOptions extends ServeStaticOptions {
   index: boolean;
   etag: boolean;
   lastModified: boolean;
-  setHeaders: (res: Response, filepath: string, stat?: any) => void;
+  setHeaders: (res: Response, filepath: string, stat: any) => void;
   maxAge?: number | string;
   immutable?: boolean;
 }

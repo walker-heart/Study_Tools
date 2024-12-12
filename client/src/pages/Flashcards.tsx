@@ -7,11 +7,11 @@ import FileUpload from "../components/FileUpload";
 import { generatePDF } from "../lib/pdfGenerator";
 import CardPreview from "../components/CardPreview";
 
-interface VocabCard {
+interface VocabCard extends Record<string, string | number> {
   'Vocab Word': string;
-  'Identifying Part Of Speach': string;
+  'Identifying Part Of Speech': string;
   'Definition': string;
-  'Example Sentance': string;
+  'Example Sentence': string;
   lineNumber: number;
 }
 
@@ -32,9 +32,9 @@ export default function Flashcards() {
             }))
             .filter((row: any) => {
               return row['Vocab Word'] && 
-                row['Identifying Part Of Speach'] && 
+                row['Identifying Part Of Speech'] && 
                 row['Definition'] && 
-                row['Example Sentance'];
+                row['Example Sentence'];
             })
             .map((row: any) => ({
               ...row,
@@ -75,8 +75,7 @@ export default function Flashcards() {
     setIsProcessing(true);
     try {
       const csvContent = Papa.unparse(previewCards);
-      const csvFile = new File([csvContent], "vocab_cards.csv", { type: "text/csv" });
-      await generatePDF(csvFile);
+      await generatePDF(csvContent);
       toast({
         title: "Success",
         description: "PDF generated successfully!",
