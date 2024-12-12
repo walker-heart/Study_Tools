@@ -1,29 +1,21 @@
 import session from 'express-session';
 import pkg from 'pg';
 const { Pool } = pkg;
+import type { PoolConfig } from 'pg';
 import connectPgSimple from 'connect-pg-simple';
 import MemoryStore from 'memorystore';
 import { env } from '../lib/env';
 import { log, debug, info, warn, error } from '../lib/log';
 import type { LogMessage, LogLevel } from '../lib/log';
 
-// Define types for session error handling
-interface SessionErrorContext {
-  operation?: string;
-  fallback?: string;
-  tableName?: string;
-  poolConfig?: Record<string, number>;
-}
+import { SessionError, SessionErrorContext } from '../types/session';
 
-interface SessionError extends LogMessage {
-  level: LogLevel;
-  metadata?: {
-    path?: string;
-    status?: number;
-    operation?: string;
-    tableName?: string;
-    poolConfig?: Record<string, number>;
-  }
+// Define retry configuration interface
+interface RetryConfig {
+  maxRetries: number;
+  initialBackoff: number;
+  maxBackoff: number;
+  factor: number;
 }
 
 const MemoryStoreSession = MemoryStore(session);
@@ -45,16 +37,23 @@ const createPool = (): pkg.Pool => {
 
   // Add event listeners for connection issues
   pool.on('error', (err: unknown) => {
-    const logMessage: LogMessage = {
+    const context: SessionErrorContext = {
+      operation: 'pool_error',
+      timestamp: new Date(),
+    };
+    
+    const errorMessage: SessionError = {
+      level: 'error',
       message: 'Unexpected error on idle client',
       stack: err instanceof Error ? err.stack : undefined,
       error_message: err instanceof Error ? err.message : String(err),
-      level: 'error' as LogLevel,
       metadata: {
-        operation: 'pool_error'
+        operation: context.operation,
+        path: 'session-store',
       }
     };
-    log(logMessage, 'error');
+    
+    log(errorMessage as LogMessage, 'error');
   });
 
   pool.on('connect', () => {
@@ -71,29 +70,34 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       await pool.query('SELECT NOW()');
-      log({
+      const logMessage: LogMessage = {
+        level: 'info',
         message: 'Database connection successful',
-        attempt,
-        total_attempts: maxRetries
-      });
+        metadata: {
+          attempt,
+          total_attempts: maxRetries,
+          operation: 'db_connection_test'
+        }
+      };
+      log(logMessage);
       info('Database connection successful');
       return true;
     } catch (error) {
       const isLastAttempt = attempt === maxRetries;
       const level: LogLevel = isLastAttempt ? 'error' : 'warn';
-      const logMessage: LogMessage = {
-        message: `Database connection attempt ${attempt}/${maxRetries} failed`,
-        next_retry: isLastAttempt ? null : `${backoff/1000} seconds`,
-        stack: error instanceof Error ? error.stack : undefined,
-        error_message: error instanceof Error ? error.message : String(error),
-        attempt,
-        total_attempts: maxRetries,
+      const errorMessage: SessionError = {
         level,
+        message: `Database connection attempt ${attempt}/${maxRetries} failed`,
+        error_message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
         metadata: {
-          operation: 'db_connection_test'
+          operation: 'db_connection_test',
+          attempt,
+          total_attempts: maxRetries,
+          next_retry: isLastAttempt ? null : `${backoff/1000} seconds`,
         }
       };
-      log(logMessage, level);
+      log(errorMessage as LogMessage, level);
 
       if (isLastAttempt) {
         return false;
@@ -131,28 +135,32 @@ async function initializeSessionStore(): Promise<session.Store> {
       pruneSessionInterval: 60 * 15, // Prune every 15 minutes
       // Enhanced error logging with context
       errorLog: (err: unknown) => {
-        const poolConfig = {
-          max: 20,
-          idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 5000
+        const context: SessionErrorContext = {
+          operation: 'session_store',
+          tableName: 'session',
+          poolConfig: {
+            max: 20,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 5000
+          },
+          timestamp: new Date()
         };
         
-        const logMessage: LogMessage = {
-          message: `Session store error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        const errorMessage: SessionError = {
           level: 'error',
+          message: 'Session store error',
           error_message: err instanceof Error ? err.message : String(err),
           stack: err instanceof Error ? err.stack : undefined,
           metadata: {
             path: 'session-store',
             status: 500,
-            operation: 'session_store',
-            tableName: 'session',
-            poolConfig
+            operation: context.operation,
+            tableName: context.tableName,
+            poolConfig: context.poolConfig
           }
         };
-        log(logMessage);
+        log(errorMessage as LogMessage);
       },
-      // Connection configuration
       ttl: 24 * 60 * 60,
       disableTouch: false
     });
@@ -178,22 +186,27 @@ async function initializeSessionStore(): Promise<session.Store> {
       return store;
       
     } catch (verifyError) {
-      const logMessage: LogMessage = {
-        message: `Session store verification failed: ${verifyError instanceof Error ? verifyError.message : 'Unknown error'}`,
-        stack: verifyError instanceof Error ? verifyError.stack : undefined,
+      const errorMessage: SessionError = {
+        level: 'error',
+        message: 'Session store verification failed',
         error_message: verifyError instanceof Error ? verifyError.message : String(verifyError),
-        level: 'error' as LogLevel,
+        stack: verifyError instanceof Error ? verifyError.stack : undefined,
         metadata: {
           operation: 'session_store_verify'
         }
       };
-      log(logMessage, 'error');
+      log(errorMessage as LogMessage, 'error');
       throw verifyError;
     }
   } catch (error) {
     warn({
+      level: 'warn',
       message: 'PostgreSQL session store initialization failed, falling back to MemoryStore',
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
+      metadata: {
+        operation: 'session_store_init',
+        fallback: 'memory_store'
+      }
     });
 
     // Clean up pool if it exists
@@ -201,17 +214,17 @@ async function initializeSessionStore(): Promise<session.Store> {
       try {
         await pool.end();
       } catch (poolError: unknown) {
-        const logMessage: LogMessage = {
+        const errorMessage: SessionError = {
+          level: 'error',
           message: 'Error closing pool during fallback',
-          stack: poolError instanceof Error ? poolError.stack : undefined,
           error_message: poolError instanceof Error ? poolError.message : String(poolError),
-          level: 'error' as LogLevel,
+          stack: poolError instanceof Error ? poolError.stack : undefined,
           metadata: {
             operation: 'pool_cleanup',
             fallback: 'memory_store'
           }
         };
-        log(logMessage, 'error');
+        log(errorMessage as LogMessage, 'error');
       }
     }
 
