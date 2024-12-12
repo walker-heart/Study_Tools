@@ -334,58 +334,125 @@ async function initializeMiddleware() {
 
     // Configure static file serving
     if (env.NODE_ENV === 'production') {
-      // In production, serve from the dist/public directory with strict caching
-      app.use(express.static(publicPath, {
-        index: false,
-        etag: true,
-        lastModified: true,
-        dotfiles: 'ignore',
-        fallthrough: true,
-        maxAge: 0, // We'll set specific Cache-Control headers below
-        setHeaders: (res, filePath) => {
-          // Let Express handle the basic content-type
-          const ext = path.extname(filePath).toLowerCase();
-          
-          // Set cache headers based on file type and path
-          if (ext === '.html') {
-            res.set({
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0'
-            });
-          } else if (filePath.includes('/assets/')) {
-            res.set({
-              'Cache-Control': 'public, max-age=31536000, immutable'
-            });
-          } else {
-            res.set({
-              'Cache-Control': 'public, max-age=86400'
-            });
-          }
-
-          // Ensure proper content type for JS and CSS files
-          if (ext === '.js') {
-            res.set('Content-Type', 'application/javascript');
-          } else if (ext === '.css') {
-            res.set('Content-Type', 'text/css');
-          }
-
-          // Add security headers
-          res.set({
-            'X-Content-Type-Options': 'nosniff'
-          });
+      // Helper function to serve static files with proper MIME types and caching
+      const serveStaticWithMime = (staticPath: string, urlPath: string) => {
+        debug(`Setting up static serving for ${urlPath} from ${staticPath}`);
+        
+        // Verify directory exists
+        if (!fs.existsSync(staticPath)) {
+          fs.mkdirSync(staticPath, { recursive: true });
+          info(`Created static directory: ${staticPath}`);
         }
-      }));
 
-      // Serve assets specifically
-      app.use('/assets', express.static(path.join(publicPath, 'assets'), {
-        index: false,
-        etag: true,
-        lastModified: true,
-        dotfiles: 'ignore',
-        fallthrough: true,
-        maxAge: 31536000000 // 1 year in milliseconds
-      }));
+        return express.static(staticPath, {
+          index: false,
+          etag: true,
+          lastModified: true,
+          dotfiles: 'ignore',
+          fallthrough: true,
+          setHeaders: (res, filepath) => {
+            const ext = path.extname(filepath).toLowerCase();
+            
+            // Set content type based on file extension
+            switch (ext) {
+              case '.js':
+                res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+                break;
+              case '.css':
+                res.setHeader('Content-Type', 'text/css; charset=UTF-8');
+                break;
+              case '.html':
+                res.setHeader('Content-Type', 'text/html; charset=UTF-8');
+                break;
+              case '.json':
+                res.setHeader('Content-Type', 'application/json; charset=UTF-8');
+                break;
+              case '.png':
+                res.setHeader('Content-Type', 'image/png');
+                break;
+              case '.jpg':
+              case '.jpeg':
+                res.setHeader('Content-Type', 'image/jpeg');
+                break;
+              case '.svg':
+                res.setHeader('Content-Type', 'image/svg+xml');
+                break;
+              case '.woff2':
+                res.setHeader('Content-Type', 'font/woff2');
+                break;
+              case '.woff':
+                res.setHeader('Content-Type', 'font/woff');
+                break;
+              case '.ttf':
+                res.setHeader('Content-Type', 'font/ttf');
+                break;
+            }
+
+            // Set caching headers
+            if (ext === '.html') {
+              res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+              res.setHeader('Pragma', 'no-cache');
+              res.setHeader('Expires', '0');
+            } else if (urlPath.startsWith('/assets/')) {
+              res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            } else {
+              res.setHeader('Cache-Control', 'public, max-age=86400');
+            }
+
+            // Security headers
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+          }
+        });
+      };
+
+      // Serve static files with detailed error logging
+      app.use((req, res, next) => {
+        const staticHandler = serveStaticWithMime(publicPath, req.path);
+        staticHandler(req, res, (err) => {
+          if (err) {
+            error({
+              message: 'Static file serving error',
+              error_message: err instanceof Error ? err.message : String(err),
+              metadata: {
+                path: req.path,
+                fullPath: path.join(publicPath, req.path),
+                method: req.method,
+                headers: req.headers,
+                operation: 'static_file_serve'
+              }
+            });
+          }
+          next(err);
+        });
+      });
+
+      // Serve assets from specific directories with their own handlers
+      const assetPaths = {
+        '/assets/js': path.join(publicPath, 'assets', 'js'),
+        '/assets/css': path.join(publicPath, 'assets', 'css'),
+        '/assets': path.join(publicPath, 'assets')
+      };
+
+      Object.entries(assetPaths).forEach(([urlPath, fsPath]) => {
+        app.use(urlPath, (req, res, next) => {
+          const staticHandler = serveStaticWithMime(fsPath, urlPath);
+          staticHandler(req, res, (err) => {
+            if (err) {
+              error({
+                message: `Asset serving error for ${urlPath}`,
+                error_message: err instanceof Error ? err.message : String(err),
+                metadata: {
+                  path: req.path,
+                  fullPath: path.join(fsPath, req.path),
+                  urlPath,
+                  operation: 'asset_serve'
+                }
+              });
+            }
+            next(err);
+          });
+        });
+      });
     } else {
       // In development, let Vite handle the static files
       app.use('/assets', serveStaticWithLogging(assetsPath, {
