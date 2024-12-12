@@ -3,8 +3,8 @@ import type { Request, Response, NextFunction } from "express";
 import type { ServeStaticOptions } from 'serve-static';
 import type { ServerResponse, IncomingMessage } from 'http';
 import type { Response as ExpressResponse } from 'express-serve-static-core';
-import rateLimit from 'express-rate-limit';
 import type { Session, SessionData } from "express-session";
+import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
 import { createServer } from "http";
@@ -18,6 +18,16 @@ import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
 import { log, debug, info, warn, error } from "./lib/log";
 import { createSessionConfig } from './config/session';
+import { 
+  trackError, 
+  initRequestTracking, 
+  AuthenticationError,
+  DatabaseError,
+  ValidationError,
+  AppError,
+  type LogMessage,
+  type ErrorHandler 
+} from './lib/errorTracking';
 
 // ES Module compatibility
 const __filename = fileURLToPath(import.meta.url);
@@ -81,71 +91,18 @@ interface StaticFileError extends ExtendedError {
   code?: 'ENOENT' | string;
 }
 
-interface ErrorHandler {
-  (err: ExtendedError | StaticFileError, req: TypedRequest, res: Response, next: NextFunction): void;
-}
 
 interface StaticErrorLog extends Omit<LogMessage, "level"> {
   path?: string;
   error_message?: string;
   metadata?: Record<string, unknown>;
 }
-
-interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
-  session: Session & Partial<SessionData> & {
-    user?: {
-      id: string | number;
-      [key: string]: unknown;
-    };
-  };
-  sessionID: string;
-  requestId?: string;
-}
-
-function isAppError(error: Error | AppError): error is AppError {
-  return 'context' in error && 
-         typeof (error as AppError).context?.statusCode === 'number' &&
-         typeof (error as AppError).context?.errorCode === 'string';
-}
-
-interface StaticFileError extends ExtendedError {
-  path?: string;
-  error_message?: string;
-  metadata?: StaticFileMetadata;
-  syscall?: string;
-  errno?: number;
-  code?: 'ENOENT' | string;
-}
-
-type ErrorHandler = (
-  err: ExtendedError | StaticFileError,
-  req: TypedRequest,
-  res: Response,
-  next: NextFunction
-) => void;
 
 interface LogMessage {
   message: string;
   [key: string]: unknown;
 }
 
-interface StaticErrorLog extends Omit<LogMessage, "level"> {
-  message: string;
-  path?: string;
-  error_message?: string;
-  metadata?: Record<string, unknown>;
-}
-
-interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
-  session: Session & Partial<SessionData> & {
-    user?: {
-      id: string | number;
-      [key: string]: any;
-    };
-  };
-  sessionID: string;
-  requestId?: string;
-}
 
 // Configure CORS options
 const corsOptions: cors.CorsOptions = {
@@ -420,16 +377,6 @@ async function initializeMiddleware() {
   }
 }
 
-import { 
-  trackError, 
-  initRequestTracking, 
-  AuthenticationError,
-  DatabaseError,
-  ValidationError,
-  AppError,
-  LogMessage,
-  ErrorHandler 
-} from './lib/errorTracking';
 
 // Setup error handlers
 function setupErrorHandlers() {
@@ -496,11 +443,12 @@ function setupErrorHandlers() {
     const context = trackError(err, req, res);
     const status = isAppError(err) ? err.context.statusCode : 500;
     
+    const statusCode = status || 500;
     const response = {
       message: env.NODE_ENV === 'production' 
         ? 'An unexpected error occurred' 
         : err.message,
-      status,
+      status: statusCode,
       requestId: context.requestId,
       ...(env.NODE_ENV === 'development' ? { 
         stack: err.stack,
@@ -508,7 +456,7 @@ function setupErrorHandlers() {
       } : {})
     };
 
-    res.status(status).json(response);
+    res.status(statusCode).json(response);
   });
 
   // Handle client-side routing for non-API routes
@@ -521,6 +469,12 @@ function setupErrorHandlers() {
       });
     }
   });
+}
+
+function isAppError(error: Error | AppError): error is AppError {
+  return 'context' in error && 
+         typeof (error as AppError).context?.statusCode === 'number' &&
+         typeof (error as AppError).context?.errorCode === 'string';
 }
 
 // Main application entry point
@@ -642,9 +596,11 @@ try {
 } catch (err) {
   error({
     message: 'Fatal error starting server',
-    error_details: err instanceof Error ? err.message : String(err),
-    stack: err instanceof Error ? err.stack : undefined,
-    timestamp: new Date().toISOString()
+    metadata: {
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      timestamp: new Date().toISOString()
+    }
   });
   process.exit(1);
 }
