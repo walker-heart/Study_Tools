@@ -335,52 +335,56 @@ async function initializeMiddleware() {
     // Configure static file serving
     if (env.NODE_ENV === 'production') {
       // In production, serve from the dist/public directory with strict caching
-      app.use('/', express.static(publicPath, {
+      app.use(express.static(publicPath, {
         index: false,
         etag: true,
         lastModified: true,
+        dotfiles: 'ignore',
+        fallthrough: true,
+        maxAge: 0, // We'll set specific Cache-Control headers below
         setHeaders: (res, filePath) => {
-          // Set appropriate content type based on file extension
+          // Let Express handle the basic content-type
           const ext = path.extname(filePath).toLowerCase();
-          switch (ext) {
-            case '.js':
-              res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-              break;
-            case '.css':
-              res.setHeader('Content-Type', 'text/css; charset=utf-8');
-              break;
-            case '.html':
-              res.setHeader('Content-Type', 'text/html; charset=utf-8');
-              break;
-            case '.json':
-              res.setHeader('Content-Type', 'application/json; charset=utf-8');
-              break;
-            case '.png':
-              res.setHeader('Content-Type', 'image/png');
-              break;
-            case '.jpg':
-            case '.jpeg':
-              res.setHeader('Content-Type', 'image/jpeg');
-              break;
-            case '.svg':
-              res.setHeader('Content-Type', 'image/svg+xml');
-              break;
-          }
-
-          // Set caching headers based on file type
+          
+          // Set cache headers based on file type and path
           if (ext === '.html') {
-            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            res.setHeader('Pragma', 'no-cache');
-            res.setHeader('Expires', '0');
+            res.set({
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            });
           } else if (filePath.includes('/assets/')) {
-            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            res.set({
+              'Cache-Control': 'public, max-age=31536000, immutable'
+            });
           } else {
-            res.setHeader('Cache-Control', 'public, max-age=86400');
+            res.set({
+              'Cache-Control': 'public, max-age=86400'
+            });
           }
 
-          // Security headers
-          res.setHeader('X-Content-Type-Options', 'nosniff');
+          // Ensure proper content type for JS and CSS files
+          if (ext === '.js') {
+            res.set('Content-Type', 'application/javascript');
+          } else if (ext === '.css') {
+            res.set('Content-Type', 'text/css');
+          }
+
+          // Add security headers
+          res.set({
+            'X-Content-Type-Options': 'nosniff'
+          });
         }
+      }));
+
+      // Serve assets specifically
+      app.use('/assets', express.static(path.join(publicPath, 'assets'), {
+        index: false,
+        etag: true,
+        lastModified: true,
+        dotfiles: 'ignore',
+        fallthrough: true,
+        maxAge: 31536000000 // 1 year in milliseconds
       }));
     } else {
       // In development, let Vite handle the static files
