@@ -251,7 +251,7 @@ export default function TranslationTool() {
       });
 
       // If it's an authentication error, redirect to API settings
-      if (Response?.status === 401) {
+      if (response.status === 401) {
         navigate("/settings/api");
       }
     } finally {
