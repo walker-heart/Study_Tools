@@ -1,12 +1,15 @@
-import express, { Request, Response, NextFunction, static as expressStatic, ServeStaticOptions } from 'express';
+import express, { Request, Response, NextFunction, static as expressStatic } from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
 import session from 'express-session';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import mime from 'mime-types';
 import { debug, error, info, warn } from './lib/logging';
 import { env } from './config/env';
-import { db, sql } from './db';
+import { db } from './db';
+import { sql } from 'drizzle-orm';
 import { setupVite } from './vite';
 import { registerRoutes } from './routes';
 import { createSessionConfig } from './config/session';
@@ -16,10 +19,27 @@ import { limiter } from './middleware/rateLimit';
 import { sanitizeInput } from './middleware/sanitize';
 import { sessionSecurity } from './middleware/session';
 import { cleanupSessions } from './middleware/cleanup';
+import { Server } from 'http';
+
+// Define TypedRequest interface
+interface TypedRequest extends Request {
+  session: session.Session & {
+    lastRotated?: Date;
+  };
+}
 
 const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const publicPath = path.resolve(__dirname, '../dist/public');
 const assetsPath = path.join(publicPath, 'assets');
+
+// Ensure directories exist
+[publicPath, assetsPath].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
 
 // Initialize middleware
 async function initializeMiddleware() {
@@ -103,25 +123,46 @@ async function initializeMiddleware() {
       });
 
       // Static file serving options
-      const staticOptions: ServeStaticOptions = {
+      const staticOptions = {
         index: false,
         etag: true,
         lastModified: true,
-        setHeaders: (res, filepath) => {
-          const ext = path.extname(filepath).toLowerCase();
+        setHeaders: (res: Response, filepath: string) => {
+          // Determine content type using mime-types
+          const mimeType = mime.lookup(filepath);
+          if (mimeType) {
+            const charset = mime.charset(mimeType);
+            const contentType = charset 
+              ? `${mimeType}; charset=${charset}`
+              : mimeType;
+            res.setHeader('Content-Type', contentType);
+          }
           
           // Security headers
           res.setHeader('X-Content-Type-Options', 'nosniff');
           
-          // Cache control
+          // Cache control based on file type and location
+          const ext = path.extname(filepath).toLowerCase();
           if (ext === '.html') {
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
             res.setHeader('Pragma', 'no-cache');
             res.setHeader('Expires', '0');
           } else if (filepath.includes('/assets/')) {
+            // Cache assets for 1 year
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
           } else {
+            // Cache other static files for 1 day
             res.setHeader('Cache-Control', 'public, max-age=86400');
+          }
+
+          // Log static file serving in development
+          if (env.NODE_ENV !== 'production') {
+            debug({
+              message: 'Serving static file',
+              path: filepath,
+              contentType: res.getHeader('Content-Type'),
+              cacheControl: res.getHeader('Cache-Control')
+            });
           }
         }
       };
@@ -147,7 +188,8 @@ async function initializeMiddleware() {
       });
     } else {
       // In development, use Vite's built-in static serving
-      await setupVite(app);
+      const server = createServer(app);
+      await setupVite(app, server);
     }
 
     info('Middleware initialized successfully');
@@ -412,8 +454,35 @@ async function main() {
   } catch (err) {
     error({
       message: 'Fatal error in server startup',
-      stack: err instanceof Error ? err.stack : String(err)
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+      metadata: {
+        operation: 'server_startup',
+        NODE_ENV: env.NODE_ENV,
+        port: PORT,
+        app_url: env.APP_URL,
+        public_path: publicPath,
+        assets_path: assetsPath
+      }
     });
+
+    // Log directory status
+    try {
+      const publicExists = fs.existsSync(publicPath);
+      const assetsExists = fs.existsSync(assetsPath);
+      info({
+        message: 'Directory status check',
+        public_dir_exists: publicExists,
+        assets_dir_exists: assetsExists,
+        public_path: publicPath,
+        assets_path: assetsPath
+      });
+    } catch (dirErr) {
+      error({
+        message: 'Error checking directories',
+        error: dirErr instanceof Error ? dirErr.message : String(dirErr)
+      });
+    }
 
     if (server?.listening) {
       await new Promise<void>((resolve) => server!.close(() => resolve()));
