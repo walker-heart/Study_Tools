@@ -14,7 +14,7 @@ export function sessionSecurity(req: Request, res: Response, next: NextFunction)
     const hoursSinceRotation = (now.getTime() - lastRotated.getTime()) / (1000 * 60 * 60);
     
     if (hoursSinceRotation >= 24) { // Rotate every 24 hours
-      req.session.regenerate((err) => {
+      req.session.regenerate((err: Error | null) => {
         if (err) {
           return next(err);
         }

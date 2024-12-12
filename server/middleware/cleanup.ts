@@ -1,8 +1,23 @@
 import { Request, Response, NextFunction } from 'express';
+import { SessionData } from 'express-session';
 import { debug } from '../lib/logging';
 
 const CLEANUP_INTERVAL = 15 * 60 * 1000; // 15 minutes
 let lastCleanup = Date.now();
+
+interface SessionWithCookie extends SessionData {
+  cookie: {
+    originalMaxAge: number | null;
+    expires: Date | null;
+    secure?: boolean;
+    httpOnly?: boolean;
+    domain?: string;
+    path?: string;
+    sameSite?: boolean | 'lax' | 'strict' | 'none';
+  } & {
+    maxAge?: number | null;
+  };
+}
 
 export function cleanupSessions(req: Request, _res: Response, next: NextFunction) {
   const now = Date.now();
@@ -20,8 +35,9 @@ export function cleanupSessions(req: Request, _res: Response, next: NextFunction
         }
 
         if (sessions) {
-          const expired = Object.keys(sessions).filter(sid => {
-            const session = sessions[sid];
+          const sessionsMap = sessions as { [sid: string]: SessionWithCookie };
+          const expired = Object.keys(sessionsMap).filter(sid => {
+            const session = sessionsMap[sid];
             return session && session.cookie && session.cookie.expires && 
                    new Date(session.cookie.expires) < new Date();
           });
@@ -41,7 +57,7 @@ export function cleanupSessions(req: Request, _res: Response, next: NextFunction
           debug({
             message: 'Session cleanup completed',
             expired_count: expired.length,
-            total_sessions: Object.keys(sessions).length
+            total_sessions: Object.keys(sessionsMap).length
           });
         }
       });
