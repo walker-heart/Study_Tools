@@ -36,16 +36,17 @@ passport.deserializeUser(async (id: number, done: (err: any, user?: Express.User
 
 // Get the appropriate callback URL based on the environment
 function getCallbackURL(): string {
-  // Exactly match the authorized redirect URIs from Google Cloud Console
-  const baseUrl = env.NODE_ENV === 'production'
-    ? 'https://www.wtoolsw.com'
-    : process.env.REPLIT_ENVIRONMENT
-      ? 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
-      : 'http://localhost:5000';
+  const baseUrl = env.APP_URL;
   const callbackUrl = `${baseUrl}/api/auth/google/callback`;
-  console.log('Google Auth Callback URL:', callbackUrl);
-  console.log('Environment:', env.NODE_ENV);
-  console.log('Is Replit Environment:', !!process.env.REPLIT_ENVIRONMENT);
+  info({
+    message: 'Google OAuth callback URL configured',
+    metadata: {
+      callbackUrl,
+      environment: env.NODE_ENV,
+      isReplit: !!process.env.REPLIT_ENVIRONMENT,
+      baseUrl: env.APP_URL
+    }
+  });
   return callbackUrl;
 }
 

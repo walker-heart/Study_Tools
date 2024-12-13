@@ -72,8 +72,8 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=5000 NODE_ENV=development REPLIT_ENVIRONMENT=true DEBUG=passport,express:*,server:* tsx watch --clear-screen=false server/index.ts"
-waitForPort = 5000
+args = "PORT=5001 NODE_ENV=development REPLIT_ENVIRONMENT=true DEBUG=passport,express:*,server:* tsx watch --clear-screen=false server/index.ts"
+waitForPort = 5001
 
 [[workflows.workflow]]
 name = "Type Check"

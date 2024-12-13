@@ -106,9 +106,11 @@ const corsOptions: cors.CorsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // These should exactly match the Authorized JavaScript origins in Google Cloud Console
     const allowedOrigins = [
-      'https://www.wtoolsw.com',
+      'https://wtoolsw.com',
       'http://localhost:5000',
-      'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
+      'http://localhost:5001',
+      'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev',
+      'https://www.wtoolsw.com'
     ];
     
     // Allow requests with no origin (like mobile apps, curl requests)
@@ -543,7 +545,7 @@ function isAppError(error: Error | AppError): error is AppError {
 // Main application entry point
 async function main() {
   // Server configuration
-  const PORT = process.env.PORT || 5000; // Use environment PORT or default to 5000
+  const PORT = process.env.PORT || 5001; // Use environment PORT or default to 5001
   let server: ReturnType<typeof createServer>;
   info(`Starting server on port ${PORT}`);
   
@@ -693,7 +695,15 @@ async function main() {
 async function startWithRetries(maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      info(`Starting server attempt ${attempt}/${maxRetries}`);
+      info({
+        message: `Starting server attempt ${attempt}/${maxRetries}`,
+        metadata: {
+          port: env.PORT,
+          environment: env.NODE_ENV,
+          isReplit: !!process.env.REPLIT_ENVIRONMENT
+        }
+      });
+      
       await main();
       return;
     } catch (err) {
@@ -702,19 +712,38 @@ async function startWithRetries(maxRetries = 3) {
         metadata: {
           errorMessage: err instanceof Error ? err.message : String(err),
           stack: err instanceof Error ? err.stack : undefined,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          port: env.PORT,
+          environment: env.NODE_ENV,
+          isReplit: !!process.env.REPLIT_ENVIRONMENT
         }
       });
       
       if (attempt === maxRetries) {
+        error({
+          message: 'Server failed to start after maximum retries',
+          metadata: {
+            maxRetries,
+            lastError: err instanceof Error ? err.message : String(err)
+          }
+        });
         process.exit(1);
       }
       
-      // Wait before retrying
+      info(`Waiting 2 seconds before retry ${attempt + 1}/${maxRetries}`);
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
 }
 
-// Start the server
-startWithRetries();
+// Start the server with enhanced logging
+startWithRetries().catch(err => {
+  error({
+    message: 'Fatal error starting server',
+    metadata: {
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined
+    }
+  });
+  process.exit(1);
+});
