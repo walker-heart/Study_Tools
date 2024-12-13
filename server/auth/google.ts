@@ -36,7 +36,9 @@ passport.deserializeUser(async (id: number, done: (err: any, user?: Express.User
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID!,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    callbackURL: 'https://www.wtoolsw.com/api/auth/google/callback',
+    callbackURL: process.env.NODE_ENV === 'development' 
+      ? 'http://localhost:3000/api/auth/google/callback'
+      : 'https://www.wtoolsw.com/api/auth/google/callback', // Always use www in production
     scope: ['profile', 'email'],
     proxy: true,
     passReqToCallback: true
@@ -117,8 +119,9 @@ router.get('/', (req, res, next) => {
 router.get('/callback', (req, res, next) => {
   passport.authenticate('google', (err: Error | null, user?: Express.User, info?: any) => {
     if (err) {
-      error({
+      log({
         message: 'Google OAuth callback error',
+        level: 'error',
         metadata: {
           error: err.message,
           stack: err.stack
