@@ -1,16 +1,14 @@
-import { 
-  signInWithEmailAndPassword, 
+import {
   createUserWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithPopup,
+  signInWithEmailAndPassword,
   signOut as firebaseSignOut,
+  sendPasswordResetEmail,
   onAuthStateChanged,
   type User,
-  sendPasswordResetEmail,
   type UserCredential
 } from '@firebase/auth';
-import { createUser } from './firestore';
-import { auth } from './firebase';
+import { auth } from '../firebase';
+import { createUser } from '../firestore';
 
 // Types
 export interface AuthError {
@@ -48,32 +46,8 @@ export const signUpWithEmail = async (email: string, password: string, firstName
 
 export const signInWithEmail = async (email: string, password: string): Promise<User> => {
   try {
-    const userCredential: UserCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
     return userCredential.user;
-  } catch (error: any) {
-    throw handleAuthError(error);
-  }
-};
-
-// Password Reset
-export const resetPassword = async (email: string): Promise<void> => {
-  try {
-    await sendPasswordResetEmail(auth, email);
-  } catch (error: any) {
-    throw handleAuthError(error);
-  }
-};
-
-// Google Authentication
-const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: 'select_account'
-});
-
-export const signInWithGoogle = async (): Promise<User> => {
-  try {
-    const result: UserCredential = await signInWithPopup(auth, googleProvider);
-    return result.user;
   } catch (error: any) {
     throw handleAuthError(error);
   }
@@ -83,6 +57,15 @@ export const signInWithGoogle = async (): Promise<User> => {
 export const signOut = async (): Promise<void> => {
   try {
     await firebaseSignOut(auth);
+  } catch (error: any) {
+    throw handleAuthError(error);
+  }
+};
+
+// Password Reset
+export const resetPassword = async (email: string): Promise<void> => {
+  try {
+    await sendPasswordResetEmail(auth, email);
   } catch (error: any) {
     throw handleAuthError(error);
   }
