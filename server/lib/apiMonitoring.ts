@@ -25,8 +25,11 @@ export async function logAPIUsage({
   resourceType = 'text'
 }: APIUsageLog) {
   try {
+    // Ensure userId is a number
+    const numericUserId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+    
     const insertData: InsertApiKeyUsage = {
-      userId,
+      userId: numericUserId,
       endpoint,
       tokensUsed,
       cost: cost.toString(), // Convert number to string for decimal type
