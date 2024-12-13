@@ -26,15 +26,10 @@ export async function getTheme(req: Request, res: Response) {
       return res.status(401).json({ message: "Not authenticated" });
     }
 
-    // Convert session user ID to number for database query
-    const userId = typeof req.session.user.id === 'string' 
-      ? parseInt(req.session.user.id, 10) 
-      : req.session.user.id;
-
     const result = await db
       .select({ theme: users.theme })
       .from(users)
-      .where(eq(users.id, userId));
+      .where(eq(users.id, req.session.user.id));
 
     if (!result.length) {
       console.log(`User not found for theme request: ${req.session.user.id}`);
@@ -224,10 +219,8 @@ export async function testOpenAIEndpoint(req: Request, res: Response) {
       max_tokens: 50
     });
 
-    // Ensure userId is properly typed for API usage logging
-    const userId = req.session.user.id;
     await logAPIUsage({
-      userId,
+      userId: req.session.user.id,
       endpoint: "/api/user/test-openai",
       tokensUsed: response.usage?.total_tokens || 0,
       cost: calculateTokenCost(response.usage?.total_tokens || 0),
