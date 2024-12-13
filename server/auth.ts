@@ -43,7 +43,20 @@ const SITE_URL = process.env.REPLIT_ENVIRONMENT
   : env.NODE_ENV === 'production'
     ? 'https://wtoolsw.com'
     : 'http://localhost:5000';
+
+// Set API URL based on the site URL
 const API_URL = `${SITE_URL}/api`;
+
+// Ensure these match exactly with Google Cloud Console Authorized redirect URIs
+const CALLBACK_URL = `${API_URL}/auth/google/callback`;
+
+// Debug URL configuration
+console.log('Auth Configuration:', {
+  SITE_URL,
+  API_URL,
+  NODE_ENV: env.NODE_ENV,
+  REPLIT_ENVIRONMENT: process.env.REPLIT_ENVIRONMENT
+});
 
 // Verify the environment and URL configuration
 console.log('Environment:', env.NODE_ENV);
@@ -161,10 +174,41 @@ router.get('/test-db', async (req, res) => {
 });
 
 // Middleware setup
-router.use(cors({
-  origin: [SITE_URL, 'https://www.wtoolsw.com'],
-  credentials: true
-}));
+// Configure CORS options for authentication routes
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    const allowedOrigins = [
+      SITE_URL,
+      'https://wtoolsw.com',
+      'https://www.wtoolsw.com',
+      'http://localhost:5000',
+      'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
+    ];
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || origin === 'null') {
+      callback(null, true);
+      return;
+    }
+
+    if (env.NODE_ENV === 'development' || process.env.REPLIT_ENVIRONMENT) {
+      callback(null, true);
+      return;
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`Blocked request from unauthorized origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
+router.use(cors(corsOptions));
 
 router.use(express.json());
 router.use(session({
@@ -206,7 +250,8 @@ const oauth2Client = new OAuth2Client(
 passport.use(new GoogleStrategy({
     clientID: env.GOOGLE_CLIENT_ID,
     clientSecret: env.GOOGLE_CLIENT_SECRET,
-    callbackURL: getCallbackUrl()
+    callbackURL: CALLBACK_URL,
+    proxy: true
   },
   async (accessToken: string, refreshToken: string, profile: Profile, done) => {
     try {

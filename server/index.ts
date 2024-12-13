@@ -109,8 +109,7 @@ const corsOptions: cors.CorsOptions = {
       'https://wtoolsw.com',
       'http://localhost:5000',
       'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev',
-      'https://www.wtoolsw.com',
-      'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
+      'https://www.wtoolsw.com'
     ];
     
     // Allow requests with no origin (like mobile apps, curl requests)
@@ -545,25 +544,44 @@ function isAppError(error: Error | AppError): error is AppError {
 // Main application entry point
 async function main() {
   // Server configuration
-  const PORT = process.env.PORT || 5000;
-const HOST = '0.0.0.0'; // Use port from environment configuration
-  let server: ReturnType<typeof createServer>;
-  info(`Starting server on port ${PORT}`);
+  const PORT = Number(process.env.PORT || 5000);
+  const HOST = '0.0.0.0';
+  info(`Starting server on port ${PORT} and host ${HOST}`);
+  let server: ReturnType<typeof createServer> = createServer(app);
   
   // Create the server instance
-  server = createServer(app);
-  
   try {
+    
     // Log detailed server configuration
     info({
       message: 'Server configuration',
       metadata: {
-        port: env.PORT,
+        port: PORT,
+        host: HOST,
         nodeEnv: env.NODE_ENV,
         appUrl: env.APP_URL,
         isReplit: !!process.env.REPLIT_ENVIRONMENT
       }
     });
+
+    // Test if port is already in use
+    const isPortAvailable = await new Promise((resolve) => {
+      const testServer = createServer();
+      testServer.once('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          resolve(false);
+        }
+      });
+      testServer.once('listening', () => {
+        testServer.close();
+        resolve(true);
+      });
+      testServer.listen(PORT, HOST);
+    });
+
+    if (!isPortAvailable) {
+      throw new Error(`Port ${PORT} is already in use`);
+    }
 
     // Test database connection
     await db.execute(sql`SELECT NOW()`);
@@ -609,24 +627,63 @@ const HOST = '0.0.0.0'; // Use port from environment configuration
         }
       });
 
-      // Handle server errors
+      // Handle server errors with enhanced logging
       server.on('error', (err: NodeJS.ErrnoException) => {
+        error({
+          message: 'Server error occurred',
+          metadata: {
+            code: err.code,
+            message: err.message,
+            port: PORT,
+            host: HOST,
+            stack: err.stack
+          }
+        });
+
         if (err.code === 'EADDRINUSE') {
           error({
             message: `Port ${PORT} is already in use`,
-            metadata: { port: PORT }
+            metadata: { port: PORT, host: HOST }
+          });
+        } else if (err.code === 'EACCES') {
+          error({
+            message: `Permission denied to bind to port ${PORT}`,
+            metadata: { port: PORT, host: HOST }
           });
         }
+        
         handleError(err);
+      });
+
+      // Add logging for connection events
+      server.on('listening', () => {
+        const addr = server.address();
+        info({
+          message: 'Server started successfully',
+          metadata: {
+            address: typeof addr === 'string' ? addr : addr?.address,
+            port: typeof addr === 'string' ? null : addr?.port,
+            family: typeof addr === 'string' ? null : addr?.family
+          }
+        });
       });
       
       // Attempt to start server
-      server.listen(Number(PORT), '0.0.0.0', () => {
+      server.listen(PORT, HOST, () => {
         const address = server.address();
         if (!address || typeof address !== 'object') {
           handleError(new Error('Failed to get server address'));
           return;
         }
+        
+        info({
+          message: 'Server listening',
+          metadata: {
+            port: PORT,
+            host: HOST,
+            address: address
+          }
+        });
 
         // Log successful startup
         info({

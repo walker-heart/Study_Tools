@@ -5,7 +5,17 @@ interface GoogleAuthProps {
   className?: string;
 }
 
-const GoogleIcon = () => (
+interface EnvironmentConfig {
+  development: string;
+  production: string;
+}
+
+const URLs: EnvironmentConfig = {
+  development: 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev',
+  production: 'https://wtoolsw.com'
+};
+
+const GoogleIcon: React.FC = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24">
     <path
       fill="currentColor"
@@ -26,37 +36,32 @@ const GoogleIcon = () => (
   </svg>
 );
 
-export function GoogleAuth({ className = '' }: GoogleAuthProps) {
-  const handleGoogleAuth = () => {
+export function GoogleAuth({ className = '' }: GoogleAuthProps): JSX.Element {
+  const handleGoogleAuth = React.useCallback(() => {
     try {
-      // Get the current origin, ensuring we use the proper base URL
-      const baseUrl = window.location.origin;
-      // For development on Replit, ensure we're using the correct URL
-      const devUrl = 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev';
-      const prodUrl = 'https://wtoolsw.com';
+      const env = process.env.NODE_ENV === 'production' ? 'production' : 'development';
+      const baseUrl = URLs[env];
       
-      // Always use the devUrl in development environment
-      const effectiveBaseUrl = process.env.NODE_ENV === 'production' ? prodUrl : devUrl;
+      // Generate a secure state parameter
+      const state = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
       
-      const apiUrl = `${effectiveBaseUrl}/api/auth/google`;
-      console.log('Google Auth URL:', apiUrl);
+      const apiUrl = new URL('/api/auth/google', baseUrl);
+      apiUrl.searchParams.set('state', state);
       
-      // Add state parameter for additional security
-      const state = crypto.getRandomValues(new Uint8Array(16))
-        .reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '');
-      
-      const finalUrl = `${apiUrl}?state=${state}`;
-      window.location.href = finalUrl;
+      console.log('Initiating Google Auth redirect to:', apiUrl.toString());
+      window.location.href = apiUrl.toString();
       
     } catch (error) {
       console.error('Error initiating Google auth:', error);
-      // Redirect to error page or show error message
       window.location.href = '/signin?error=auth_init_failed';
     }
-  };
+  }, []);
 
   return (
     <Button
+      type="button"
       variant="outline"
       className={`w-full h-11 px-4 bg-white dark:bg-white text-gray-700 border border-gray-300 
         hover:bg-gray-50 dark:hover:bg-gray-50 
@@ -65,6 +70,7 @@ export function GoogleAuth({ className = '' }: GoogleAuthProps) {
         transition-colors duration-200
         flex items-center justify-center gap-3 ${className}`}
       onClick={handleGoogleAuth}
+      aria-label="Sign in with Google"
     >
       <GoogleIcon />
       <span className="text-[14px] font-medium font-roboto tracking-wide">Continue with Google</span>
