@@ -109,19 +109,17 @@ export default function SignIn() {
     <div className={`container mx-auto px-4 py-8 max-w-md ${theme === 'dark' ? 'dark' : ''}`}>
       <h1 className="text-3xl font-bold text-center mb-8">Sign In</h1>
       
-      <Card className={`p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
-        {/* Google Auth Component */}
-        <div className="mb-6">
-          <GoogleAuth className="bg-white text-gray-700 dark:bg-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-600 shadow-sm hover:shadow-md transition-shadow" />
+      <Card className="p-6 bg-white">
+        <div className="mb-4">
+          <GoogleAuth />
         </div>
 
-        {/* Divider */}
-        <div className="relative my-6">
+        <div className="relative my-4">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+            <div className="w-full border-t border-gray-200"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className={`px-2 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} text-gray-500 dark:text-gray-400`}>
+            <span className="px-2 bg-white text-gray-500">
               Or continue with email
             </span>
           </div>
