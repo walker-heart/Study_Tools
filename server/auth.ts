@@ -1,14 +1,22 @@
 import express from 'express';
 import session from 'express-session';
-import { OAuth2Client } from 'google-auth-library';
 import cors from 'cors';
 import { Pool } from 'pg';
 
+// Extend express-session types
+declare module 'express-session' {
+  interface SessionData {
+    user?: {
+      id: string;
+      email: string;
+      name: string;
+      picture?: string;
+    };
+  }
+}
+
 const app = express();
 const router = express.Router();
-
-// Use production URL
-const SITE_URL = 'https://www.wtoolsw.com';
 
 // PostgreSQL connection with connection logging
 const pool = new Pool({
@@ -28,246 +36,16 @@ pool.on('connect', () => {
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected database error:', err);
+  console.error('Unexpected database error:', err instanceof Error ? err.message : String(err));
 });
 
 // Test database connection on startup
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
-    console.error('Initial database connection error:', err);
+    console.error('Initial database connection error:', err instanceof Error ? err.message : String(err));
   } else {
     console.log('Initial database connection successful at:', res.rows[0].now);
   }
-});
-
-// Enhanced test endpoint with more debugging info
-router.get('/test-db', async (req, res) => {
-  console.log('Test-db endpoint called');
-  try {
-    // Test basic connection
-    const connectionTest = await pool.query('SELECT NOW()');
-    console.log('Connection test successful:', connectionTest.rows[0].now);
-
-    // Try to create the users table if it doesn't exist
-    console.log('Attempting to create/verify users table...');
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        google_id TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        name TEXT NOT NULL,
-        picture TEXT,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        last_login TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-      );
-    `);
-    console.log('Users table created/verified successfully');
-
-    // Get count of users
-    const userCount = await pool.query('SELECT COUNT(*) FROM users');
-    console.log('Current user count:', userCount.rows[0].count);
-
-    // Test inserting a dummy user
-    try {
-      const testUser = await pool.query(`
-        INSERT INTO users (google_id, email, name, picture)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (google_id) DO NOTHING
-        RETURNING *
-      `, ['test_id', 'test@example.com', 'Test User', 'https://example.com/pic.jpg']);
-      console.log('Test user insertion result:', testUser.rows);
-    } catch (insertError) {
-      console.log('Test user already exists or insertion failed:', insertError.message);
-    }
-
-    // Return comprehensive status
-    res.json({ 
-      status: 'All database tests completed successfully',
-      connection: {
-        timestamp: connectionTest.rows[0].now,
-        pool: {
-          totalCount: pool.totalCount,
-          idleCount: pool.idleCount,
-          waitingCount: pool.waitingCount
-        }
-      },
-      database: {
-        host: process.env.PGHOST,
-        database: process.env.PGDATABASE,
-        port: process.env.PGPORT
-      },
-      users: {
-        count: parseInt(userCount.rows[0].count)
-      },
-      environment: {
-        nodeEnv: process.env.NODE_ENV,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      }
-    });
-  } catch (error) {
-    console.error('Database test error:', error);
-    res.status(500).json({ 
-      error: 'Database test failed',
-      details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-      config: {
-        host: process.env.PGHOST,
-        database: process.env.PGDATABASE,
-        port: process.env.PGPORT
-      }
-    });
-  }
-});
-
-// Middleware setup
-app.use(cors({
-  origin: SITE_URL,
-  credentials: true
-}));
-
-app.use(express.json());
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'dev-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: true,
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000,
-    sameSite: 'none',
-    domain: '.wtoolsw.com'
-  }
-}));
-
-// OAuth Setup
-const oauth2Client = new OAuth2Client(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  `${SITE_URL}/auth/google/callback`
-);
-
-// Database helper functions
-async function findOrCreateUser(userInfo: {
-  id: string;
-  email: string;
-  name: string;
-  picture: string;
-  isNewUser: boolean;
-}) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    // Check if user exists
-    const existingUser = await client.query(
-      'SELECT * FROM users WHERE google_id = $1',
-      [userInfo.id]
-    );
-
-    if (existingUser.rows.length > 0) {
-      // Update existing user
-      await client.query(
-        `UPDATE users 
-         SET name = $1, email = $2, picture = $3, last_login = NOW()
-         WHERE google_id = $4
-         RETURNING *`,
-        [userInfo.name, userInfo.email, userInfo.picture, userInfo.id]
-      );
-      await client.query('COMMIT');
-      return { ...existingUser.rows[0], isNewUser: false };
-    } else {
-      // Create new user
-      const newUser = await client.query(
-        `INSERT INTO users (
-          google_id, email, name, picture, created_at, last_login
-        ) VALUES ($1, $2, $3, $4, NOW(), NOW())
-        RETURNING *`,
-        [userInfo.id, userInfo.email, userInfo.name, userInfo.picture]
-      );
-      await client.query('COMMIT');
-      return { ...newUser.rows[0], isNewUser: true };
-    }
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
-// Auth Routes
-router.get('/google', (req, res) => {
-  const isSignUp = req.query.prompt === 'signup';
-  
-  const authUrl = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: [
-      'https://www.googleapis.com/auth/userinfo.email',
-      'https://www.googleapis.com/auth/userinfo.profile',
-      'openid'
-    ],
-    prompt: isSignUp ? 'consent select_account' : 'select_account'
-  });
-  
-  req.session.authType = isSignUp ? 'signup' : 'signin';
-  res.redirect(authUrl);
-});
-
-router.get('/google/callback', async (req, res) => {
-  try {
-    const { code } = req.query;
-    const { tokens } = await oauth2Client.getToken(code as string);
-    oauth2Client.setCredentials(tokens);
-
-    const ticket = await oauth2Client.verifyIdToken({
-      idToken: tokens.id_token!,
-      audience: process.env.GOOGLE_CLIENT_ID
-    });
-
-    const payload = ticket.getPayload();
-    if (!payload) {
-      throw new Error('No payload received from Google');
-    }
-
-    const userInfo = {
-      id: payload.sub || '',
-      email: payload.email || '',
-      name: payload.name || '',
-      picture: payload.picture || '',
-      isNewUser: req.session.authType === 'signup'
-    };
-
-    // Save or update user in database
-    const dbUser = await findOrCreateUser(userInfo);
-
-    // Store user info in session
-    req.session.user = {
-      ...dbUser,
-      id: dbUser.google_id // Use google_id as the user id
-    };
-
-    // Clear auth type from session
-    delete req.session.authType;
-
-    if (dbUser.isNewUser) {
-      res.redirect(`${SITE_URL}/welcome`);
-    } else {
-      res.redirect(SITE_URL);
-    }
-  } catch (error) {
-    console.error('OAuth callback error:', error);
-    res.redirect(`${SITE_URL}/login?error=auth_failed`);
-  }
-});
-
-router.get('/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Logout error:', err);
-      return res.status(500).json({ error: 'Failed to logout' });
-    }
-    res.redirect(SITE_URL);
-  });
 });
 
 router.get('/status', async (req, res) => {
@@ -275,7 +53,7 @@ router.get('/status', async (req, res) => {
     try {
       // Get fresh user data from database
       const result = await pool.query(
-        'SELECT * FROM users WHERE google_id = $1',
+        'SELECT * FROM users WHERE id = $1',
         [req.session.user.id]
       );
       
@@ -284,12 +62,10 @@ router.get('/status', async (req, res) => {
         res.json({ 
           authenticated: true, 
           user: {
-            id: user.google_id,
+            id: user.id,
             email: user.email,
             name: user.name,
             picture: user.picture,
-            created_at: user.created_at,
-            last_login: user.last_login
           }
         });
       } else {
@@ -299,7 +75,7 @@ router.get('/status', async (req, res) => {
         });
       }
     } catch (error) {
-      console.error('Database error:', error);
+      console.error('Database error:', error instanceof Error ? error.message : String(error));
       res.status(500).json({ error: 'Internal server error' });
     }
   } else {
@@ -307,4 +83,4 @@ router.get('/status', async (req, res) => {
   }
 });
 
-export default router; 
+export default router;
