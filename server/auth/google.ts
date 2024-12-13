@@ -36,23 +36,26 @@ passport.deserializeUser(async (id: number, done: (err: any, user?: Express.User
 
 // Get the appropriate callback URL based on the environment
 function getCallbackURL(): string {
-  const baseUrl = env.APP_URL || (
-    env.NODE_ENV === 'development' 
-      ? 'http://localhost:5000'
-      : `https://${process.env.REPL_SLUG}.repl.co`
-  );
-  return `${baseUrl}/api/auth/google/callback`;
+  // Exactly match the authorized redirect URIs from Google Cloud Console
+  const baseUrl = env.NODE_ENV === 'production'
+    ? 'https://www.wtoolsw.com'
+    : 'http://localhost:5000';
+  const callbackUrl = `${baseUrl}/api/auth/google/callback`;
+  console.log('Google Auth Callback URL:', callbackUrl);
+  return callbackUrl;
 }
 
 // Initialize Google OAuth 2.0 strategy
-const strategyOptions: StrategyOptions = {
+const strategyConfig: StrategyOptions = {
   clientID: env.GOOGLE_CLIENT_ID,
   clientSecret: env.GOOGLE_CLIENT_SECRET,
   callbackURL: getCallbackURL(),
+  passReqToCallback: false,
+  scope: ['profile', 'email']
 };
 
 passport.use(new GoogleStrategy(
-  strategyOptions,
+  strategyConfig,
   async (accessToken: string, refreshToken: string, profile: Profile, done: (error: any, user?: any) => void) => {
     try {
       const email = profile.emails?.[0]?.value;
@@ -122,13 +125,11 @@ router.get('/', (req, res, next) => {
     }
   });
 
-  const authOptions: AuthenticateOptions = {
+  passport.authenticate('google', {
     scope: ['profile', 'email'],
-    prompt: 'select_account',
     state,
-  };
-
-  passport.authenticate('google', authOptions)(req, res, next);
+    prompt: 'select_account'
+  })(req, res, next);
 });
 
 router.get('/callback', (req, res, next) => {
