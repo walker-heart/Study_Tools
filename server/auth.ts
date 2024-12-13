@@ -231,7 +231,7 @@ passport.serializeUser((user: any, done: (err: any, id?: string) => void) => {
   done(null, user.google_id);
 });
 
-passport.deserializeUser(async (id: string, done: (err: Error | null, user?: User | false) => void) => {
+passport.deserializeUser(async (id: string, done: (err: Error | null, id?: string) => void) => {
   try {
     const result = await pool.query('SELECT * FROM users WHERE google_id = $1', [id]);
     const user = result.rows[0];
@@ -427,4 +427,4 @@ router.get('/status', async (req, res) => {
   }
 });
 
-export default router; 
+export default router;
