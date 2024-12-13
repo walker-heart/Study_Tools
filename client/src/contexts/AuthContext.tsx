@@ -26,13 +26,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
+    // Initialize Firebase Auth listener
+    console.log('Setting up Firebase Auth listener...');
+    const unsubscribe = onAuthStateChanged(auth, 
+      (user) => {
+        console.log('Auth state changed:', user ? 'User logged in' : 'No user');
+        setUser(user);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Firebase Auth error:', error);
+        setLoading(false);
+      }
+    );
 
-    return () => unsubscribe();
+    // Cleanup subscription on unmount
+    return () => {
+      console.log('Cleaning up Firebase Auth listener');
+      unsubscribe();
+    };
   }, []);
+
+  // Don't render children until initial auth state is loaded
+  if (loading) {
+    return <div>Loading authentication...</div>;
+  }
 
   const signIn = async (email: string, password: string) => {
     try {
