@@ -4,18 +4,21 @@ import {
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
   onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
   type User,
   type UserCredential
 } from '@firebase/auth';
 import { auth } from './firebase';
+import { createUser } from './firestore';
 
-// Types for auth errors
+// Types
 export interface AuthError {
   code: string;
   message: string;
 }
 
-// Error handling helper
+// Error handling
 const handleAuthError = (error: any): AuthError => {
   console.error('Authentication error:', error);
   return {
@@ -25,9 +28,20 @@ const handleAuthError = (error: any): AuthError => {
 };
 
 // Email & Password Authentication
-export const signUpWithEmail = async (email: string, password: string): Promise<User> => {
+export const signUpWithEmail = async (email: string, password: string, firstName?: string, lastName?: string): Promise<User> => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    
+    // Create user document in Firestore
+    if (userCredential.user.email) {
+      await createUser({
+        email: userCredential.user.email,
+        firstName,
+        lastName,
+        createdAt: new Date()
+      });
+    }
+    
     return userCredential.user;
   } catch (error: any) {
     throw handleAuthError(error);
@@ -38,6 +52,21 @@ export const signInWithEmail = async (email: string, password: string): Promise<
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     return userCredential.user;
+  } catch (error: any) {
+    throw handleAuthError(error);
+  }
+};
+
+// Google Authentication
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
+
+export const signInWithGoogle = async (): Promise<User> => {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
   } catch (error: any) {
     throw handleAuthError(error);
   }

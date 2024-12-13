@@ -442,6 +442,7 @@ function isAppError(error: Error | AppError): error is AppError {
 // Main application entry point
 async function main() {
   const PORT = parseInt(process.env.PORT || '5000', 10);
+  const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
   let server: ReturnType<typeof createServer> | undefined;
 
   try {
@@ -569,7 +570,7 @@ async function main() {
         reject(err);
       });
 
-      server.listen(serverPort, '0.0.0.0', () => {
+      server.listen(serverPort, HOST, () => {
         const address = server!.address();
         const actualPort = typeof address === 'object' && address ? address.port : serverPort;
         
