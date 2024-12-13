@@ -48,11 +48,12 @@ pool.on('connect', () => {
 
 pool.on('error', (err) => {
   log({
-    message: 'Unexpected database error',
-    error: err instanceof Error ? err.message : String(err),
-    stack: err instanceof Error ? err.stack : undefined,
-    level: 'error'
-  });
+      message: 'Unexpected database error',
+      metadata: {
+        error: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined
+      }
+    }, 'error');
 });
 
 // Check authentication status
@@ -84,10 +85,11 @@ router.get('/check', async (req: Request, res: Response) => {
     } catch (error) {
       log({
         message: 'Database error during auth check',
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        level: 'error'
-      });
+        metadata: {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        }
+      }, 'error');
       res.status(500).json({ error: 'Internal server error' });
     }
   } else {
@@ -134,11 +136,12 @@ router.post('/signin', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to sign in';
     log({
-      message: 'Sign in error',
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      level: 'error'
-    });
+        message: 'Sign in error',
+        metadata: {
+          error: errorMessage,
+          stack: error instanceof Error ? error.stack : undefined
+        }
+      }, 'error');
     res.status(500).json({ message: 'Internal server error' });
   }
 });
@@ -182,10 +185,11 @@ router.post('/signup', async (req: Request, res: Response) => {
     const errorMessage = error instanceof Error ? error.message : 'Failed to sign up';
     log({
       message: 'Sign up error',
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
-      level: 'error'
-    });
+      metadata: {
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      }
+    }, 'error');
     res.status(500).json({ message: 'Internal server error' });
   }
 });
@@ -196,10 +200,11 @@ router.post('/signout', (req: Request, res: Response) => {
     if (err) {
       log({
         message: 'Sign out error',
-        error: err.message,
-        stack: err.stack,
-        level: 'error'
-      });
+        metadata: {
+          error: err.message,
+          stack: err.stack
+        }
+      }, 'error');
       return res.status(500).json({ message: 'Failed to sign out' });
     }
     res.json({ message: 'Signed out successfully' });

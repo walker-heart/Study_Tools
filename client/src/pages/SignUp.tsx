@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSettings } from '@/contexts/SettingsContext';
+import { signUpWithEmail } from '@/lib/auth/index';
 
 export default function SignUp() {
   const [, setLocation] = useLocation();
@@ -46,22 +47,17 @@ export default function SignUp() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
-      
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Failed to sign up');
-      }
-      
+      const { email, password, firstName, lastName } = formData;
+      await signUpWithEmail(email, password, firstName, lastName);
       setLocation('/signin');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign up');
+      if (err instanceof Error) {
+        setError(err.message);
+      } else if (typeof err === 'object' && err !== null && 'message' in err) {
+        setError(err.message as string);
+      } else {
+        setError('Failed to sign up');
+      }
     }
   };
 

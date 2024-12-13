@@ -6,21 +6,17 @@ import { getFirestore } from '@firebase/firestore';
 const isDevelopment = window.location.hostname.includes('replit.dev');
 const currentDomain = window.location.hostname;
 
-// Firebase configuration with environment-specific settings
+// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
   projectId: process.env.FIREBASE_PROJECT_ID,
-  appId: process.env.FIREBASE_APP_ID,
-  // Use the current domain for authDomain to support both environments
-  authDomain: isDevelopment
-    ? '343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
-    : 'wtoolsw.com',
-  storageBucket: `${process.env.FIREBASE_PROJECT_ID}.appspot.com`,
-  // Add messagingSenderId if you plan to use Firebase Cloud Messaging
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
 };
 
-// Initialize Firebase
+// Initialize Firebase services
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -32,11 +28,6 @@ if (isDevelopment) {
   
   // Enable detailed logging in development
   auth.useDeviceLanguage();
-  // You can enable Firebase emulators here if needed
-  // if (process.env.USE_FIREBASE_EMULATOR === 'true') {
-  //   connectAuthEmulator(auth, 'http://localhost:9099');
-  //   connectFirestoreEmulator(db, 'localhost', 8080);
-  // }
 } else {
   console.log('🚀 Running in production mode');
   console.log('📍 Current domain:', currentDomain);
