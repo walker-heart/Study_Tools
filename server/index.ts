@@ -111,7 +111,8 @@ const corsOptions: cors.CorsOptions = {
       'http://0.0.0.0:3000',
       'https://accounts.google.com',
       /^https?:\/\/accounts\.google\.com$/,
-      /^https?:\/\/.*\.wtoolsw\.com$/
+      /^https?:\/\/.*\.wtoolsw\.com$/,
+      /^https?:\/\/.*\.google\.com$/
     ];
     
     // Allow requests with no origin (like mobile apps, curl requests)

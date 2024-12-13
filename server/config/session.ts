@@ -234,17 +234,18 @@ export async function createSessionConfig(): Promise<session.SessionOptions> {
     store,
     secret: env.JWT_SECRET,
     resave: false,
-    saveUninitialized: true, // Changed to true for OAuth
+    saveUninitialized: false,
     rolling: true,
-    proxy: true, // Enable proxy support for OAuth redirects
+    proxy: true,
     cookie: {
       secure: env.NODE_ENV === 'production',
       httpOnly: true,
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      sameSite: 'none', // Required for Google OAuth
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
-      domain: env.NODE_ENV === 'production' ? '.wtoolsw.com' : undefined,
+      domain: env.NODE_ENV === 'production' ? '.wtoolsw.com' : undefined
     },
+    name: 'sid',
     name: 'sid'
   };
 }
