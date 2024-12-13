@@ -22,9 +22,13 @@ declare module 'express-session' {
 const app = express();
 const router = express.Router();
 
-// Use production URL
-const SITE_URL = 'https://www.wtoolsw.com';
-const API_URL = 'https://www.wtoolsw.com/api';
+// Use environment-specific URLs
+const SITE_URL = process.env.NODE_ENV === 'development' 
+  ? 'http://localhost:3000'
+  : 'https://www.wtoolsw.com';
+const API_URL = process.env.NODE_ENV === 'development'
+  ? 'http://localhost:3000/api'
+  : 'https://www.wtoolsw.com/api';
 
 // PostgreSQL connection with connection logging
 const pool = new Pool({

@@ -105,14 +105,13 @@ interface StaticErrorLog extends Omit<LogMessage, "level"> {
 const corsOptions: cors.CorsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, origin?: boolean | string | RegExp | (string | RegExp)[]) => void) => {
     const allowedOrigins = [
-      env.APP_URL,
+      'https://www.wtoolsw.com',
+      'https://wtoolsw.com',
       'http://localhost:3000',
       'http://0.0.0.0:3000',
       'https://accounts.google.com',
-      /^https?:\/\/[^.]+\.repl\.co$/,
-      /^https?:\/\/[^.]+\.replit\.dev$/,
-      /^https?:\/\/[^.]+\.repl\.dev$/,
-      /^https?:\/\/accounts\.google\.com$/
+      /^https?:\/\/accounts\.google\.com$/,
+      /^https?:\/\/.*\.wtoolsw\.com$/
     ];
     
     // Allow requests with no origin (like mobile apps, curl requests)

@@ -241,8 +241,9 @@ export async function createSessionConfig(): Promise<session.SessionOptions> {
       secure: env.NODE_ENV === 'production',
       httpOnly: true,
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      sameSite: 'lax', // Changed to lax for OAuth redirects
+      sameSite: 'none', // Required for Google OAuth
       path: '/',
+      domain: env.NODE_ENV === 'production' ? '.wtoolsw.com' : undefined,
     },
     name: 'sid'
   };
