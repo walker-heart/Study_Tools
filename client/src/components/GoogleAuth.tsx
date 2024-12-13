@@ -1,2 +1,1 @@
-// This file is intentionally empty as we've removed Google authentication
-export {};
+// This file should be deleted as we're removing Google authentication completely

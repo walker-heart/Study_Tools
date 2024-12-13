@@ -215,7 +215,7 @@ async function initializeMiddleware() {
     
     info(`Server initializing in ${env.NODE_ENV} mode`);
 
-    // Initialize session first
+    // Initialize session configuration
     const sessionConfig = await createSessionConfig();
     if (!sessionConfig) {
       throw new Error('Failed to create session configuration');
@@ -546,6 +546,7 @@ async function main() {
 
       server.listen(PORT, '0.0.0.0', () => {
         info(`Server is now listening on http://0.0.0.0:${PORT}`);
+        info('Server started successfully');
       });
     });
 
