@@ -8,6 +8,21 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import type { Profile } from 'passport-google-oauth20';
 import { env } from './lib/env';
 
+// Define User interface first
+interface User {
+  id?: string;
+  google_id: string;
+  email: string;
+  name?: string;
+  first_name?: string;
+  last_name?: string;
+  picture?: string;
+  is_admin?: boolean;
+  isNewUser?: boolean;
+  created_at?: Date;
+  last_login?: Date;
+}
+
 // Extend express-session types
 declare module 'express-session' {
   interface Session {
@@ -15,7 +30,7 @@ declare module 'express-session' {
     user?: {
       id: string;
       email: string;
-      isAdmin?: boolean;
+      isAdmin: boolean;
     };
   }
 }
@@ -23,10 +38,10 @@ declare module 'express-session' {
 const router = express.Router();
 
 // Use environment-specific URLs that match Google Cloud Console settings
-const SITE_URL = env.NODE_ENV === 'production'
-  ? 'https://www.wtoolsw.com'
-  : process.env.REPLIT_ENVIRONMENT 
-    ? 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
+const SITE_URL = process.env.REPLIT_ENVIRONMENT 
+  ? 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
+  : env.NODE_ENV === 'production'
+    ? 'https://wtoolsw.com'
     : 'http://localhost:5000';
 const API_URL = `${SITE_URL}/api`;
 
@@ -147,21 +162,22 @@ router.get('/test-db', async (req, res) => {
 
 // Middleware setup
 router.use(cors({
-  origin: SITE_URL,
+  origin: [SITE_URL, 'https://www.wtoolsw.com'],
   credentials: true
 }));
 
 router.use(express.json());
 router.use(session({
   secret: env.JWT_SECRET,
-  resave: false,
+  resave: true,
   saveUninitialized: false,
+  proxy: true,
   cookie: {
-    secure: env.NODE_ENV === 'production',
+    secure: true,
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000,
-    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
-    domain: env.NODE_ENV === 'production' ? '.wtoolsw.com' : undefined
+    sameSite: 'none',
+    domain: env.NODE_ENV === 'production' ? 'wtoolsw.com' : undefined
   }
 }));
 
@@ -174,29 +190,27 @@ if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
   throw new Error('Missing required Google OAuth credentials');
 }
 
+// Get the base URL for the current environment
+const getBaseUrl = () => SITE_URL;
+
+// Get consistent callback URL using the SITE_URL constant
+const getCallbackUrl = () => `${getBaseUrl()}/api/auth/google/callback`;
+
 const oauth2Client = new OAuth2Client(
   env.GOOGLE_CLIENT_ID,
   env.GOOGLE_CLIENT_SECRET,
-  `${env.APP_URL}/api/auth/google/callback`
+  getCallbackUrl()
 );
-
-// Define User type for TypeScript
-interface User {
-  id: string;
-  google_id: string;
-  email: string;
-  name: string;
-  picture?: string;
-}
 
 // Configure Google OAuth2.0 strategy
 passport.use(new GoogleStrategy({
     clientID: env.GOOGLE_CLIENT_ID,
     clientSecret: env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `${env.APP_URL}/api/auth/google/callback`
+    callbackURL: getCallbackUrl()
   },
-  async (accessToken: string, refreshToken: string, profile: Profile, done: any) => {
+  async (accessToken: string, refreshToken: string, profile: Profile, done) => {
     try {
+      console.log('Google OAuth callback received for user:', profile.emails?.[0].value);
       const userInfo = {
         id: profile.id,
         email: profile.emails?.[0].value || '',
@@ -205,26 +219,33 @@ passport.use(new GoogleStrategy({
         isNewUser: false
       };
       
+      console.log('Attempting to find or create user:', userInfo.email);
       const user = await findOrCreateUser(userInfo);
+      console.log('User processed:', user.email, 'isNewUser:', user.isNewUser);
       return done(null, user);
     } catch (error) {
+      console.error('Error in Google Strategy:', error);
       return done(error);
     }
   }
 ));
 
 // Configure passport serialization
-passport.serializeUser((user: any, done: (err: any, id?: string) => void) => {
-  done(null, user.google_id);
+passport.serializeUser((user: Express.User, done) => {
+  const userWithId = user as User;
+  done(null, userWithId.google_id);
 });
 
 passport.deserializeUser(async (id: string, done: (err: any, user?: User | false) => void) => {
   try {
-    const result = await pool.query('SELECT * FROM users WHERE google_id = $1', [id]);
+    const result = await pool.query<User>(
+      'SELECT * FROM users WHERE google_id = $1',
+      [id]
+    );
     const user = result.rows[0];
     done(null, user || false);
   } catch (err) {
-    done(err, false);
+    done(err instanceof Error ? err : new Error('Unknown error'), false);
   }
 });
 
@@ -235,42 +256,54 @@ async function findOrCreateUser(userInfo: {
   name: string;
   picture?: string;
   isNewUser: boolean;
-}) {
+}): Promise<User> {
   const client = await pool.connect();
+  console.log('Starting database operation for user:', userInfo.email);
+  
   try {
     await client.query('BEGIN');
 
     // Check if user exists
-    const existingUser = await client.query(
-      'SELECT * FROM users WHERE google_id = $1',
-      [userInfo.id]
+    const existingUser = await client.query<User>(
+      'SELECT * FROM users WHERE google_id = $1 OR email = $2',
+      [userInfo.id, userInfo.email]
     );
 
+    let result;
     if (existingUser.rows.length > 0) {
-      // Update existing user
-      await client.query(
+      console.log('Updating existing user:', userInfo.email);
+      result = await client.query<User>(
         `UPDATE users 
-         SET name = $1, email = $2, picture = $3, last_login = NOW()
-         WHERE google_id = $4
+         SET name = $1, 
+             email = $2, 
+             picture = $3, 
+             google_id = $4,
+             last_login = NOW()
+         WHERE google_id = $4 OR email = $2
          RETURNING *`,
         [userInfo.name, userInfo.email, userInfo.picture, userInfo.id]
       );
-      await client.query('COMMIT');
-      return { ...existingUser.rows[0], isNewUser: false };
     } else {
-      // Create new user
-      const newUser = await client.query(
+      console.log('Creating new user:', userInfo.email);
+      result = await client.query<User>(
         `INSERT INTO users (
           google_id, email, name, picture, created_at, last_login
-        ) VALUES ($1, $2, $3, COALESCE($4, NULL), NOW(), NOW())
+        ) VALUES ($1, $2, $3, $4, NOW(), NOW())
         RETURNING *`,
-        [userInfo.id, userInfo.email, userInfo.name, userInfo.picture || null]
+        [userInfo.id, userInfo.email, userInfo.name, userInfo.picture]
       );
-      await client.query('COMMIT');
-      return { ...newUser.rows[0], isNewUser: true };
     }
+
+    await client.query('COMMIT');
+    console.log('Database operation successful for:', userInfo.email);
+    
+    return {
+      ...result.rows[0],
+      isNewUser: existingUser.rows.length === 0
+    };
   } catch (error) {
     await client.query('ROLLBACK');
+    console.error('Database error:', error);
     throw error;
   } finally {
     client.release();
@@ -281,6 +314,17 @@ async function findOrCreateUser(userInfo: {
 router.get('/google', (req, res) => {
   const isSignUp = req.query.prompt === 'signup';
   
+  // Get the correct URL based on environment
+  const currentUrl = process.env.REPLIT_ENVIRONMENT 
+    ? 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
+    : env.NODE_ENV === 'production'
+      ? 'https://www.wtoolsw.com'
+      : 'http://localhost:5000';
+
+  // Ensure callback URL matches exactly what's registered in Google Console
+  const callbackUrl = `${currentUrl}/api/auth/google/callback`;
+  console.log('Using callback URL:', callbackUrl);
+
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: [
@@ -288,7 +332,8 @@ router.get('/google', (req, res) => {
       'https://www.googleapis.com/auth/userinfo.profile',
       'openid'
     ],
-    prompt: isSignUp ? 'consent select_account' : 'select_account'
+    prompt: isSignUp ? 'consent select_account' : 'select_account',
+    redirect_uri: callbackUrl
   });
   
   req.session.authType = isSignUp ? 'signup' : 'signin';
@@ -297,13 +342,21 @@ router.get('/google', (req, res) => {
 
 router.get('/google/callback', async (req, res) => {
   try {
+    console.log('Google callback received with code');
     const { code } = req.query;
-    const { tokens } = await oauth2Client.getToken(code as string);
+    const redirectUri = getCallbackUrl();
+
+    // Exchange code for tokens
+    const { tokens } = await oauth2Client.getToken({
+      code: code as string,
+      redirect_uri: redirectUri
+    });
     oauth2Client.setCredentials(tokens);
 
+    // Verify the ID token
     const ticket = await oauth2Client.verifyIdToken({
       idToken: tokens.id_token!,
-      audience: process.env.GOOGLE_CLIENT_ID
+      audience: env.GOOGLE_CLIENT_ID
     });
 
     const payload = ticket.getPayload();
@@ -311,50 +364,81 @@ router.get('/google/callback', async (req, res) => {
       throw new Error('No payload received from Google');
     }
 
+    console.log('Google auth payload received:', {
+      email: payload.email,
+      name: payload.name
+    });
+
+    // Create or update user in database
     const userInfo = {
       id: payload.sub || '',
       email: payload.email || '',
       name: payload.name || '',
       picture: payload.picture || '',
-      isNewUser: req.session.authType === 'signup'
+      isNewUser: false
     };
 
-    // Save or update user in database
+    console.log('Finding or creating user in database');
     const dbUser = await findOrCreateUser(userInfo);
+    console.log('User processed in database:', dbUser.email);
 
-    // Store user info in session
-    req.session.user = {
-      ...dbUser,
-      id: dbUser.google_id // Use google_id as the user id
-    };
+    // Set up session
+    if (req.session) {
+      console.log('Setting up session for user:', dbUser.email);
+      if (req.session) {
+        req.session.user = {
+          id: dbUser.google_id,
+          email: dbUser.email,
+          isAdmin: Boolean(dbUser.is_admin)
+        };
+      }
 
-    // Clear auth type from session
-    delete req.session.authType;
+      // Save session explicitly
+      req.session.save((err: Error | null) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.redirect(`${getBaseUrl()}/login?error=session_error`);
+        }
 
-    if (dbUser.isNewUser) {
-      res.redirect(`${SITE_URL}/welcome`);
+        console.log('Session saved successfully');
+        if (dbUser.isNewUser) {
+          res.redirect(`${getBaseUrl()}/welcome`);
+        } else {
+          res.redirect(getBaseUrl());
+        }
+      });
     } else {
-      res.redirect(SITE_URL);
+      throw new Error('No session available');
     }
   } catch (error) {
     console.error('OAuth callback error:', error);
-    res.redirect(`${SITE_URL}/login?error=auth_failed`);
+    res.redirect(`${getBaseUrl()}/login?error=auth_failed`);
   }
 });
 
 router.get('/logout', (req, res) => {
-  req.session.destroy((err) => {
+  req.session.destroy((err: Error | null) => {
     if (err) {
       console.error('Logout error:', err);
       return res.status(500).json({ error: 'Failed to logout' });
     }
-    res.redirect(SITE_URL);
+    const redirectUrl = getBaseUrl();
+    res.redirect(redirectUrl);
   });
 });
 
 router.get('/status', async (req, res) => {
-  if (req.session.user) {
+  console.log('Auth status check - Session:', {
+    id: req.session?.id,
+    user: req.session?.user,
+    cookie: req.session?.cookie
+  });
+  console.log('Auth status check - Headers:', req.headers);
+  console.log('Auth status check - Is authenticated:', req.isAuthenticated());
+  
+  if (req.session?.user) {
     try {
+      console.log('Checking database for user:', req.session.user.id);
       // Get fresh user data from database
       const result = await pool.query(
         'SELECT * FROM users WHERE google_id = $1',
@@ -363,6 +447,7 @@ router.get('/status', async (req, res) => {
       
       if (result.rows.length > 0) {
         const user = result.rows[0];
+        console.log('User found in database:', user.email);
         res.json({ 
           authenticated: true, 
           user: {
@@ -375,6 +460,7 @@ router.get('/status', async (req, res) => {
           }
         });
       } else {
+        console.log('User not found in database');
         // User not found in database
         req.session.destroy(() => {
           res.json({ authenticated: false });
@@ -385,8 +471,9 @@ router.get('/status', async (req, res) => {
       res.status(500).json({ error: 'Internal server error' });
     }
   } else {
+    console.log('No user in session');
     res.json({ authenticated: false });
   }
 });
 
-export default router; 
+export default router;

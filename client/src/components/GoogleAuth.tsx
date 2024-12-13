@@ -29,10 +29,17 @@ const GoogleIcon = () => (
 export function GoogleAuth({ className = '' }: GoogleAuthProps) {
   const handleGoogleAuth = () => {
     try {
-      // Handle different environments appropriately
+      // Get the current origin, ensuring we use the proper base URL
       const baseUrl = window.location.origin;
-  const apiUrl = `${baseUrl}/api/auth/google`;
-  console.log('Google Auth URL:', apiUrl);
+      // For development on Replit, ensure we're using the correct URL
+      const devUrl = 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev';
+      const prodUrl = 'https://wtoolsw.com';
+      
+      // Always use the devUrl in development environment
+      const effectiveBaseUrl = process.env.NODE_ENV === 'production' ? prodUrl : devUrl;
+      
+      const apiUrl = `${effectiveBaseUrl}/api/auth/google`;
+      console.log('Google Auth URL:', apiUrl);
       
       // Add state parameter for additional security
       const state = crypto.getRandomValues(new Uint8Array(16))

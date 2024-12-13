@@ -108,9 +108,9 @@ const corsOptions: cors.CorsOptions = {
     const allowedOrigins = [
       'https://wtoolsw.com',
       'http://localhost:5000',
-      'http://localhost:5001',
       'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev',
-      'https://www.wtoolsw.com'
+      'https://www.wtoolsw.com',
+      'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
     ];
     
     // Allow requests with no origin (like mobile apps, curl requests)
@@ -545,7 +545,8 @@ function isAppError(error: Error | AppError): error is AppError {
 // Main application entry point
 async function main() {
   // Server configuration
-  const PORT = process.env.PORT || 5001; // Use environment PORT or default to 5001
+  const PORT = process.env.PORT || 5000;
+const HOST = '0.0.0.0'; // Use port from environment configuration
   let server: ReturnType<typeof createServer>;
   info(`Starting server on port ${PORT}`);
   
@@ -553,6 +554,17 @@ async function main() {
   server = createServer(app);
   
   try {
+    // Log detailed server configuration
+    info({
+      message: 'Server configuration',
+      metadata: {
+        port: env.PORT,
+        nodeEnv: env.NODE_ENV,
+        appUrl: env.APP_URL,
+        isReplit: !!process.env.REPLIT_ENVIRONMENT
+      }
+    });
+
     // Test database connection
     await db.execute(sql`SELECT NOW()`);
     info('Database connection successful');
