@@ -30,18 +30,33 @@ const MemoryStoreSession = MemoryStore(session);
 
 // Create PostgreSQL pool with enhanced error handling and connection management
 const createPool = (): pkg.Pool => {
-  const pool = new Pool({
+  debug('Creating PostgreSQL connection pool...');
+  
+  const poolConfig = {
     connectionString: env.DATABASE_URL,
     ssl: env.NODE_ENV === 'production' 
       ? { rejectUnauthorized: false } 
-      : undefined,
-    max: env.NODE_ENV === 'production' ? 20 : 10,
+      : false,
+    max: 10,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 10000,
     allowExitOnIdle: false,
     keepAlive: true,
-    keepAliveInitialDelayMillis: 10000
+    keepAliveInitialDelayMillis: 5000,
+    application_name: 'session_store',
+    statement_timeout: 10000,
+    query_timeout: 10000
+  };
+
+  debug({
+    message: 'Pool configuration',
+    config: {
+      ...poolConfig,
+      connectionString: poolConfig.connectionString?.replace(/:[^:@]*@/, ':***@') // Hide password
+    }
   });
+
+  const pool = new Pool(poolConfig);
 
   // Add event listeners for connection issues
   pool.on('error', (err: unknown) => {
@@ -70,17 +85,42 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      await pool.query('SELECT NOW()');
-      log({
+      debug({
+        message: `Attempting database connection`,
+        attempt,
+        connection_string: env.DATABASE_URL?.replace(/:[^:@]*@/, ':***@') // Hide password
+      });
+      
+      const result = await pool.query('SELECT NOW() as current_time, current_database() as database_name, version() as pg_version');
+      
+      info({
         message: 'Database connection successful',
         attempt,
-        total_attempts: maxRetries
+        total_attempts: maxRetries,
+        database_info: {
+          current_time: result.rows[0]?.current_time,
+          database: result.rows[0]?.database_name,
+          version: result.rows[0]?.pg_version?.split(' ')[0]
+        }
       });
-      info('Database connection successful');
+      
       return true;
     } catch (error) {
       const isLastAttempt = attempt === maxRetries;
       const level: LogLevel = isLastAttempt ? 'error' : 'warn';
+      
+      // Get detailed error information
+      const pgError = error as pkg.DatabaseError;
+      const errorDetails = {
+        code: pgError.code,
+        detail: pgError.detail,
+        schema: pgError.schema,
+        table: pgError.table,
+        constraint: pgError.constraint,
+        position: pgError.position,
+        message: pgError.message
+      };
+      
       const logMessage: LogMessage = {
         message: `Database connection attempt ${attempt}/${maxRetries} failed`,
         next_retry: isLastAttempt ? null : `${backoff/1000} seconds`,
@@ -90,12 +130,23 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
         total_attempts: maxRetries,
         level,
         metadata: {
-          operation: 'db_connection_test'
+          operation: 'db_connection_test',
+          error_details: errorDetails,
+          connection_params: {
+            max_pool_size: pool.options.max,
+            idle_timeout: pool.options.idleTimeoutMillis,
+            connection_timeout: pool.options.connectionTimeoutMillis
+          }
         }
       };
+      
       log(logMessage, level);
 
       if (isLastAttempt) {
+        error({
+          message: 'All database connection attempts exhausted',
+          final_error: errorDetails
+        });
         return false;
       }
 
@@ -112,83 +163,74 @@ async function initializeSessionStore(): Promise<session.Store> {
   let pool: pkg.Pool | undefined;
 
   try {
-    pool = createPool();
+    info('Initializing session store...');
     
-    // Test database connection first
-    const isConnected = await testDatabaseConnection(pool);
-    if (!isConnected) {
-      throw new Error('Failed to establish database connection after retries');
-    }
-
-    // Initialize session store
-    const pgSession = connectPgSimple(session);
-    
-    // Create session store with enhanced error handling
-    const store = new pgSession({
-      pool,
-      tableName: 'session',
-      createTableIfMissing: true,
-      pruneSessionInterval: 60 * 15, // Prune every 15 minutes
-      // Enhanced error logging with context
-      errorLog: (err: unknown) => {
-        const poolConfig = {
-          max: 20,
-          idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 5000
-        };
-        
-        const logMessage: LogMessage = {
-          message: `Session store error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          level: 'error',
-          error_message: err instanceof Error ? err.message : String(err),
-          stack: err instanceof Error ? err.stack : undefined,
-          metadata: {
-            path: 'session-store',
-            status: 500,
-            operation: 'session_store',
-            tableName: 'session',
-            poolConfig
-          }
-        };
-        log(logMessage);
-      },
-      // Connection configuration
-      ttl: 24 * 60 * 60,
-      disableTouch: false
-    });
-
-    // Verify session store functionality with timeout
+    // Create and test PostgreSQL pool
     try {
-      await Promise.race([
-        new Promise<void>((resolve, reject) => {
-          store.get('test-session', (err) => {
-            if (err) {
-              reject(new Error(`Session store verification failed: ${err.message}`));
-            } else {
-              resolve();
-            }
+      pool = createPool();
+      info('PostgreSQL pool created');
+
+      // Simple connection test
+      const result = await pool.query('SELECT NOW()');
+      info({
+        message: 'PostgreSQL connection successful',
+        timestamp: result.rows[0]?.now
+      });
+
+      // Initialize session store with PostgreSQL
+      const pgSession = connectPgSimple(session);
+      
+      // Create session table with proper error handling
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS "session" (
+          "sid" varchar NOT NULL COLLATE "default" PRIMARY KEY,
+          "sess" json NOT NULL,
+          "expire" timestamp(6) NOT NULL
+        );
+      `);
+      
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+      `);
+      
+      info('Session table and index created/verified');
+
+      // Create and verify session store
+      const store = new pgSession({
+        pool,
+        tableName: 'session',
+        createTableIfMissing: false,
+        schemaName: 'public',
+        pruneSessionInterval: 900000, // 15 minutes
+        errorLog: (err: unknown) => {
+          error({
+            message: 'Session store error',
+            error: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined
           });
-        }),
-        new Promise<void>((_, reject) => 
-          setTimeout(() => reject(new Error('Session store verification timeout')), 5000)
-        )
-      ]);
-      
-      info('PostgreSQL session store initialized and verified');
-      return store;
-      
-    } catch (verifyError) {
-      const logMessage: LogMessage = {
-        message: `Session store verification failed: ${verifyError instanceof Error ? verifyError.message : 'Unknown error'}`,
-        stack: verifyError instanceof Error ? verifyError.stack : undefined,
-        error_message: verifyError instanceof Error ? verifyError.message : String(verifyError),
-        level: 'error' as LogLevel,
-        metadata: {
-          operation: 'session_store_verify'
         }
-      };
-      log(logMessage, 'error');
-      throw verifyError;
+      });
+
+      // Test store functionality
+      await new Promise<void>((resolve, reject) => {
+        store.get('test-session', (err) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      info('PostgreSQL session store initialized successfully');
+      return store;
+
+    } catch (dbError) {
+      error({
+        message: 'PostgreSQL session store initialization failed',
+        error: dbError instanceof Error ? dbError.message : String(dbError)
+      });
+      throw dbError;
     }
   } catch (error) {
     warn({
@@ -222,28 +264,48 @@ async function initializeSessionStore(): Promise<session.Store> {
       max: 100 // Limit maximum number of sessions
     });
 
+    // Initialize MemoryStore as fallback
+    warn('Falling back to MemoryStore for session storage');
+    const memoryStore = new MemoryStoreSession({
+      checkPeriod: 86400000, // Prune expired entries every 24h
+      max: 1000, // Limit maximum number of sessions
+      dispose: (sid: string) => {
+        info(`Removing expired session: ${sid}`);
+      }
+    });
+
     return memoryStore;
   }
 }
 
 // Export the initialization function instead of the store directly
 export async function createSessionConfig(): Promise<session.SessionOptions> {
-  const store = await initializeSessionStore();
-  
-  return {
-    store,
-    secret: env.JWT_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    rolling: true,
-    proxy: env.NODE_ENV === 'production',
-    cookie: {
-      secure: env.NODE_ENV === 'production',
-      httpOnly: true,
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      path: '/',
-    },
-    name: 'sid'
-  };
+  try {
+    const store = await initializeSessionStore();
+    
+    const config: session.SessionOptions = {
+      store,
+      secret: env.JWT_SECRET || 'your-secret-key',
+      resave: false,
+      saveUninitialized: false,
+      rolling: true,
+      proxy: env.NODE_ENV === 'production',
+      cookie: {
+        secure: env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax',
+        path: '/',
+      },
+      name: 'sid'
+    };
+
+    return config;
+  } catch (error) {
+    error({
+      message: 'Failed to create session configuration',
+      error: error instanceof Error ? error.message : String(error)
+    });
+    throw error;
+  }
 }

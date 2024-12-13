@@ -1,4 +1,8 @@
-{
+
+import admin from 'firebase-admin';
+import { env } from './env';
+
+const serviceAccount = {
   "type": "service_account",
   "project_id": "wtoolsw-503cd",
   "private_key_id": "2c52d2f1262935775666c44faee3d661c86d2070",
@@ -10,4 +14,12 @@
   "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
   "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-6i7f7%40wtoolsw-503cd.iam.gserviceaccount.com",
   "universe_domain": "googleapis.com"
-}
+};
+
+// Initialize Firebase Admin
+const app = admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+});
+
+export const auth = admin.auth(app);
+export const firestore = admin.firestore(app);
