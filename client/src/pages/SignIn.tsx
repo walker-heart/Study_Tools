@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSettings } from '@/contexts/SettingsContext';
+import { GoogleAuth } from '@/components/GoogleAuth';
 
 const GoogleIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -61,8 +62,21 @@ export default function SignIn() {
     checkAuth();
   }, [setLocation]);
 
-  const handleGoogleAuth = (type: 'signin' | 'signup') => {
-    window.location.href = `/auth/google?prompt=${type}`;
+  const handleGoogleAuth = async (type: 'signin' | 'signup') => {
+    try {
+      const response = await fetch(`/api/auth/google/init?prompt=${type}`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const { url } = await response.json();
+        window.location.href = url;
+      } else {
+        throw new Error('Failed to initialize Google auth');
+      }
+    } catch (error) {
+      console.error('Google auth error:', error);
+      setError('Failed to initialize Google authentication');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -96,22 +110,9 @@ export default function SignIn() {
       <h1 className="text-3xl font-bold text-center mb-8">Sign In</h1>
       
       <Card className={`p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
-        {/* Google Auth Buttons */}
-        <div className="flex flex-col gap-4 mb-6">
-          <button
-            onClick={() => handleGoogleAuth('signin')}
-            className="flex items-center justify-center gap-2 px-6 py-2 text-gray-700 bg-white rounded-lg shadow hover:bg-gray-50 min-w-[200px] border border-gray-300"
-          >
-            <GoogleIcon />
-            Sign in with Google
-          </button>
-          <button
-            onClick={() => handleGoogleAuth('signup')}
-            className="flex items-center justify-center gap-2 px-6 py-2 text-white bg-blue-600 rounded-lg shadow hover:bg-blue-700 min-w-[200px]"
-          >
-            <GoogleIcon />
-            Sign up with Google
-          </button>
+        {/* Google Auth Component */}
+        <div className="mb-6">
+          <GoogleAuth />
         </div>
 
         {/* Divider */}
