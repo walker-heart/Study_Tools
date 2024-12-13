@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request } from 'express';
 import { env } from '../lib/env';
 import { db } from '../db';
 import { log, info, error, warn } from '../lib/log';
@@ -36,13 +36,12 @@ passport.deserializeUser(async (id: number, done: (err: any, user?: Express.User
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID!,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    callbackURL: process.env.NODE_ENV === 'production'
-      ? 'https://www.wtoolsw.com/api/auth/google/callback'
-      : 'http://localhost:3000/api/auth/google/callback',
+    callbackURL: 'https://www.wtoolsw.com/api/auth/google/callback',
     scope: ['profile', 'email'],
-    proxy: true
+    proxy: true,
+    passReqToCallback: true
   },
-  async (accessToken: string, refreshToken: string, profile: Profile, done: (error: any, user?: any) => void) => {
+  async (req: Request, accessToken: string, refreshToken: string, profile: Profile, done: (error: any, user?: any) => void) => {
     try {
       const email = profile.emails?.[0]?.value;
       if (!email) {
@@ -86,8 +85,9 @@ passport.use(new GoogleStrategy({
       return done(null, user);
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error('Unknown error during Google authentication');
-      error({
+      log({
         message: 'Google auth error',
+        level: 'error',
         metadata: {
           error: error.message,
           stack: error.stack
@@ -124,7 +124,9 @@ router.get('/callback', (req, res, next) => {
           stack: err.stack
         }
       });
-      return res.redirect('/signin?error=auth_failed');
+      // Set content type before redirect
+      res.setHeader('Content-Type', 'text/html');
+      return res.redirect(302, '/signin?error=auth_failed');
     }
 
     if (!user) {
@@ -134,7 +136,8 @@ router.get('/callback', (req, res, next) => {
           info: info
         }
       });
-      return res.redirect('/signin?error=auth_failed');
+      res.setHeader('Content-Type', 'text/html');
+      return res.redirect(302, '/signin?error=auth_failed');
     }
 
     req.logIn(user, (err) => {
@@ -146,7 +149,8 @@ router.get('/callback', (req, res, next) => {
             stack: err.stack
           }
         });
-        return res.redirect('/signin?error=auth_failed');
+        res.setHeader('Content-Type', 'text/html');
+        return res.redirect(302, '/signin?error=auth_failed');
       }
 
       info({
@@ -156,7 +160,9 @@ router.get('/callback', (req, res, next) => {
         }
       });
       
-      return res.redirect('/dashboard');
+      // Ensure proper content type and status code for redirect
+      res.setHeader('Content-Type', 'text/html');
+      return res.redirect(302, '/dashboard');
     });
   })(req, res, next);
 });

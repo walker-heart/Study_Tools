@@ -107,14 +107,12 @@ const corsOptions: cors.CorsOptions = {
     const allowedOrigins = [
       env.APP_URL,
       'http://localhost:3000',
-      'http://localhost:5000',
-      'http://localhost:5001',
       'http://0.0.0.0:3000',
-      'http://0.0.0.0:5000',
-      'http://0.0.0.0:5001',
+      'https://accounts.google.com',
       /^https?:\/\/[^.]+\.repl\.co$/,
       /^https?:\/\/[^.]+\.replit\.dev$/,
-      /^https?:\/\/[^.]+\.repl\.dev$/
+      /^https?:\/\/[^.]+\.repl\.dev$/,
+      /^https?:\/\/accounts\.google\.com$/
     ];
     
     // Allow requests with no origin (like mobile apps, curl requests)

@@ -24,6 +24,7 @@ const router = express.Router();
 
 // Use production URL
 const SITE_URL = 'https://www.wtoolsw.com';
+const API_URL = 'https://www.wtoolsw.com/api';
 
 // PostgreSQL connection with connection logging
 const pool = new Pool({
@@ -222,7 +223,7 @@ async function findOrCreateUser(userInfo: {
   id: string;
   email: string;
   name: string;
-  picture: string;
+  picture?: string;
   isNewUser: boolean;
 }) {
   const client = await pool.connect();
@@ -251,9 +252,9 @@ async function findOrCreateUser(userInfo: {
       const newUser = await client.query(
         `INSERT INTO users (
           google_id, email, name, picture, created_at, last_login
-        ) VALUES ($1, $2, $3, $4, NOW(), NOW())
+        ) VALUES ($1, $2, $3, COALESCE($4, NULL), NOW(), NOW())
         RETURNING *`,
-        [userInfo.id, userInfo.email, userInfo.name, userInfo.picture]
+        [userInfo.id, userInfo.email, userInfo.name, userInfo.picture || null]
       );
       await client.query('COMMIT');
       return { ...newUser.rows[0], isNewUser: true };
