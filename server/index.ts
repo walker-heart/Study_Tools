@@ -559,12 +559,9 @@ async function main() {
     });
   }
 
-  const initialPort = parseInt(process.env.PORT || '3000', 10);
+  const PORT = env.PORT;
   let server: ReturnType<typeof createServer>;
-  
-  // Get an available port and create the server
-  const PORT = await getAvailablePort(initialPort);
-  info(`Attempting to start server on port ${PORT}`);
+  info(`Starting server on port ${PORT}`);
   
   // Create the server instance
   server = createServer(app);
@@ -622,12 +619,17 @@ async function main() {
           return;
         }
         
+        const serverUrl = process.env.NODE_ENV === 'production'
+          ? env.APP_URL
+          : `http://localhost:${address.port}`;
+        
         info({
           message: 'Server started successfully',
           metadata: {
             port: address.port,
             address: address.address,
-            url: `http://0.0.0.0:${address.port}`
+            url: serverUrl,
+            environment: process.env.NODE_ENV
           }
         });
         
