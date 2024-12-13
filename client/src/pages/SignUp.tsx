@@ -1,15 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { useSettings } from '@/contexts/SettingsContext';
-import { signUpWithEmail } from '@/lib/auth';
+import { useAuth } from '@/contexts/AuthContext';
+import { createUser } from '@/lib/firestore';
 
 export default function SignUp() {
   const [, setLocation] = useLocation();
   const { theme } = useSettings();
+  const { signUp, signInWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -17,39 +19,24 @@ export default function SignUp() {
     password: '',
   });
   const [error, setError] = useState('');
-
-  // Check if user is already authenticated
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('/api/auth/check', {
-          credentials: 'include',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.authenticated) {
-            setLocation('/dashboard');
-          }
-        }
-      } catch (error) {
-        // If there's an error checking auth, we stay on the signup page
-        console.error('Auth check error:', error);
-      }
-    };
-
-    checkAuth();
-  }, [setLocation]);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     try {
       const { email, password, firstName, lastName } = formData;
-      await signUpWithEmail(email, password, firstName, lastName);
-      setLocation('/signin');
+      await signUp(email, password);
+      
+      // Create user document in Firestore
+      await createUser({
+        email,
+        firstName,
+        lastName,
+        createdAt: new Date(),
+      });
+      
+      setLocation('/dashboard');
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -58,6 +45,17 @@ export default function SignUp() {
       } else {
         setError('Failed to sign up');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    try {
+      await signInWithGoogle();
+      setLocation('/dashboard');
+    } catch (err) {
+      setError('Failed to sign up with Google');
     }
   };
 
@@ -115,8 +113,11 @@ export default function SignUp() {
             <div className="text-red-500 text-sm">{error}</div>
           )}
           
-          <Button type="submit" className="w-full mb-4">
-            Sign Up with Email
+          <Button type="submit" className="w-full mb-4" disabled={loading}>
+            {loading ? 'Signing Up...' : 'Sign Up with Email'}
+          </Button>
+          <Button onClick={handleGoogleSignUp} className="w-full">
+            Sign Up with Google
           </Button>
 
           <div className="text-center">
