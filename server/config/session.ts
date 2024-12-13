@@ -234,14 +234,14 @@ export async function createSessionConfig(): Promise<session.SessionOptions> {
     store,
     secret: env.JWT_SECRET,
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true, // Changed to true for OAuth
     rolling: true,
-    proxy: env.NODE_ENV === 'production',
+    proxy: true, // Enable proxy support for OAuth redirects
     cookie: {
       secure: env.NODE_ENV === 'production',
       httpOnly: true,
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      sameSite: env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      sameSite: 'lax', // Changed to lax for OAuth redirects
       path: '/',
     },
     name: 'sid'

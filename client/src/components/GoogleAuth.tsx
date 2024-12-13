@@ -29,8 +29,23 @@ const GoogleIcon = () => (
 export function GoogleAuth({ className = '' }: GoogleAuthProps) {
   const handleGoogleAuth = async () => {
     try {
-      // Redirect to our backend's Google auth route
-      window.location.href = '/api/auth/google';
+      const response = await fetch('/api/auth/google', {
+        credentials: 'include'
+      });
+      
+      // If fetch fails, fall back to direct redirect
+      if (!response.ok) {
+        window.location.href = '/api/auth/google';
+        return;
+      }
+      
+      // Follow any redirects from the server
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        window.location.href = '/api/auth/google';
+      }
     } catch (error) {
       console.error('Google auth error:', error);
     }

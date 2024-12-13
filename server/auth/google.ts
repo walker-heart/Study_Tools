@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { env } from '../lib/env';
 import { db } from '../db';
-import { log } from '../lib/log';
+import { log, info, error, warn } from '../lib/log';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { users } from '../db/schema';
 import type { Profile } from 'passport-google-oauth20';
 import type { User } from '../types/user';
+import { eq } from 'drizzle-orm';
 
 const router = Router();
 
@@ -15,14 +16,15 @@ if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
 }
 
 // Configure passport serialization
-passport.serializeUser((user: User, done: (err: any, id?: string) => void) => {
-  done(null, user.id);
+passport.serializeUser((user: Express.User, done: (err: any, id?: number) => void) => {
+  const typedUser = user as User;
+  done(null, typedUser.id);
 });
 
-passport.deserializeUser(async (id: string, done: (err: any, user?: User | false) => void) => {
+passport.deserializeUser(async (id: number, done: (err: any, user?: Express.User | false) => void) => {
   try {
     const user = await db.query.users.findFirst({
-      where: (users, { eq }) => eq(users.id, id)
+      where: eq(users.id, id)
     });
     done(null, user || false);
   } catch (err) {
@@ -32,20 +34,23 @@ passport.deserializeUser(async (id: string, done: (err: any, user?: User | false
 
 // Initialize Google OAuth 2.0 strategy
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `${env.APP_URL}/api/auth/google/callback`,
-    scope: ['profile', 'email']
+    clientID: process.env.GOOGLE_CLIENT_ID!,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    callbackURL: process.env.NODE_ENV === 'production'
+      ? 'https://www.wtoolsw.com/api/auth/google/callback'
+      : 'http://localhost:3000/api/auth/google/callback',
+    scope: ['profile', 'email'],
+    proxy: true
   },
-  async (accessToken: string, refreshToken: string, profile: Profile, done: Function) => {
+  async (accessToken: string, refreshToken: string, profile: Profile, done: (error: any, user?: any) => void) => {
     try {
-      const email = profile.emails?.[0].value;
+      const email = profile.emails?.[0]?.value;
       if (!email) {
         return done(new Error('No email provided from Google'));
       }
 
       let user = await db.query.users.findFirst({
-        where: (users, { eq }) => eq(users.email, email)
+        where: eq(users.email, email)
       });
 
       if (!user) {
@@ -69,7 +74,7 @@ passport.use(new GoogleStrategy({
           .returning();
         user = result[0];
         
-        log.info({
+        info({
           message: 'New user created via Google OAuth',
           metadata: {
             userId: user.id,
@@ -79,28 +84,81 @@ passport.use(new GoogleStrategy({
       }
 
       return done(null, user);
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error('Unknown error during Google authentication');
-      log.error({
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error('Unknown error during Google authentication');
+      error({
         message: 'Google auth error',
+        metadata: {
+          error: error.message,
+          stack: error.stack
+        }
+      });
+      return done(error);
+    }
+  }
+));
+
+// OAuth routes with enhanced error handling
+router.get('/', (req, res, next) => {
+  // Log the authentication attempt
+  info({
+    message: 'Google OAuth authentication initiated',
+    metadata: {
+      path: req.path,
+      method: req.method
+    }
+  });
+  
+  passport.authenticate('google', {
+    scope: ['profile', 'email']
+  })(req, res, next);
+});
+
+router.get('/callback', (req, res, next) => {
+  passport.authenticate('google', (err: Error | null, user?: Express.User, info?: any) => {
+    if (err) {
+      error({
+        message: 'Google OAuth callback error',
         metadata: {
           error: err.message,
           stack: err.stack
         }
       });
-      return done(err);
+      return res.redirect('/signin?error=auth_failed');
     }
-  }
-));
 
-// OAuth routes
-router.get('/', passport.authenticate('google', {
-  scope: ['profile', 'email']
-}));
+    if (!user) {
+      warn({
+        message: 'Google OAuth authentication failed',
+        metadata: {
+          info: info
+        }
+      });
+      return res.redirect('/signin?error=auth_failed');
+    }
 
-router.get('/callback', passport.authenticate('google', {
-  successRedirect: '/dashboard',
-  failureRedirect: '/signin?error=auth_failed'
-}));
+    req.logIn(user, (err) => {
+      if (err) {
+        error({
+          message: 'Session login error',
+          metadata: {
+            error: err.message,
+            stack: err.stack
+          }
+        });
+        return res.redirect('/signin?error=auth_failed');
+      }
+
+      info({
+        message: 'Google OAuth authentication successful',
+        metadata: {
+          userId: (user as User).id
+        }
+      });
+      
+      return res.redirect('/dashboard');
+    });
+  })(req, res, next);
+});
 
 export default router;

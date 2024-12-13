@@ -561,7 +561,7 @@ async function main() {
     });
   }
 
-  const initialPort = parseInt(process.env.PORT || '5000', 10);
+  const initialPort = parseInt(process.env.PORT || '3000', 10);
   let server: ReturnType<typeof createServer>;
   
   // Get an available port and create the server
@@ -591,7 +591,7 @@ async function main() {
     // Create HTTP server
     server = createServer(app);
     
-    // Start the server with enhanced error handling
+    // Start the server with enhanced error handling and logging
     await new Promise<void>((resolve, reject) => {
       const handleError = (err: NodeJS.ErrnoException) => {
         error({
@@ -605,6 +605,15 @@ async function main() {
         });
         reject(err);
       };
+
+      info({
+        message: 'Attempting to start server',
+        metadata: {
+          port: PORT,
+          environment: env.NODE_ENV,
+          nodeVersion: process.version
+        }
+      });
 
       server.on('error', handleError);
       
