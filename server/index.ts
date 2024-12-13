@@ -214,12 +214,15 @@ async function initializeMiddleware() {
     
     info(`Server initializing in ${env.NODE_ENV} mode`);
 
-    // Initialize session configuration
+    // Initialize PostgreSQL session configuration
     const sessionConfig = await createSessionConfig();
     if (!sessionConfig) {
       throw new Error('Failed to create session configuration');
     }
+    
+    // Configure session middleware with PostgreSQL store
     app.use(session(sessionConfig));
+    info('Session middleware configured with PostgreSQL store');
     
     // Add session cleanup middleware
     app.use(cleanupSessions);
@@ -475,24 +478,47 @@ async function main() {
   let server: ReturnType<typeof createServer> | undefined;
 
   try {
+    // Log environment and configuration
+    info({
+      message: 'Starting server initialization',
+      env: env.NODE_ENV,
+      port: PORT,
+      database_url_exists: !!env.DATABASE_URL,
+      app_url: env.APP_URL
+    });
+
     // Test database connection with retry mechanism
     let retries = 5;
     let backoff = 1000; // Start with 1 second
 
+    info('Attempting database connection...');
     while (retries > 0) {
       try {
-        await db.execute(sql`SELECT NOW()`);
-        info('Database connection successful');
+        const result = await db.execute(sql`SELECT NOW()`);
+        info({
+          message: 'Database connection successful',
+          timestamp: result.rows[0]?.now,
+          attempt: 6 - retries
+        });
         break;
       } catch (err) {
         retries--;
-        if (retries === 0) {
-          throw new Error('Failed to connect to database after multiple attempts');
-        }
+        const errorMessage = err instanceof Error ? err.message : String(err);
         warn({
-          message: `Database connection failed, retrying in ${backoff/1000} seconds...`,
-          error_message: err instanceof Error ? err.message : String(err)
+          message: `Database connection attempt failed`,
+          attempt: 6 - retries,
+          remaining_attempts: retries,
+          error: errorMessage,
+          backoff_seconds: backoff/1000
         });
+        
+        if (retries === 0) {
+          error({
+            message: 'All database connection attempts failed',
+            final_error: errorMessage
+          });
+          throw new Error(`Failed to connect to database after multiple attempts: ${errorMessage}`);
+        }
         
         await new Promise(resolve => setTimeout(resolve, backoff));
         backoff *= 2; // Exponential backoff
@@ -515,37 +541,37 @@ async function main() {
     server = createServer(app);
     info('HTTP server created');
 
-    // Start server
+    // Start server with fixed port
     await new Promise<void>((resolve, reject) => {
       if (!server) {
         reject(new Error('Server initialization failed'));
         return;
       }
 
+      // Always use port 5000 in production for consistency
+      const serverPort = 5000;
+      
+      info(`Attempting to start server on port ${serverPort}`);
+      
       server.on('error', (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE') {
-          // Try the next available port
-          warn(`Port ${PORT} is in use, trying ${PORT + 1}`);
-          if (server) {
-            server.listen(PORT + 1, '0.0.0.0');
-          } else {
-            reject(new Error('Server is not initialized'));
-          }
-        } else {
-          error(`Server error: ${err.message}`);
-          reject(err);
-        }
+        error({
+          message: 'Server startup error',
+          error: err.message,
+          code: err.code,
+          port: serverPort
+        });
+        reject(err);
       });
 
-      server.on('listening', () => {
-        info(`Server running in ${env.NODE_ENV} mode on port ${PORT}`);
+      server.listen(serverPort, '0.0.0.0', () => {
+        const address = server!.address();
+        const actualPort = typeof address === 'object' && address ? address.port : serverPort;
+        
+        info(`Server running in ${env.NODE_ENV} mode on port ${actualPort}`);
         info(`APP_URL: ${env.APP_URL}`);
-        resolve();
-      });
-
-      server.listen(PORT, '0.0.0.0', () => {
-        info(`Server is now listening on http://0.0.0.0:${PORT}`);
+        info(`Server is now listening on http://0.0.0.0:${actualPort}`);
         info('Server started successfully');
+        resolve();
       });
     });
 
