@@ -3,6 +3,9 @@ import session from 'express-session';
 import { OAuth2Client } from 'google-auth-library';
 import cors from 'cors';
 import { Pool } from 'pg';
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import type { Profile } from 'passport-google-oauth20';
 
 // Extend express-session types
 declare module 'express-session' {
@@ -152,11 +155,67 @@ app.use(session({
 }));
 
 // OAuth Setup
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  throw new Error('Missing required Google OAuth credentials');
+}
+
 const oauth2Client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
   `${SITE_URL}/auth/google/callback`
 );
+
+// Define User type for TypeScript
+interface User {
+  id: string;
+  google_id: string;
+  email: string;
+  name: string;
+  picture?: string;
+}
+
+// Initialize passport and session handling
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Configure Google OAuth2.0 strategy
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID!,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    callbackURL: `${SITE_URL}/auth/google/callback`
+  },
+  async (accessToken: string, refreshToken: string, profile: Profile, done: any) => {
+    try {
+      const userInfo = {
+        id: profile.id,
+        email: profile.emails?.[0].value || '',
+        name: profile.displayName,
+        picture: profile.photos?.[0].value,
+        isNewUser: false
+      };
+      
+      const user = await findOrCreateUser(userInfo);
+      return done(null, user);
+    } catch (error) {
+      return done(error);
+    }
+  }
+));
+
+// Configure passport serialization
+passport.serializeUser((user: any, done: (err: any, id?: string) => void) => {
+  done(null, user.google_id);
+});
+
+passport.deserializeUser(async (id: string, done: (err: any, user?: User | false) => void) => {
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE google_id = $1', [id]);
+    const user = result.rows[0];
+    done(null, user || false);
+  } catch (err) {
+    done(err, false);
+  }
+});
 
 // Database helper functions
 async function findOrCreateUser(userInfo: {

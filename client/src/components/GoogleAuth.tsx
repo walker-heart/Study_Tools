@@ -29,17 +29,8 @@ const GoogleIcon = () => (
 export function GoogleAuth({ className = '' }: GoogleAuthProps) {
   const handleGoogleAuth = async () => {
     try {
-      const response = await fetch('/api/auth/google/init', {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to initialize Google authentication');
-        return;
-      }
-      
-      const { url } = await response.json();
-      window.location.href = url;
+      // Redirect to our backend's Google auth route
+      window.location.href = '/api/auth/google';
     } catch (error) {
       console.error('Google auth error:', error);
     }
@@ -48,11 +39,16 @@ export function GoogleAuth({ className = '' }: GoogleAuthProps) {
   return (
     <Button
       variant="outline"
-      className={`w-full h-10 bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-2 ${className}`}
+      className={`w-full h-11 px-4 bg-white dark:bg-white text-gray-700 border border-gray-300 
+        hover:bg-gray-50 dark:hover:bg-gray-50 
+        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+        disabled:opacity-50 disabled:cursor-not-allowed
+        transition-colors duration-200
+        flex items-center justify-center gap-3 ${className}`}
       onClick={handleGoogleAuth}
     >
       <GoogleIcon />
-      <span className="text-sm font-roboto">Sign in with Google</span>
+      <span className="text-[14px] font-medium font-roboto tracking-wide">Continue with Google</span>
     </Button>
   );
 }

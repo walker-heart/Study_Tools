@@ -9,10 +9,14 @@ import { Profile } from 'passport-google-oauth20';
 
 const router = Router();
 
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  throw new Error('Missing required Google OAuth credentials');
+}
+
 // Initialize Google OAuth 2.0 strategy
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID!,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: `${env.APP_URL}/api/auth/google/callback`,
     scope: ['profile', 'email']
   },
