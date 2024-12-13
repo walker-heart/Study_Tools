@@ -167,7 +167,7 @@ export function sessionSecurity(req: Request, res: Response, next: NextFunction)
   // Check for session fixation on authenticated routes
   if (req.session.user) {
     const currentSessionID = req.sessionID;
-    const originalID = req.session.originalID;
+    const originalID = req.session.user?.id;
     
     if (originalID && currentSessionID !== originalID) {
       log({
