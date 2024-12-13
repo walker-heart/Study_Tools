@@ -7,7 +7,7 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
   APP_URL: z.string().default(
     process.env.NODE_ENV === 'production'
-      ? 'https://www.wtoolsw.com'
+      ? 'https://wtoolsw.com'
       : process.env.REPLIT_ENVIRONMENT
         ? 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
         : 'http://localhost:5000'
@@ -20,7 +20,7 @@ const envSchema = z.object({
         : 'localhost:5000'
   ),
   PORT: z.string()
-    .default("5000")
+    .default(process.env.PORT || "5001")
     .transform(val => parseInt(val, 10)),
   NODE_ENV: z.enum(['development', 'production']).default('development'),
 });

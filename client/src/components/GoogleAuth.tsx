@@ -29,12 +29,10 @@ const GoogleIcon = () => (
 export function GoogleAuth({ className = '' }: GoogleAuthProps) {
   const handleGoogleAuth = () => {
     try {
-      // In development, always use localhost:5000
-      const baseUrl = import.meta.env.DEV
-        ? 'http://localhost:5000'
-        : window.location.origin;
-      
-      const apiUrl = `${baseUrl}/api/auth/google`;
+      // Handle different environments appropriately
+      const baseUrl = window.location.origin;
+  const apiUrl = `${baseUrl}/api/auth/google`;
+  console.log('Google Auth URL:', apiUrl);
       
       // Add state parameter for additional security
       const state = crypto.getRandomValues(new Uint8Array(16))
