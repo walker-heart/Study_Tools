@@ -101,54 +101,7 @@ interface StaticErrorLog extends Omit<LogMessage, "level"> {
 
 // Configure CORS options
 const corsOptions: cors.CorsOptions = {
-  origin: (origin: string | undefined, callback: (err: Error | null, origin?: boolean | string | RegExp | (string | RegExp)[]) => void) => {
-    const allowedOrigins = [
-      env.APP_URL,
-      'http://localhost:3000',
-      'http://localhost:5000',
-      'http://0.0.0.0:3000',
-      'http://0.0.0.0:5000',
-      // Allow all subdomains of repl.co and replit.dev
-      /^https?:\/\/[^.]+\.repl\.co$/,
-      /^https?:\/\/[^.]+\.replit\.dev$/
-    ];
-    
-    // Allow requests with no origin (like mobile apps, curl requests, or same-origin)
-    if (!origin || origin === 'null') {
-      callback(null, true);
-      return;
-    }
-
-    // Allow all origins in development
-    if (env.NODE_ENV === 'development') {
-      callback(null, true);
-      return;
-    }
-
-    // Allow access to static assets from any origin
-    if (/\.(js|css|png|jpg|jpeg|gif|ico|svg)$/.test(origin)) {
-      callback(null, true);
-      return;
-    }
-
-    // Check against allowed origins in production
-    const isAllowed = allowedOrigins.some(allowed => 
-      typeof allowed === 'string' 
-        ? allowed === origin 
-        : allowed.test(origin)
-    );
-
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      warn({
-        message: 'CORS blocked origin',
-        origin,
-        allowedOrigins: allowedOrigins.map(o => o.toString())
-      });
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins in development
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
@@ -203,13 +156,7 @@ async function initializeMiddleware() {
     // Environment-specific settings
     if (env.NODE_ENV === 'production') {
       console.log('Configuring production settings...');
-      // Configure trust proxy for Replit's environment
-      app.set('trust proxy', (ip: string) => {
-        return ip === '127.0.0.1' || 
-               ip.startsWith('10.') || 
-               ip.startsWith('172.16.') || 
-               ip.startsWith('192.168.');
-      });
+      app.set('trust proxy', 1);
     } else {
       console.log('Configuring development settings...');
       app.set('json spaces', 2);
@@ -218,34 +165,34 @@ async function initializeMiddleware() {
     
     console.log(`Server initializing in ${env.NODE_ENV} mode`);
 
-    // Initialize PostgreSQL session configuration
+    // Basic middleware
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
+    app.use(cors({
+      origin: true,
+      credentials: true
+    }));
+
+    // Initialize session configuration
     console.log('Initializing session configuration...');
-    let sessionConfig;
-    try {
-      sessionConfig = await createSessionConfig();
-      if (!sessionConfig) {
-        throw new Error('Session configuration is undefined');
+    const sessionConfig = await createSessionConfig();
+    if (!sessionConfig) {
+      throw new Error('Session configuration is undefined');
+    }
+
+    // Configure session middleware
+    console.log('Setting up session middleware...');
+    app.use(session({
+      ...sessionConfig,
+      cookie: {
+        ...sessionConfig.cookie,
+        secure: env.NODE_ENV === 'production'
       }
-      console.log('Session configuration created successfully');
-    } catch (configError) {
-      console.error('Failed to create session configuration:', configError);
-      throw new Error(`Session configuration failed: ${configError instanceof Error ? configError.message : String(configError)}`);
-    }
-    
-    // Configure session middleware with PostgreSQL store
-    try {
-      console.log('Setting up session middleware...');
-      app.use(session(sessionConfig));
-      console.log('Session middleware configured successfully');
-      
-      // Add session cleanup middleware
-      console.log('Adding session cleanup middleware...');
-      app.use(cleanupSessions);
-      console.log('Session cleanup middleware added successfully');
-    } catch (sessionError) {
-      console.error('Session middleware initialization failed:', sessionError);
-      throw new Error(`Session middleware failed: ${sessionError instanceof Error ? sessionError.message : String(sessionError)}`);
-    }
+    }));
+
+    // Add session cleanup middleware
+    app.use(cleanupSessions);
+    console.log('Session middleware configured successfully');
 
     // Apply basic security headers
     app.use(securityHeaders);
