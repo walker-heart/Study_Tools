@@ -5,8 +5,8 @@ import { auth, firestore } from '../lib/firebase-admin';
 // Initialize router
 const router = Router();
 
-// Export auth check functions
-export const checkAdmin = async (req: Request, res: Response) => {
+// Auth check functions
+const checkAdmin = async (req: Request, res: Response) => {
   try {
     if (!req.headers.authorization?.startsWith('Bearer ')) {
       return res.status(401).json({ message: "Invalid authorization header format" });
@@ -35,7 +35,7 @@ export const checkAdmin = async (req: Request, res: Response) => {
 };
 
 // Verify Firebase token middleware
-export const verifyFirebaseToken = async (req: Request, res: Response, next: Function) => {
+const verifyFirebaseToken = async (req: Request, res: Response, next: Function) => {
   try {
     if (!req.headers.authorization?.startsWith('Bearer ')) {
       return res.status(401).json({ message: "Invalid authorization header format" });
@@ -83,8 +83,6 @@ const checkAuth = async (req: Request, res: Response) => {
 router.get('/check', checkAuth);
 router.get('/check-admin', checkAdmin);
 
-// Export auth middleware
-export { verifyFirebaseToken };
-
-// Export router
+// Export router and middleware
+export { verifyFirebaseToken, checkAdmin };
 export default router;

@@ -13,7 +13,7 @@ import {
   type QuerySnapshot,
   type DocumentSnapshot
 } from '@firebase/firestore';
-import { app } from './config';
+import { app } from './firebase';
 
 // Initialize Firestore
 export const db = getFirestore(app);
