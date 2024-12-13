@@ -103,16 +103,11 @@ interface StaticErrorLog extends Omit<LogMessage, "level"> {
 
 // Configure CORS options
 const corsOptions: cors.CorsOptions = {
-  origin: (origin: string | undefined, callback: (err: Error | null, origin?: boolean | string | RegExp | (string | RegExp)[]) => void) => {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // These should exactly match the Authorized JavaScript origins in Google Cloud Console
     const allowedOrigins = [
       'https://www.wtoolsw.com',
-      'https://wtoolsw.com',
-      'http://localhost:3000',
-      'http://0.0.0.0:3000',
-      'https://accounts.google.com',
-      /^https?:\/\/accounts\.google\.com$/,
-      /^https?:\/\/.*\.wtoolsw\.com$/,
-      /^https?:\/\/.*\.google\.com$/
+      'http://localhost:5000'
     ];
     
     // Allow requests with no origin (like mobile apps, curl requests)
@@ -134,11 +129,7 @@ const corsOptions: cors.CorsOptions = {
     }
 
     // Check if the origin is in our allowed list
-    const isAllowed = allowedOrigins.some(allowed => 
-      typeof allowed === 'string' 
-        ? allowed === origin 
-        : allowed.test(origin)
-    );
+    const isAllowed = allowedOrigins.some(allowed => allowed === origin);
 
     if (isAllowed) {
       callback(null, true);
@@ -530,36 +521,8 @@ function isAppError(error: Error | AppError): error is AppError {
 
 // Main application entry point
 async function main() {
-  // Find an available port starting from the specified port
-  async function getAvailablePort(startPort: number): Promise<number> {
-    const net = await import('net');
-    return new Promise((resolve, reject) => {
-      const server = net.createServer();
-      server.unref();
-      
-      server.on('error', (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE') {
-          server.close();
-          resolve(getAvailablePort(startPort + 1));
-        } else {
-          reject(err);
-        }
-      });
-
-      server.listen(startPort, '0.0.0.0', () => {
-        const address = server.address();
-        server.close(() => {
-          if (address && typeof address === 'object') {
-            resolve(address.port);
-          } else {
-            resolve(startPort);
-          }
-        });
-      });
-    });
-  }
-
-  const PORT = env.PORT;
+  // Server configuration
+  const PORT = 5000; // Fixed port for consistency with Google OAuth
   let server: ReturnType<typeof createServer>;
   info(`Starting server on port ${PORT}`);
   

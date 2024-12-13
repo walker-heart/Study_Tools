@@ -28,16 +28,25 @@ const GoogleIcon = () => (
 
 export function GoogleAuth({ className = '' }: GoogleAuthProps) {
   const handleGoogleAuth = () => {
-    // Use the correct API endpoint for Google OAuth
-    const apiUrl = import.meta.env.DEV 
-      ? 'http://localhost:5000/api/auth/google'
-      : `${window.location.origin}/api/auth/google`;
-    
-    // For development, ensure we're using port 5000
-    if (import.meta.env.DEV && window.location.port !== '5000') {
-      window.location.href = `http://localhost:5000/api/auth/google`;
-    } else {
-      window.location.href = apiUrl;
+    try {
+      // In development, always use localhost:5000
+      const baseUrl = import.meta.env.DEV
+        ? 'http://localhost:5000'
+        : window.location.origin;
+      
+      const apiUrl = `${baseUrl}/api/auth/google`;
+      
+      // Add state parameter for additional security
+      const state = crypto.getRandomValues(new Uint8Array(16))
+        .reduce((str, byte) => str + byte.toString(16).padStart(2, '0'), '');
+      
+      const finalUrl = `${apiUrl}?state=${state}`;
+      window.location.href = finalUrl;
+      
+    } catch (error) {
+      console.error('Error initiating Google auth:', error);
+      // Redirect to error page or show error message
+      window.location.href = '/signin?error=auth_init_failed';
     }
   };
 

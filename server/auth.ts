@@ -22,9 +22,16 @@ declare module 'express-session' {
 
 const router = express.Router();
 
-// Use environment-specific URLs from env configuration
-const SITE_URL = env.APP_URL;
-const API_URL = `${env.APP_URL}/api`;
+// Use environment-specific URLs that match Google Cloud Console settings
+const SITE_URL = env.NODE_ENV === 'production'
+  ? 'https://www.wtoolsw.com'
+  : 'http://localhost:5000';
+const API_URL = `${SITE_URL}/api`;
+
+// Verify the environment and URL configuration
+console.log('Environment:', env.NODE_ENV);
+console.log('Site URL:', SITE_URL);
+console.log('API URL:', API_URL);
 
 // PostgreSQL connection with connection logging
 const pool = new Pool({
