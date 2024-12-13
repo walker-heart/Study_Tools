@@ -28,8 +28,8 @@ const GoogleIcon = () => (
 
 export function GoogleAuth({ className = '' }: GoogleAuthProps) {
   const handleGoogleAuth = () => {
-    // Direct redirect to Google OAuth endpoint
-    window.location.href = '/api/auth/google';
+    // Redirect to our Google OAuth endpoint
+    window.location.href = `${window.location.origin}/api/auth/google`;
   };
 
   return (
