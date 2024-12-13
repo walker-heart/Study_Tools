@@ -111,8 +111,8 @@ export default function SignIn() {
       
       <Card className={`p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
         {/* Google Auth Component */}
-        <div className="mb-6 flex flex-col items-center">
-          <GoogleAuth />
+        <div className="mb-6">
+          <GoogleAuth className="bg-white text-gray-700 dark:bg-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-600 shadow-sm hover:shadow-md transition-shadow" />
         </div>
 
         {/* Divider */}

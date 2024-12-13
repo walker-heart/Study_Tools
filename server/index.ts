@@ -108,30 +108,25 @@ const corsOptions: cors.CorsOptions = {
       'http://localhost:5000',
       'http://0.0.0.0:3000',
       'http://0.0.0.0:5000',
-      // Allow all subdomains of repl.co and replit.dev
       /^https?:\/\/[^.]+\.repl\.co$/,
       /^https?:\/\/[^.]+\.replit\.dev$/
     ];
     
-    // Allow requests with no origin (like mobile apps, curl requests, or same-origin)
     if (!origin || origin === 'null') {
       callback(null, true);
       return;
     }
 
-    // Allow all origins in development
     if (env.NODE_ENV === 'development') {
       callback(null, true);
       return;
     }
 
-    // Allow access to static assets from any origin
     if (/\.(js|css|png|jpg|jpeg|gif|ico|svg)$/.test(origin)) {
       callback(null, true);
       return;
     }
 
-    // Check against allowed origins in production
     const isAllowed = allowedOrigins.some(allowed => 
       typeof allowed === 'string' 
         ? allowed === origin 
@@ -474,7 +469,7 @@ async function main() {
   // Get available port, starting from PORT env var or 5000
   async function getAvailablePort(startPort: number): Promise<number> {
     const net = await import('net');
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const server = net.createServer();
       server.unref();
       server.on('error', () => {
@@ -487,19 +482,15 @@ async function main() {
       });
     });
   }
-  
-  const PORT = await getAvailablePort(parseInt(process.env.PORT || '5000', 10));
-  let server: ReturnType<typeof createServer> | undefined;
+
+  const initialPort = parseInt(process.env.PORT || '5000', 10);
+  const PORT = await getAvailablePort(initialPort);
+  let server: ReturnType<typeof createServer>;
 
   try {
-    // Test database connection before starting server
-    try {
-      await db.execute(sql`SELECT NOW()`);
-      info('Database connection successful');
-    } catch (err) {
-      error('Failed to connect to database');
-      throw err;
-    }
+    // Test database connection
+    await db.execute(sql`SELECT NOW()`);
+    info('Database connection successful');
 
     // Initialize middleware
     await initializeMiddleware();
@@ -513,101 +504,82 @@ async function main() {
     setupErrorHandlers();
     info('Error handlers configured');
 
-    // Create HTTP server
+    // Create and start HTTP server
     server = createServer(app);
-    info('HTTP server created');
-
-    // Start server
+    
     await new Promise<void>((resolve, reject) => {
-      if (!server) {
-        reject(new Error('Server initialization failed'));
-        return;
-      }
-
-      server.on('error', (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE') {
-          warn(`Port ${PORT} is in use`);
-          reject(err);
-        } else {
-          error(`Server error: ${err.message}`);
-          reject(err);
-        }
+      server.on('error', (err: Error) => {
+        const errorLog: Omit<LogMessage, "level"> = {
+          message: 'Server startup error',
+          metadata: {
+            errorMessage: err.message,
+            port: PORT
+          }
+        };
+        error(errorLog);
+        reject(err);
       });
 
-      server.on('listening', () => {
-        const addr = server.address();
-        const actualPort = typeof addr === 'object' && addr ? addr.port : PORT;
-        info(`Server running in ${env.NODE_ENV} mode on port ${actualPort}`);
-        info(`APP_URL: ${env.APP_URL}`);
-        info(`Server is now listening on http://0.0.0.0:${actualPort}`);
+      server.listen(PORT, '0.0.0.0', () => {
+        const address = server.address();
+        const actualPort = typeof address === 'object' && address ? address.port : PORT;
+        info(`Server running on http://0.0.0.0:${actualPort}`);
         resolve();
       });
-
-      server.listen(PORT, '0.0.0.0');
     });
 
   } catch (err) {
-    const errorLog: LogMessage = {
+    const errorLog: Omit<LogMessage, "level"> = {
       message: 'Fatal error in server startup',
       metadata: {
-        error: err instanceof Error ? err.message : String(err),
+        errorMessage: err instanceof Error ? err.message : String(err),
         stack: err instanceof Error ? err.stack : undefined,
         timestamp: new Date().toISOString()
       }
     };
     error(errorLog);
 
+    // Safely handle server cleanup
     if (server?.listening) {
       info('Closing server due to startup error');
       await new Promise<void>((resolve) => {
-        server!.close(() => {
+        server.close(() => {
           info('Server closed');
           resolve();
         });
       });
     }
-    
-    process.exit(1);
+
+    throw err;
   }
-
-  // Handle process signals
-  process.on('SIGTERM', () => {
-    info('SIGTERM received, shutting down');
-    server?.close(() => process.exit(0));
-  });
-
-  process.on('SIGINT', () => {
-    info('SIGINT received, shutting down');
-    server?.close(() => process.exit(0));
-  });
 }
 
 // Start server with retries
-  async function startWithRetries(maxRetries = 3) {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        info(`Starting server attempt ${attempt}/${maxRetries}`);
-        await main();
-        return;
-      } catch (err) {
-        error({
-          message: `Server start attempt ${attempt} failed`,
-          metadata: {
-            error: err instanceof Error ? err.message : String(err),
-            stack: err instanceof Error ? err.stack : undefined,
-            timestamp: new Date().toISOString()
-          }
-        });
-        
-        if (attempt === maxRetries) {
-          process.exit(1);
+async function startWithRetries(maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      info(`Starting server attempt ${attempt}/${maxRetries}`);
+      await main();
+      return;
+    } catch (err) {
+      error({
+        message: `Server start attempt ${attempt} failed`,
+        metadata: {
+          errorMessage: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+          timestamp: new Date().toISOString()
         }
-        
-        // Wait before retrying
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      });
+      
+      if (attempt === maxRetries) {
+        process.exit(1);
       }
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
+}
 
-  // Start the server
-  startWithRetries();
+// Start the server
+startWithRetries();
