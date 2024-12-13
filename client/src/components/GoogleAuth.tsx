@@ -127,20 +127,20 @@ export function GoogleAuth() {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 w-full max-w-sm mx-auto">
       <button
         onClick={() => handleAuth('signin')}
-        className="flex items-center justify-center gap-2 px-6 py-2 text-gray-700 bg-white rounded-lg shadow hover:bg-gray-50 min-w-[200px]"
+        className="flex items-center justify-center gap-2 px-6 py-3 text-gray-700 bg-white rounded-lg shadow-md hover:bg-gray-50 min-w-[240px] border border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700 transition-colors"
       >
         <GoogleIcon />
-        Sign in with Google
+        <span>Sign in with Google</span>
       </button>
       <button
         onClick={() => handleAuth('signup')}
-        className="flex items-center justify-center gap-2 px-6 py-2 text-white bg-blue-600 rounded-lg shadow hover:bg-blue-700 min-w-[200px]"
+        className="flex items-center justify-center gap-2 px-6 py-3 text-white bg-blue-600 rounded-lg shadow-md hover:bg-blue-700 min-w-[240px] border border-transparent dark:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
       >
         <GoogleIcon />
-        Sign up with Google
+        <span>Sign up with Google</span>
       </button>
     </div>
   );

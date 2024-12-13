@@ -34,21 +34,28 @@ passport.use(new GoogleStrategy({
         const [firstName, ...lastNameParts] = displayName.split(' ');
         const lastName = lastNameParts.join(' ') || firstName;
         
-        const result = await db.insert(users).values({
-          email: email,
-          firstName: firstName,
-          lastName: lastName,
+        const newUser = {
+          email,
+          firstName,
+          lastName,
           passwordHash: `google_auth_${profile.id}`, // Placeholder password hash for Google auth
           isAdmin: false,
-          theme: 'light'
-        }).returning();
+          theme: 'light' as const,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        
+        const result = await db.insert(users)
+          .values(newUser)
+          .returning();
         user = result[0];
       }
 
       return done(null, user);
     } catch (error) {
-      console.error('Google auth error:', error);
-      return done(error);
+      const err = error instanceof Error ? error : new Error('Unknown error during Google authentication');
+      console.error('Google auth error:', err);
+      return done(err);
     }
   }
 ));
@@ -59,7 +66,8 @@ router.get('/init', (req, res) => {
     const authUrl = `${env.APP_URL}/api/auth/google`;
     res.json({ url: authUrl });
   } catch (error) {
-    console.error('Auth init error:', error);
+    const err = error instanceof Error ? error : new Error('Unknown error during auth initialization');
+    console.error('Auth init error:', err);
     res.status(500).json({ error: 'Failed to initialize authentication' });
   }
 });

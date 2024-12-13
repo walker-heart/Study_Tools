@@ -111,17 +111,17 @@ export default function SignIn() {
       
       <Card className={`p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
         {/* Google Auth Component */}
-        <div className="mb-6">
+        <div className="mb-6 flex flex-col items-center">
           <GoogleAuth />
         </div>
 
         {/* Divider */}
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300"></div>
+            <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className={`px-2 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} text-gray-500`}>
+            <span className={`px-2 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'} text-gray-500 dark:text-gray-400`}>
               Or continue with email
             </span>
           </div>
