@@ -7,24 +7,12 @@ channel = "stable-24_05"
 
 [deployment]
 deploymentTarget = "cloudrun"
-build = ["npm", "run", "build"]
-run = ["npm", "run", "start"]
-
-[[ports]]
-localPort = 3000
-externalPort = 3001
-
-[[ports]]
-localPort = 3001
-externalPort = 3002
+build = ["npm", "install", "&&", "npm", "run", "build"]
+run = ["npm", "start"]
 
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 5001
-externalPort = 3000
 
 [workflows]
 runButton = "Project"
@@ -72,8 +60,8 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=5001 NODE_ENV=development REPLIT_ENVIRONMENT=true DEBUG=passport,express:*,server:* tsx watch --clear-screen=false server/index.ts"
-waitForPort = 5001
+args = "PORT=5000 NODE_ENV=development REPLIT_ENVIRONMENT=true DEBUG=passport,express:*,server:* tsx watch --clear-screen=false server/index.ts"
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Type Check"
