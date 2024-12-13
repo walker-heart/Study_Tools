@@ -9,6 +9,7 @@ import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
 import { createServer } from "http";
 import session from "express-session";
+import passport from "passport";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
@@ -18,6 +19,7 @@ import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
 import { log, debug, info, warn, error } from "./lib/log";
 import { createSessionConfig } from './config/session';
+import googleAuthRouter from './auth/google';
 import { 
   trackError, 
   initRequestTracking, 
@@ -106,27 +108,34 @@ const corsOptions: cors.CorsOptions = {
       env.APP_URL,
       'http://localhost:3000',
       'http://localhost:5000',
+      'http://localhost:5001',
       'http://0.0.0.0:3000',
       'http://0.0.0.0:5000',
+      'http://0.0.0.0:5001',
       /^https?:\/\/[^.]+\.repl\.co$/,
-      /^https?:\/\/[^.]+\.replit\.dev$/
+      /^https?:\/\/[^.]+\.replit\.dev$/,
+      /^https?:\/\/[^.]+\.repl\.dev$/
     ];
     
+    // Allow requests with no origin (like mobile apps, curl requests)
     if (!origin || origin === 'null') {
       callback(null, true);
       return;
     }
 
-    if (env.NODE_ENV === 'development') {
+    // Always allow in development mode
+    if (env.NODE_ENV !== 'production') {
       callback(null, true);
       return;
     }
 
+    // Allow static asset requests
     if (/\.(js|css|png|jpg|jpeg|gif|ico|svg)$/.test(origin)) {
       callback(null, true);
       return;
     }
 
+    // Check if the origin is in our allowed list
     const isAllowed = allowedOrigins.some(allowed => 
       typeof allowed === 'string' 
         ? allowed === origin 
@@ -136,18 +145,38 @@ const corsOptions: cors.CorsOptions = {
     if (isAllowed) {
       callback(null, true);
     } else {
+      // Log the blocked origin but don't expose details in production
       warn({
         message: 'CORS blocked origin',
-        origin,
-        allowedOrigins: allowedOrigins.map(o => o.toString())
+        metadata: {
+          origin,
+          allowedOrigins: env.NODE_ENV === 'development' as string
+            ? allowedOrigins.map(o => o.toString())
+            : undefined
+        }
       });
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
-  exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie', 'ETag', 'Cache-Control'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With', 
+    'Accept', 
+    'Cache-Control', 
+    'Origin',
+    'X-CSRF-Token'
+  ],
+  exposedHeaders: [
+    'Content-Type', 
+    'Content-Length', 
+    'Set-Cookie', 
+    'ETag', 
+    'Cache-Control',
+    'X-CSRF-Token'
+  ],
   maxAge: 86400,
   optionsSuccessStatus: 204,
   preflightContinue: false
@@ -227,7 +256,14 @@ async function initializeMiddleware() {
       app.use(session(sessionConfig));
       app.use(cleanupSessions);
       app.use(sessionSecurity);
-      info('Session middleware initialized');
+      
+      // Initialize Passport and restore authentication state from session
+      app.use(passport.initialize());
+      app.use(passport.session());
+      info('Session and Passport middleware initialized');
+      
+      // Mount Google authentication routes
+      app.use('/api/auth/google', googleAuthRouter);
 
       // Rate limiting
       app.use(limiter);
@@ -317,12 +353,17 @@ async function initializeMiddleware() {
       
       app.use('/assets/css', express.static(path.join(publicPath, 'assets/css'), staticOptions));
 
-      app.use('/assets', express.static(path.join(publicPath, 'assets'), staticOptions));
-      app.use(express.static(publicPath, staticOptions));
+      // Serve static files with specific routes and proper error handling
+      const serveStaticWithErrorHandling = (route: string, dir: string) => {
+        app.use(route, express.static(dir, staticOptions));
+        
+        // Add specific error handler for this route
+        app.use(route, (err: Error | StaticFileError, req: Request, res: Response, next: NextFunction) => {
+          if (!err) {
+            next();
+            return;
+          }
 
-      // Add static file error handling middleware
-      app.use((err: Error | StaticFileError, req: Request, res: Response, next: NextFunction) => {
-        if (err && (req.path.startsWith('/assets/') || req.path.includes('.'))) {
           const errorDetails: StaticErrorLog = {
             message: 'Static file serving error',
             path: req.path,
@@ -331,13 +372,19 @@ async function initializeMiddleware() {
               request_headers: Object.fromEntries(Object.entries(req.headers)),
               response_headers: Object.fromEntries(Object.entries(res.getHeaders())),
               mime_type: req.get('Content-Type'),
-              method: req.method
+              method: req.method,
+              route
             }
           };
           
           error(errorDetails);
           
           if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+            // Try to serve index.html for client-side routing
+            if (!req.path.includes('.')) {
+              res.sendFile(path.join(publicPath, 'index.html'));
+              return;
+            }
             return res.status(404).json({ 
               message: 'File not found',
               path: req.path,
@@ -349,9 +396,14 @@ async function initializeMiddleware() {
             message: 'Error serving static file',
             requestId: req.headers['x-request-id']
           });
-        }
-        next(err);
-      });
+        });
+      };
+
+      // Set up static file serving for different asset types
+      serveStaticWithErrorHandling('/assets/js', path.join(publicPath, 'assets', 'js'));
+      serveStaticWithErrorHandling('/assets/css', path.join(publicPath, 'assets', 'css'));
+      serveStaticWithErrorHandling('/assets', path.join(publicPath, 'assets'));
+      serveStaticWithErrorHandling('/', publicPath);
     } else {
       // Development mode setup
       info('Setting up development environment with Vite');
