@@ -12,7 +12,9 @@ const envSchema = z.object({
         : process.env.REPL_ID
           ? `https://${process.env.REPL_ID.toLowerCase()}.repl.co` 
           : 'https://wtoolsw.repl.co'
-      : 'http://localhost:5000'
+      : process.env.REPL_SLUG  // Check for Replit environment even in development
+        ? `https://${process.env.REPL_SLUG.toLowerCase()}.repl.co`
+        : 'http://localhost:5000'
   ).transform(url => url.replace(/\/$/, '')), // Remove trailing slash if present
   PORT: z.string()
     .default("5000")
