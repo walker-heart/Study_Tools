@@ -193,72 +193,73 @@ import { securityHeaders, sanitizeInput, sessionSecurity, cleanupSessions } from
 // Initialize middleware
 async function initializeMiddleware() {
   try {
-    // Environment-specific settings
-    if (env.NODE_ENV === 'production') {
-      // Configure trust proxy for Replit's environment
-      app.set('trust proxy', (ip: string) => {
-        return ip === '127.0.0.1' || 
-               ip.startsWith('10.') || 
-               ip.startsWith('172.16.') || 
-               ip.startsWith('192.168.');
-      });
-    } else {
-      app.set('json spaces', 2);
-    }
+    // Basic express settings
     app.set('x-powered-by', false);
+    app.set('trust proxy', 1);
+    
+    if (env.NODE_ENV !== 'production') {
+      app.set('json spaces', 2);
+      info('Server running in development mode with pretty JSON output');
+    } else {
+      info('Server running in production mode');
+    }
     
     info(`Server initializing in ${env.NODE_ENV} mode`);
 
-    // Initialize session first
-    const sessionConfig = await createSessionConfig();
-    if (!sessionConfig) {
-      throw new Error('Failed to create session configuration');
-    }
-    app.use(session(sessionConfig));
-    
-    // Add session cleanup middleware
-    app.use(cleanupSessions);
+    try {
+      info('Initializing middleware...');
+      
+      // Initialize essential middleware first
+      app.use(express.json({ limit: '10mb' }));
+      app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+      info('Basic middleware initialized');
 
-    // Apply basic security headers
-    app.use(securityHeaders);
-    
-    // Apply CORS
-    app.use(cors(corsOptions));
-    
-    // Apply general rate limiting for DoS protection
-    app.use(limiter);
-    
-    // Apply parameter sanitization
-    app.use(sanitizeInput);
-    
-    // Apply session security
-    app.use(sessionSecurity);
+      // Security middleware
+      app.use(cors(corsOptions));
+      app.use(securityHeaders);
+      info('Security middleware initialized');
 
-    // Body parsing middleware with size limits and validation
-    app.use(express.json({ 
-      limit: '10mb',
-      verify: (req: Request, res: Response, buf: Buffer) => {
-        if (req.headers['content-type']?.includes('application/json')) {
-          try {
-            JSON.parse(buf.toString());
-          } catch (e) {
-            res.status(400).json({ message: 'Invalid JSON' });
-            throw new Error('Invalid JSON');
-          }
-        }
-        return true;
+      // Session configuration
+      const sessionConfig = await createSessionConfig();
+      if (!sessionConfig) {
+        throw new Error('Failed to create session configuration');
       }
-    }));
-    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+      app.use(session(sessionConfig));
+      app.use(cleanupSessions);
+      app.use(sessionSecurity);
+      info('Session middleware initialized');
 
-    // Static file serving with proper caching
-    const publicPath = path.resolve(__dirname, '..', 'dist', 'public');
-    if (!fs.existsSync(publicPath)) {
-      fs.mkdirSync(publicPath, { recursive: true });
+      // Rate limiting
+      app.use(limiter);
+      info('Rate limiting middleware initialized');
+
+      // Input sanitization
+      app.use(sanitizeInput);
+      info('Input sanitization middleware initialized');
+
+      info('All middleware initialized successfully');
+    } catch (err) {
+      error({
+        message: 'Middleware initialization failed',
+        metadata: {
+          error: err instanceof Error ? err.message : 'Unknown error',
+          stack: err instanceof Error ? err.stack : undefined
+        }
+      });
+      throw err;
     }
 
-    // Configure static file serving
+    // Static file serving setup
+    const publicPath = path.resolve(__dirname, '..', 'dist', 'public');
+    
     if (env.NODE_ENV === 'production') {
+      // Ensure public directory exists
+      if (!fs.existsSync(publicPath)) {
+        info('Creating public directory');
+        fs.mkdirSync(publicPath, { recursive: true });
+      }
+      
+      // Configure static file serving for production
       // Middleware to explicitly set content types
       app.use((req, res, next) => {
         const ext = path.extname(req.path).toLowerCase();
@@ -352,9 +353,22 @@ async function initializeMiddleware() {
         next(err);
       });
     } else {
-      // In development, use Vite's built-in static serving
-      const server = createServer(app);
-      await setupVite(app, server);
+      // Development mode setup
+      info('Setting up development environment with Vite');
+      try {
+        const server = createServer(app);
+        await setupVite(app, server);
+        info('Vite middleware initialized successfully');
+      } catch (err) {
+        error({
+          message: 'Failed to initialize Vite middleware',
+          metadata: {
+            error: err instanceof Error ? err.message : 'Unknown error',
+            stack: err instanceof Error ? err.stack : undefined
+          }
+        });
+        throw err;
+      }
     }
 
     info('Middleware initialized successfully');
@@ -466,27 +480,45 @@ function isAppError(error: Error | AppError): error is AppError {
 
 // Main application entry point
 async function main() {
-  // Get available port, starting from PORT env var or 5000
+  // Find an available port starting from the specified port
   async function getAvailablePort(startPort: number): Promise<number> {
     const net = await import('net');
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const server = net.createServer();
       server.unref();
-      server.on('error', () => {
-        resolve(getAvailablePort(startPort + 1));
+      
+      server.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          server.close();
+          resolve(getAvailablePort(startPort + 1));
+        } else {
+          reject(err);
+        }
       });
+
       server.listen(startPort, '0.0.0.0', () => {
+        const address = server.address();
         server.close(() => {
-          resolve(startPort);
+          if (address && typeof address === 'object') {
+            resolve(address.port);
+          } else {
+            resolve(startPort);
+          }
         });
       });
     });
   }
 
   const initialPort = parseInt(process.env.PORT || '5000', 10);
-  const PORT = await getAvailablePort(initialPort);
   let server: ReturnType<typeof createServer>;
-
+  
+  // Get an available port and create the server
+  const PORT = await getAvailablePort(initialPort);
+  info(`Attempting to start server on port ${PORT}`);
+  
+  // Create the server instance
+  server = createServer(app);
+  
   try {
     // Test database connection
     await db.execute(sql`SELECT NOW()`);
@@ -504,26 +536,42 @@ async function main() {
     setupErrorHandlers();
     info('Error handlers configured');
 
-    // Create and start HTTP server
+    // Create HTTP server
     server = createServer(app);
     
+    // Start the server with enhanced error handling
     await new Promise<void>((resolve, reject) => {
-      server.on('error', (err: Error) => {
-        const errorLog: Omit<LogMessage, "level"> = {
+      const handleError = (err: NodeJS.ErrnoException) => {
+        error({
           message: 'Server startup error',
           metadata: {
-            errorMessage: err.message,
-            port: PORT
+            error: err.message,
+            code: err.code,
+            port: PORT,
+            stack: err.stack
           }
-        };
-        error(errorLog);
+        });
         reject(err);
-      });
+      };
 
+      server.on('error', handleError);
+      
       server.listen(PORT, '0.0.0.0', () => {
         const address = server.address();
-        const actualPort = typeof address === 'object' && address ? address.port : PORT;
-        info(`Server running on http://0.0.0.0:${actualPort}`);
+        if (!address || typeof address !== 'object') {
+          handleError(new Error('Failed to get server address'));
+          return;
+        }
+        
+        info({
+          message: 'Server started successfully',
+          metadata: {
+            port: address.port,
+            address: address.address,
+            url: `http://0.0.0.0:${address.port}`
+          }
+        });
+        
         resolve();
       });
     });
@@ -540,14 +588,33 @@ async function main() {
     error(errorLog);
 
     // Safely handle server cleanup
-    if (server?.listening) {
+    if (server) {
       info('Closing server due to startup error');
-      await new Promise<void>((resolve) => {
-        server.close(() => {
-          info('Server closed');
-          resolve();
+      try {
+        await new Promise<void>((resolve) => {
+          if (server.listening) {
+            server.close((err) => {
+              if (err) {
+                error({
+                  message: 'Error closing server',
+                  metadata: { error: err.message }
+                });
+              }
+              info('Server closed');
+              resolve();
+            });
+          } else {
+            resolve();
+          }
         });
-      });
+      } catch (closeError) {
+        error({
+          message: 'Error during server cleanup',
+          metadata: {
+            error: closeError instanceof Error ? closeError.message : String(closeError)
+          }
+        });
+      }
     }
 
     throw err;

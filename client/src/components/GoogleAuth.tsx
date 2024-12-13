@@ -27,50 +27,32 @@ const GoogleIcon = () => (
 );
 
 export function GoogleAuth({ className = '' }: GoogleAuthProps) {
-  const [error, setError] = React.useState<string | null>(null);
-  const [isLoading, setIsLoading] = React.useState(false);
-
   const handleGoogleAuth = async () => {
     try {
-      setIsLoading(true);
       const response = await fetch('/api/auth/google/init', {
         credentials: 'include'
       });
       
       if (!response.ok) {
-        throw new Error('Failed to initialize Google authentication');
+        console.error('Failed to initialize Google authentication');
+        return;
       }
       
       const { url } = await response.json();
       window.location.href = url;
     } catch (error) {
       console.error('Google auth error:', error);
-      setError('Failed to initialize Google authentication');
-      setIsLoading(false);
     }
   };
-
-  if (error) {
-    return (
-      <div className="text-red-500 text-sm text-center mb-4">
-        {error}
-      </div>
-    );
-  }
 
   return (
     <Button
       variant="outline"
-      className={`w-full flex items-center justify-center gap-2 border-2 hover:bg-gray-50 dark:hover:bg-gray-800 ${className}`}
+      className={`w-full h-10 bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 flex items-center justify-center gap-2 ${className}`}
       onClick={handleGoogleAuth}
-      disabled={isLoading}
     >
-      {isLoading ? (
-        <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-      ) : (
-        <GoogleIcon />
-      )}
-      <span className="font-medium">Continue with Google</span>
+      <GoogleIcon />
+      <span className="text-sm font-roboto">Sign in with Google</span>
     </Button>
   );
 }
