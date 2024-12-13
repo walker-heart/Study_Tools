@@ -39,10 +39,22 @@ export function GoogleAuth() {
     }
   };
 
-  const handleAuth = (type: 'signin' | 'signup') => {
-    console.log(`Initiating Google ${type}...`);
-    // Add a prompt parameter to differentiate between sign in and sign up
-    window.location.href = `/auth/google?prompt=${type}`;
+  const handleAuth = async (type: 'signin' | 'signup') => {
+    try {
+      console.log(`Initiating Google ${type}...`);
+      const response = await fetch(`/api/auth/google/init?prompt=${type}`, {
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const { url } = await response.json();
+        window.location.href = url;
+      } else {
+        throw new Error('Failed to initialize Google auth');
+      }
+    } catch (error) {
+      console.error('Google auth error:', error);
+      setError('Failed to initialize Google authentication');
+    }
   };
 
   const handleLogout = async () => {
