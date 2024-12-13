@@ -7,7 +7,7 @@ import proxyRoutes from "./proxy";
 export function registerRoutes(app: Express): void {
   const router = Router();
 
-  // Auth routes - Email/Password only
+  // Auth routes - PostgreSQL session based
   router.post('/api/auth/signup', signUp);
   router.post('/api/auth/signin', signIn);
   router.post('/api/auth/signout', signOut);

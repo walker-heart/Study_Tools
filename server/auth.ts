@@ -2,13 +2,17 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import { Pool } from 'pg';
 import bcrypt from 'bcryptjs';
+import { log } from './lib/log';
+import { AuthenticationError } from './lib/errorTracking';
 
 // Define user type for type safety
 interface User {
   id: string;
   email: string;
-  name: string;
+  first_name: string;
+  last_name: string;
   password_hash: string;
+  is_admin: boolean;
 }
 
 // Extend express-session types
@@ -17,32 +21,38 @@ declare module 'express-session' {
     user?: {
       id: string;
       email: string;
-      name: string;
+      first_name: string;
+      last_name: string;
+      is_admin: boolean;
     };
   }
 }
 
 const router = express.Router();
 
-// PostgreSQL connection
+// PostgreSQL connection with connection pooling
 const pool = new Pool({
-  user: process.env.PGUSER,
-  host: process.env.PGHOST,
-  database: process.env.PGDATABASE,
-  password: process.env.PGPASSWORD,
-  port: parseInt(process.env.PGPORT || '5432'),
+  connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
-  }
+  },
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
 // Log database connection events
 pool.on('connect', () => {
-  console.log('Database connection established');
+  log({ message: 'Database connection established' });
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected database error:', err instanceof Error ? err.message : String(err));
+  log({
+    message: 'Unexpected database error',
+    error: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack : undefined,
+    level: 'error'
+  });
 });
 
 // Check authentication status
@@ -50,7 +60,7 @@ router.get('/check', async (req: Request, res: Response) => {
   if (req.session.user) {
     try {
       const result = await pool.query(
-        'SELECT id, email, name FROM users WHERE id = $1',
+        'SELECT id, email, first_name, last_name, is_admin FROM users WHERE id = $1',
         [req.session.user.id]
       );
       
@@ -61,7 +71,9 @@ router.get('/check', async (req: Request, res: Response) => {
           user: {
             id: user.id,
             email: user.email,
-            name: user.name
+            first_name: user.first_name,
+            last_name: user.last_name,
+            is_admin: user.is_admin
           }
         });
       } else {
@@ -70,7 +82,12 @@ router.get('/check', async (req: Request, res: Response) => {
         });
       }
     } catch (error) {
-      console.error('Database error:', error instanceof Error ? error.message : String(error));
+      log({
+        message: 'Database error during auth check',
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        level: 'error'
+      });
       res.status(500).json({ error: 'Internal server error' });
     }
   } else {
@@ -84,7 +101,7 @@ router.post('/signin', async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
     const result = await pool.query(
-      'SELECT * FROM users WHERE email = $1',
+      'SELECT id, email, first_name, last_name, password_hash, is_admin FROM users WHERE email = $1',
       [email]
     );
 
@@ -102,17 +119,26 @@ router.post('/signin', async (req: Request, res: Response) => {
     req.session.user = {
       id: user.id,
       email: user.email,
-      name: user.name
+      first_name: user.first_name,
+      last_name: user.last_name,
+      is_admin: user.is_admin
     };
 
     res.json({
       id: user.id,
       email: user.email,
-      name: user.name
+      first_name: user.first_name,
+      last_name: user.last_name,
+      is_admin: user.is_admin
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to sign in';
-    console.error('Sign in error:', errorMessage);
+    log({
+      message: 'Sign in error',
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      level: 'error'
+    });
     res.status(500).json({ message: 'Internal server error' });
   }
 });
@@ -138,30 +164,42 @@ router.post('/signup', async (req: Request, res: Response) => {
 
     // Insert new user
     const result = await pool.query(
-      `INSERT INTO users (email, password_hash, name)
-       VALUES ($1, $2, $3)
-       RETURNING id, email, name`,
-      [email, passwordHash, `${firstName} ${lastName}`]
+      `INSERT INTO users (email, password_hash, first_name, last_name, is_admin)
+       VALUES ($1, $2, $3, $4, false)
+       RETURNING id, email, first_name, last_name, is_admin`,
+      [email, passwordHash, firstName, lastName]
     );
 
     const newUser = result.rows[0];
     res.status(201).json({
       id: newUser.id,
       email: newUser.email,
-      name: newUser.name
+      first_name: newUser.first_name,
+      last_name: newUser.last_name,
+      is_admin: newUser.is_admin
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to sign up';
-    console.error('Sign up error:', errorMessage);
+    log({
+      message: 'Sign up error',
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+      level: 'error'
+    });
     res.status(500).json({ message: 'Internal server error' });
   }
 });
 
 // Sign out endpoint
 router.post('/signout', (req: Request, res: Response) => {
-  req.session.destroy((err) => {
+  req.session.destroy((err: Error | null) => {
     if (err) {
-      console.error('Sign out error:', err);
+      log({
+        message: 'Sign out error',
+        error: err.message,
+        stack: err.stack,
+        level: 'error'
+      });
       return res.status(500).json({ message: 'Failed to sign out' });
     }
     res.json({ message: 'Signed out successfully' });
