@@ -10,7 +10,7 @@ import { env } from './lib/env';
 
 // Define User interface first
 interface User {
-  id?: string;
+  id?: string | number;
   google_id: string;
   email: string;
   name?: string;
@@ -28,10 +28,10 @@ declare module 'express-session' {
   interface Session {
     authType?: 'signup' | 'signin';
     user?: {
-      id: string;
+      id: string | number;
       email: string;
       isAdmin: boolean;
-    };
+    } | undefined;
   }
 }
 

@@ -5,7 +5,7 @@ declare module 'express-session' {
   interface Session {
     authType?: 'signup' | 'signin';
     user?: {
-      id: string;
+      id: string | number;
       email: string;
       isAdmin: boolean;
     };
@@ -14,14 +14,14 @@ declare module 'express-session' {
 
 // Define our user type
 export interface SessionUser {
-  id: string;
+  id: string | number;
   email: string;
   isAdmin: boolean;
 }
 
 // Define the structure of our database user
 export interface DbUser {
-  id: string;
+  id: string | number;
   google_id: string;
   email: string;
   first_name?: string;
