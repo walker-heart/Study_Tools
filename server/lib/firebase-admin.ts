@@ -23,13 +23,22 @@ function initializeFirebaseAdmin() {
     const serviceAccount: ServiceAccount = {
       projectId: env.VITE_FIREBASE_PROJECT_ID,
       clientEmail: env.VITE_FIREBASE_CLIENT_EMAIL,
-      privateKey: env.VITE_FIREBASE_PRIVATE_KEY,
+      privateKey: env.VITE_FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
     };
+
+    // Log initialization attempt (without sensitive data)
+    console.log('Attempting Firebase Admin initialization with:', {
+      projectId: serviceAccount.projectId,
+      hasClientEmail: !!serviceAccount.clientEmail,
+      hasPrivateKey: !!serviceAccount.privateKey,
+      storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET
+    });
 
     // Initialize new app
     const app = admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET
+      credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+      storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
+      projectId: env.VITE_FIREBASE_PROJECT_ID,
     });
 
     console.log('Firebase Admin SDK initialized successfully', {
@@ -41,7 +50,11 @@ function initializeFirebaseAdmin() {
 
     return app;
   } catch (error) {
-    console.error('Failed to initialize Firebase Admin SDK:', error);
+    console.error('Failed to initialize Firebase Admin SDK:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      projectId: env.VITE_FIREBASE_PROJECT_ID,
+      storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET
+    });
     throw error;
   }
 }

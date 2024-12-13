@@ -102,7 +102,7 @@ interface StaticErrorLog extends Omit<LogMessage, "level"> {
 // Configure CORS options
 const corsOptions: cors.CorsOptions = {
   origin: env.NODE_ENV === 'production'
-    ? env.ALLOWED_ORIGINS?.split(',').map(origin => origin.trim()) || ['https://your-main-domain.com']
+    ? env.ALLOWED_ORIGINS || ['https://your-main-domain.com']
     : true, // Allow all origins in development
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
