@@ -107,12 +107,13 @@ const corsOptions: cors.CorsOptions = {
     const allowedOrigins = [
       'https://www.wtoolsw.com',
       'https://wtoolsw.com',
-      'http://localhost:3000',
-      'http://0.0.0.0:3000',
+      'http://localhost:5000',
+      'http://0.0.0.0:5000',
       'https://accounts.google.com',
       /^https?:\/\/accounts\.google\.com$/,
       /^https?:\/\/.*\.wtoolsw\.com$/,
-      /^https?:\/\/.*\.google\.com$/
+      /^https?:\/\/.*\.google\.com$/,
+      /^https?:\/\/.*\.repl\.co$/
     ];
     
     // Allow requests with no origin (like mobile apps, curl requests)
@@ -619,9 +620,8 @@ async function main() {
           return;
         }
         
-        const serverUrl = process.env.NODE_ENV === 'production'
-          ? env.APP_URL
-          : `http://localhost:${address.port}`;
+        // Always use APP_URL since we're in Replit environment
+        const serverUrl = env.APP_URL;
         
         info({
           message: 'Server started successfully',
