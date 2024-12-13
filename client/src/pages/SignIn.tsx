@@ -14,6 +14,7 @@ export default function SignIn() {
     password: '',
   });
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Check if user is already authenticated
   useEffect(() => {
@@ -40,10 +41,11 @@ export default function SignIn() {
     checkAuth();
   }, [setLocation]);
 
-  
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError('');
+    
     try {
       const response = await fetch('/api/auth/signin', {
         method: 'POST',
@@ -53,7 +55,6 @@ export default function SignIn() {
         },
         credentials: 'include',
         body: JSON.stringify(formData),
-        mode: 'cors',
       });
       
       if (!response.ok) {
@@ -65,6 +66,8 @@ export default function SignIn() {
       setLocation('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -73,8 +76,6 @@ export default function SignIn() {
       <h1 className="text-3xl font-bold text-center mb-8">Sign In</h1>
       
       <Card className={`p-6 ${theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-white'}`}>
-        
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="email">Email</Label>
@@ -84,6 +85,8 @@ export default function SignIn() {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
+              disabled={isLoading}
+              className="bg-background"
             />
           </div>
           
@@ -95,6 +98,8 @@ export default function SignIn() {
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required
+              disabled={isLoading}
+              className="bg-background"
             />
           </div>
 
@@ -102,14 +107,19 @@ export default function SignIn() {
             <div className="text-red-500 text-sm">{error}</div>
           )}
           
-          <Button type="submit" className="w-full">
-            Sign In with Email
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? 'Signing in...' : 'Sign In'}
           </Button>
 
           <div className="text-center mt-4">
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
               Don't have an account?{' '}
-              <Button variant="link" onClick={() => setLocation('/signup')} className="text-sm">
+              <Button 
+                variant="link" 
+                onClick={() => setLocation('/signup')} 
+                className="text-sm"
+                disabled={isLoading}
+              >
                 Sign Up
               </Button>
             </div>

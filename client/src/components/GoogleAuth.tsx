@@ -1,8 +1,2 @@
-import React from 'react';
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  picture: string;
-}
+// This file is intentionally empty as we've removed Google authentication
+export {};
