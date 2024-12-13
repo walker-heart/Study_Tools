@@ -3,6 +3,13 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { env } from './env';
 
+// Service Account Type
+interface ServiceAccount {
+  projectId: string;
+  clientEmail: string;
+  privateKey: string;
+}
+
 // Initialize Firebase Admin SDK
 function initializeFirebaseAdmin() {
   try {
@@ -12,14 +19,11 @@ function initializeFirebaseAdmin() {
       return admin.apps[0]!;
     }
 
-    // Format private key if needed
-    const privateKey = env.VITE_FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
-
-    // Create service account config
-    const serviceAccount = {
+    // Create service account configuration
+    const serviceAccount: ServiceAccount = {
       projectId: env.VITE_FIREBASE_PROJECT_ID,
-      clientEmail: env.FIREBASE_CLIENT_EMAIL || env.VITE_FIREBASE_CLIENT_EMAIL,
-      privateKey: env.FIREBASE_PRIVATE_KEY || env.VITE_FIREBASE_PRIVATE_KEY,
+      clientEmail: env.VITE_FIREBASE_CLIENT_EMAIL,
+      privateKey: env.VITE_FIREBASE_PRIVATE_KEY,
     };
 
     // Initialize new app
@@ -31,7 +35,7 @@ function initializeFirebaseAdmin() {
     console.log('Firebase Admin SDK initialized successfully', {
       projectId: env.VITE_FIREBASE_PROJECT_ID,
       hasClientEmail: !!env.VITE_FIREBASE_CLIENT_EMAIL,
-      hasPrivateKey: !!privateKey,
+      hasPrivateKey: !!env.VITE_FIREBASE_PRIVATE_KEY,
       storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET
     });
 
