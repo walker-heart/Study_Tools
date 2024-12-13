@@ -25,21 +25,27 @@ export async function cleanupSessions(req: Request, _res: Response, next: NextFu
 
 // Security headers middleware
 export function securityHeaders(req: Request, res: Response, next: NextFunction) {
+  // Skip security headers for OAuth callback
+  if (req.path.startsWith('/api/auth/google')) {
+    return next();
+  }
+
   // Set security headers
   const headers = {
     'X-XSS-Protection': '1; mode=block',
     'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
+    'X-Frame-Options': 'SAMEORIGIN',
     'Content-Security-Policy': [
-      "default-src 'self'",
-      "img-src 'self' data: https: blob:",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "font-src 'self' data:",
-      "connect-src 'self' https://api.openai.com",
-      "frame-ancestors 'none'",
+      "default-src 'self' https://*.wtoolsw.com",
+      "img-src 'self' data: https: blob: *.googleusercontent.com https://*.wtoolsw.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://*.wtoolsw.com",
+      "style-src 'self' 'unsafe-inline' https://accounts.google.com https://*.wtoolsw.com",
+      "font-src 'self' data: https://fonts.gstatic.com https://*.wtoolsw.com",
+      "connect-src 'self' https://api.openai.com https://accounts.google.com https://*.wtoolsw.com wss: ws:",
+      "frame-src 'self' https://accounts.google.com https://*.wtoolsw.com",
+      "frame-ancestors 'self' https://*.wtoolsw.com",
       "base-uri 'self'",
-      "form-action 'self'"
+      "form-action 'self' https://accounts.google.com https://*.wtoolsw.com"
     ].join('; '),
     'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
