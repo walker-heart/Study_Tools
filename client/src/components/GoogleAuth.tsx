@@ -28,8 +28,17 @@ const GoogleIcon = () => (
 
 export function GoogleAuth({ className = '' }: GoogleAuthProps) {
   const handleGoogleAuth = () => {
-    // Redirect to our Google OAuth endpoint
-    window.location.href = `${window.location.origin}/api/auth/google`;
+    // Use the correct API endpoint for Google OAuth
+    const apiUrl = import.meta.env.DEV 
+      ? 'http://localhost:5000/api/auth/google'
+      : `${window.location.origin}/api/auth/google`;
+    
+    // For development, ensure we're using port 5000
+    if (import.meta.env.DEV && window.location.port !== '5000') {
+      window.location.href = `http://localhost:5000/api/auth/google`;
+    } else {
+      window.location.href = apiUrl;
+    }
   };
 
   return (

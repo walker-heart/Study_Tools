@@ -23,12 +23,8 @@ declare module 'express-session' {
 const router = express.Router();
 
 // Use environment-specific URLs from env configuration
-const SITE_URL = env.NODE_ENV === 'development' 
-  ? 'http://localhost:3000'
-  : 'https://www.wtoolsw.com';
-const API_URL = env.NODE_ENV === 'development'
-  ? 'http://localhost:3000/api'
-  : 'https://www.wtoolsw.com/api';
+const SITE_URL = env.APP_URL;
+const API_URL = `${env.APP_URL}/api`;
 
 // PostgreSQL connection with connection logging
 const pool = new Pool({
@@ -164,14 +160,14 @@ router.use(passport.initialize());
 router.use(passport.session());
 
 // OAuth Setup
-if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
   throw new Error('Missing required Google OAuth credentials');
 }
 
 const oauth2Client = new OAuth2Client(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  `${SITE_URL}/auth/google/callback`
+  env.GOOGLE_CLIENT_ID,
+  env.GOOGLE_CLIENT_SECRET,
+  `${env.APP_URL}/api/auth/google/callback`
 );
 
 // Define User type for TypeScript
@@ -183,15 +179,11 @@ interface User {
   picture?: string;
 }
 
-// Initialize passport and session handling
-app.use(passport.initialize());
-app.use(passport.session());
-
 // Configure Google OAuth2.0 strategy
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID!,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    callbackURL: `${SITE_URL}/auth/google/callback`
+    clientID: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+    callbackURL: `${env.APP_URL}/api/auth/google/callback`
   },
   async (accessToken: string, refreshToken: string, profile: Profile, done: any) => {
     try {
