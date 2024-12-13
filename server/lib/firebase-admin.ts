@@ -1,75 +1,93 @@
-import * as admin from 'firebase-admin';
+import admin from 'firebase-admin';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { env } from './env';
 
-// Validate Firebase config
-const validateConfig = () => {
-  const requiredFields = [
-    'VITE_FIREBASE_PROJECT_ID',
-    'VITE_FIREBASE_CLIENT_EMAIL',
-    'VITE_FIREBASE_PRIVATE_KEY'
-  ] as const;
-  
-  for (const field of requiredFields) {
-    if (!env[field]) {
-      throw new Error(`Missing required Firebase configuration: ${field}`);
+// Initialize Firebase Admin SDK
+function initializeFirebaseAdmin() {
+  try {
+    // Check if Firebase Admin is already initialized
+    if (admin.apps && admin.apps.length > 0) {
+      console.log('Firebase Admin already initialized');
+      return admin.apps[0]!;
     }
-  }
-  
-  // Log config values for verification (excluding sensitive data)
-  console.log('Firebase Admin Configuration:', {
-    projectId: env.VITE_FIREBASE_PROJECT_ID,
-    hasClientEmail: !!env.VITE_FIREBASE_CLIENT_EMAIL,
-    hasPrivateKey: !!env.VITE_FIREBASE_PRIVATE_KEY
-  });
-};
 
-// Initialize Firebase
-try {
-  validateConfig();
-  console.log('Initializing Firebase Admin with project:', env.VITE_FIREBASE_PROJECT_ID);
-  
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: env.VITE_FIREBASE_PROJECT_ID,
-        clientEmail: env.VITE_FIREBASE_CLIENT_EMAIL,
-        // Private key is already formatted by the env schema
-        privateKey: env.VITE_FIREBASE_PRIVATE_KEY,
-      }),
-      storageBucket: `${env.VITE_FIREBASE_PROJECT_ID}.appspot.com`
+    // Format private key if needed
+    const privateKey = env.VITE_FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
+
+    // Create service account config
+    const serviceAccount = {
+      projectId: env.VITE_FIREBASE_PROJECT_ID,
+      clientEmail: env.FIREBASE_CLIENT_EMAIL || env.VITE_FIREBASE_CLIENT_EMAIL,
+      privateKey: env.FIREBASE_PRIVATE_KEY || env.VITE_FIREBASE_PRIVATE_KEY,
+    };
+
+    // Initialize new app
+    const app = admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET
     });
+
+    console.log('Firebase Admin SDK initialized successfully', {
+      projectId: env.VITE_FIREBASE_PROJECT_ID,
+      hasClientEmail: !!env.VITE_FIREBASE_CLIENT_EMAIL,
+      hasPrivateKey: !!privateKey,
+      storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET
+    });
+
+    return app;
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin SDK:', error);
+    throw error;
   }
-} catch (error) {
-  console.error('Firebase Admin initialization error:', error);
-  throw error;
 }
 
-// Export auth and firestore instances
-export const auth = getAuth();
-export const firestore = getFirestore();
+// Initialize Firebase Admin and get app instance
+let app: admin.app.App;
+try {
+  app = initializeFirebaseAdmin();
+} catch (error) {
+  console.error('Failed to initialize Firebase Admin:', error);
+  process.exit(1); // Exit if Firebase Admin initialization fails
+}
 
-// Test Firebase connectivity
-export const testFirebaseConnection = async () => {
+// Initialize services
+const auth = getAuth(app);
+const firestore = getFirestore(app);
+
+// Export instances
+export { auth, firestore };
+
+// Verify Firebase Admin SDK connectivity
+async function verifyFirebaseConnection() {
   try {
+    // Test Auth Service
+    await auth.listUsers(1);
+    console.log('✅ Firebase Auth is operational');
+
     // Test Firestore
-    const testCollection = firestore.collection('_test_connection');
-    await testCollection.listDocuments();
-    console.log('✅ Firestore connection successful');
-    
-    // Test Auth
-    const listUsersResult = await auth.listUsers(1);
-    console.log('✅ Auth connection successful, found', listUsersResult.users.length, 'users');
-    
+    const testRef = firestore.collection('_connection_test').doc('test');
+    await testRef.set({ timestamp: admin.firestore.FieldValue.serverTimestamp() });
+    await testRef.delete();
+    console.log('✅ Firestore is operational');
+
     return true;
   } catch (error) {
-    console.error('❌ Firebase connection test failed:', error);
+    console.error('❌ Firebase connection verification failed:', error);
     return false;
   }
-};
+}
 
-// Run the test immediately
-testFirebaseConnection().then(success => {
-  console.log('Firebase connection test completed:', success ? '✅ Success' : '❌ Failed');
-});
+// Verify connectivity
+verifyFirebaseConnection()
+  .then(isConnected => {
+    if (isConnected) {
+      console.log('🚀 Firebase Admin SDK is fully operational');
+    } else {
+      console.error('⚠️ Firebase Admin SDK services are not fully operational');
+      console.error('Please check your Firebase configuration and credentials');
+    }
+  })
+  .catch(error => {
+    console.error('❌ Firebase verification error:', error);
+  });

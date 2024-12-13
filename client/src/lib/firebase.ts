@@ -1,20 +1,16 @@
-import { initializeApp } from '@firebase/app';
+import { initializeApp, type FirebaseOptions } from '@firebase/app';
 import { 
   getAuth, 
   browserLocalPersistence, 
-  setPersistence,
-  connectAuthEmulator
+  setPersistence
 } from '@firebase/auth';
 import { 
   getFirestore, 
-  enableMultiTabIndexedDbPersistence,
-  connectFirestoreEmulator,
-  collection,
-  getDocs
+  enableMultiTabIndexedDbPersistence
 } from '@firebase/firestore';
 
 // Firebase configuration using environment variables
-const firebaseConfig = {
+const firebaseConfig: FirebaseOptions = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -23,72 +19,49 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Validate Firebase config
-const validateConfig = () => {
-  const requiredFields = [
-    'apiKey',
-    'authDomain',
-    'projectId',
-    'storageBucket',
-    'messagingSenderId',
-    'appId'
-  ];
-  
-  const missingFields = requiredFields.filter(
-    field => !firebaseConfig[field as keyof typeof firebaseConfig]
-  );
-  
-  if (missingFields.length > 0) {
-    throw new Error(`Missing Firebase configuration fields: ${missingFields.join(', ')}`);
-  }
-  
-  // Log config values for verification (excluding sensitive data)
-  console.log('Firebase Config Validation:', {
-    hasApiKey: !!firebaseConfig.apiKey,
-    authDomain: firebaseConfig.authDomain,
-    projectId: firebaseConfig.projectId,
-    storageBucket: firebaseConfig.storageBucket,
-    hasSenderId: !!firebaseConfig.messagingSenderId,
-    hasAppId: !!firebaseConfig.appId
-  });
-};
+// Initialize Firebase (ensuring single initialization)
+function initializeFirebase() {
+  try {
+    // Validate required configuration
+    const requiredFields = [
+      'apiKey',
+      'authDomain',
+      'projectId',
+      'storageBucket',
+      'messagingSenderId',
+      'appId'
+    ] as const;
 
-// Initialize Firebase
-try {
-  validateConfig();
-  console.log('Initializing Firebase with project:', firebaseConfig.projectId);
-} catch (error) {
-  console.error('Firebase initialization error:', error);
-  throw error;
+    const missingFields = requiredFields.filter(
+      field => !firebaseConfig[field]
+    );
+
+    if (missingFields.length > 0) {
+      throw new Error(`Missing Firebase configuration: ${missingFields.join(', ')}`);
+    }
+
+    // Log non-sensitive config for verification
+    console.log('Firebase Client Configuration:', {
+      authDomain: firebaseConfig.authDomain,
+      projectId: firebaseConfig.projectId,
+      storageBucket: firebaseConfig.storageBucket,
+      hasApiKey: !!firebaseConfig.apiKey,
+      hasAppId: !!firebaseConfig.appId
+    });
+
+    return initializeApp(firebaseConfig);
+  } catch (error) {
+    console.error('Firebase initialization error:', error);
+    throw error;
+  }
 }
 
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Initialize Firebase app
+const app = initializeFirebase();
 
-// Test Firebase connectivity
-export const testFirebaseConnection = async () => {
-  try {
-    // Test Firestore
-    const testCollection = collection(db, '_test_connection');
-    await getDocs(testCollection);
-    console.log('✅ Firestore connection successful');
-    
-    // Test Auth
-    const currentUser = auth.currentUser;
-    console.log('✅ Auth initialized:', { isSignedIn: !!currentUser });
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Firebase connection test failed:', error);
-    return false;
-  }
-};
-
-// Run the test immediately
-testFirebaseConnection().then(success => {
-  console.log('Firebase connection test completed:', success ? '✅ Success' : '❌ Failed');
-});
+// Initialize services
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 // Enable authentication persistence
 setPersistence(auth, browserLocalPersistence)
@@ -96,26 +69,17 @@ setPersistence(auth, browserLocalPersistence)
     console.error('Error setting auth persistence:', error);
   });
 
-// Enable Firestore persistence for offline support
+// Enable Firestore offline persistence
 enableMultiTabIndexedDbPersistence(db)
   .catch((error) => {
-    console.error('Error enabling Firestore persistence:', error);
     if (error.code === 'failed-precondition') {
       console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
     } else if (error.code === 'unimplemented') {
       console.warn('The current browser does not support persistence.');
     }
+    console.error('Error enabling Firestore persistence:', error);
   });
 
-// Set up emulators for development
-if (import.meta.env.DEV) {
-  connectAuthEmulator(auth, 'http://localhost:9099');
-  connectFirestoreEmulator(db, 'localhost', 8080);
-  
-  console.log('Firebase initialized in development mode with config:', {
-    projectId: firebaseConfig.projectId,
-    authDomain: firebaseConfig.authDomain
-  });
-}
-
+// Export instances
+export { app, auth, db };
 export default app;
