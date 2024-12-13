@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import MemorizationSettings from "@/components/MemorizationSettings";
 
 export default function MemorizationEasy() {
-  // Get text from URL parameters
+  const [location, setLocation] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
   const textParam = searchParams.get('text');
   const decodedText = textParam ? decodeURIComponent(textParam) : '';
@@ -15,7 +15,13 @@ export default function MemorizationEasy() {
   const [text] = useState<string>(decodedText);
   const [currentInput, setCurrentInput] = useState<string>('');
   const [showGame, setShowGame] = useState<boolean>(true);
-  const [, setLocation] = useLocation();
+  
+  // Redirect if no text is provided
+  useEffect(() => {
+    if (!text.trim()) {
+      setLocation('/memorization');
+    }
+  }, [text, setLocation]);
   
   // Get settings from global context
   const { fontSize, fontFamily, theme } = useSettings();
@@ -122,13 +128,6 @@ export default function MemorizationEasy() {
     }
   }, [showGame]);
 
-  // Redirect if no text is provided
-  useEffect(() => {
-    if (!text.trim()) {
-      setLocation('/memorization');
-    }
-  }, [text, setLocation]);
-
   return (
     <div className={`container mx-auto px-4 py-8 max-w-4xl ${theme === 'dark' ? 'dark bg-gray-900 text-white' : ''}`}>
       <h1 className="text-3xl font-bold text-center mb-8">
@@ -161,10 +160,11 @@ export default function MemorizationEasy() {
             <input
               ref={inputRef}
               type="text"
-              className="opacity-0 absolute"
+              className="visually-hidden"
               value={currentInput}
               onChange={handleTyping}
               autoFocus
+              aria-label="Type the text you see above"
             />
           </Card>
           <Button 

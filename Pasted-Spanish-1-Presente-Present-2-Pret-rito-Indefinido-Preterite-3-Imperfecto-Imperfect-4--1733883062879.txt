@@ -1,0 +1,92 @@
+Spanish:
+	1.	Presente (Present)
+	2.	Pretérito Indefinido (Preterite)
+	3.	Imperfecto (Imperfect)
+	4.	Futuro Simple (Future)
+	5.	Condicional Simple (Conditional)
+	6.	Perfect Tenses
+	•	Pretérito Perfecto (Present Perfect)
+	•	Pretérito Pluscuamperfecto (Past Perfect)
+	•	Futuro Perfecto (Future Perfect)
+	•	Condicional Perfecto (Conditional Perfect)
+	7.	Subjunctive
+	•	Presente Subjuntivo (Present Subjunctive)
+	•	Pretérito Imperfecto Subjuntivo (Past Subjunctive)
+	•	Futuro Subjuntivo (Future Subjunctive)
+French:
+	1.	Présent (Present)
+	2.	Passé Composé (Present Perfect)
+	3.	Imparfait (Imperfect)
+	4.	Passé Simple (Simple Past)
+	5.	Futur Simple (Future)
+	6.	Compound Tenses
+	•	Plus-que-parfait (Past Perfect)
+	•	Futur Antérieur (Future Perfect)
+	•	Conditionnel Passé (Conditional Perfect)
+	7.	Subjunctive
+	•	Subjonctif Présent (Present Subjunctive)
+	•	Subjonctif Passé (Past Subjunctive)
+German:
+	1.	Präsens (Present)
+	2.	Präteritum (Simple Past)
+	3.	Perfekt (Present Perfect)
+	4.	Plusquamperfekt (Past Perfect)
+	5.	Futur I (Future)
+	6.	Futur II (Future Perfect)
+	7.	Subjunctive
+	•	Konjunktiv I (Present Subjunctive)
+	•	Konjunktiv II (Past Subjunctive)
+Italian:
+	1.	Presente (Present)
+	2.	Passato Prossimo (Present Perfect)
+	3.	Imperfetto (Imperfect)
+	4.	Passato Remoto (Simple Past)
+	5.	Futuro Semplice (Future)
+	6.	Compound Tenses
+	•	Trapassato Prossimo (Past Perfect)
+	•	Futuro Anteriore (Future Perfect)
+	•	Condizionale Passato (Conditional Perfect)
+	7.	Subjunctive
+	•	Congiuntivo Presente (Present Subjunctive)
+	•	Congiuntivo Imperfetto (Past Subjunctive)
+Portuguese:
+	1.	Presente (Present)
+	2.	Pretérito Perfeito (Preterite)
+	3.	Pretérito Imperfeito (Imperfect)
+	4.	Futuro do Presente (Future)
+	5.	Condicional Simples (Conditional)
+	6.	Compound Tenses
+	•	Pretérito Mais-que-perfeito (Past Perfect)
+	•	Futuro do Pretérito (Future Conditional)
+	7.	Subjunctive
+	•	Presente do Subjuntivo (Present Subjunctive)
+	•	Pretérito Imperfeito do Subjuntivo (Past Subjunctive)
+	•	Futuro do Subjuntivo (Future Subjunctive)
+Dutch:
+	1.	Tegenwoordige Tijd (Present)
+	2.	Verleden Tijd (Past)
+	3.	Voltooide Tijd (Perfect)
+	4.	Plusquamperfectum (Past Perfect)
+	5.	Toekomende Tijd (Future)
+Russian:
+	1.	Present Tense
+	2.	Past Tense
+	3.	Future Tense
+	4.	Aspect (Perfective/Imperfective)
+Japanese:
+	1.	Non-Past (Covers Present and Future)
+	2.	Past
+	3.	Conditional
+	4.	Imperative
+	5.	Volitional
+Korean:
+	1.	Present
+	2.	Past
+	3.	Future
+	4.	Conditional
+	5.	Honorifics Affecting Tense
+Chinese (Mandarin):
+	1.	No Formal Tenses (Relies on aspect markers and context)
+	•	Aspect markers: 了 (le), 过 (guo), 着 (zhe)
+Let me know if you’d like detailed examples for any language!
+

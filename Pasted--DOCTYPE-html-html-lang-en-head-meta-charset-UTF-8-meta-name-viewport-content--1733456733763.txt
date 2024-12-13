@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vocab Cards PDF Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      font-size: 1.5em;
+      margin-bottom: 10px;
+    }
+    .file-input-section {
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 15px;
+      font-size: 1em;
+      cursor: pointer;
+    }
+    #preview {
+      display: none; /* Not showing preview, only PDF generation */
+    }
+  </style>
+</head>
+<body>
+  <h1>Vocab Cards PDF Generator</h1>
+  <div class="file-input-section">
+    <input type="file" id="fileInput" accept=".csv" />
+    <button id="generateBtn">Generate PDF</button>
+  </div>
+
+  <div id="preview"></div>
+
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <!-- jsPDF for PDF generation -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const generateBtn = document.getElementById('generateBtn');
+      const fileInput = document.getElementById('fileInput');
+
+      generateBtn.addEventListener('click', function() {
+        if (!fileInput.files.length) {
+          alert('Please select a CSV file first.');
+          return;
+        }
+
+        const file = fileInput.files[0];
+
+        Papa.parse(file, {
+          header: true,
+          complete: function(results) {
+            const data = results.data.filter(row => row['Vocab Word']);
+            if (data.length === 0) {
+              alert('No valid data found. Make sure CSV has "Vocab Word", "Identifying Part Of Speech", "Definition", and "Example Sentence".');
+              return;
+            }
+            generatePDF(data);
+          }
+        });
+      });
+
+      function chunkArray(array, size) {
+        const result = [];
+        for (let i = 0; i < array.length; i += size) {
+          result.push(array.slice(i, i + size));
+        }
+        return result;
+      }
+
+      function generatePDF(data) {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'in',
+          format: [11, 8.5]
+        });
+
+        const groups = chunkArray(data, 4);
+
+        // Card layout configuration
+        const cardWidth = 5;
+        const cardHeight = 3;
+        const marginLeft = 0.5;
+        const marginTop = 0.5;
+        const horizontalSpacing = 0.5; 
+        const verticalSpacing = 0.5; 
+        const lineHeight = 0.15;
+
+        function wrapText(text, maxWidthChars) {
+          const words = (text || '').split(' ');
+          const lines = [];
+          let currentLine = [];
+          let currentLength = 0;
+          words.forEach(w => {
+            const neededSpace = currentLine.length > 0 ? 1 : 0;
+            if (currentLength + w.length + neededSpace > maxWidthChars) {
+              lines.push(currentLine.join(' '));
+              currentLine = [w];
+              currentLength = w.length;
+            } else {
+              currentLine.push(w);
+              currentLength += w.length + neededSpace;
+            }
+          });
+          if (currentLine.length > 0) {
+            lines.push(currentLine.join(' '));
+          }
+          return lines;
+        }
+
+        groups.forEach((group, groupIndex) => {
+          // FRONT PAGE
+          if (groupIndex > 0) {
+            pdf.addPage();
+          }
+
+          // Draw front cards (#, Word, Part of Speech)
+          group.forEach((item, index) => {
+            const cardRow = Math.floor(index / 2);
+            const cardCol = index % 2;
+            const cardX = marginLeft + cardCol * (cardWidth + horizontalSpacing);
+            const cardY = marginTop + cardRow * (cardHeight + verticalSpacing);
+            const lineNumber = groupIndex * 4 + index + 1;
+
+            // Draw card boundary
+            pdf.setLineWidth(0.01);
+            pdf.rect(cardX, cardY, cardWidth, cardHeight);
+
+            pdf.setFontSize(10);
+            pdf.text(`#${lineNumber}`, cardX + 0.1, cardY + 0.2);
+
+            pdf.setFontSize(14);
+            pdf.text(item['Vocab Word'] || '', cardX + cardWidth/2, cardY + (cardHeight/2) - 0.1, {align: 'center'});
+
+            pdf.setFontSize(12);
+            pdf.text(item['Identifying Part Of Speech'] || '', cardX + cardWidth/2, cardY + (cardHeight/2) + 0.2, {align: 'center'});
+          });
+
+          // BACK PAGE
+          pdf.addPage();
+
+          // Instead of rotating, we calculate new coordinates:
+          // For a point (X,Y) on front, after a 180° rotation about (5.5,4.25):
+          // X' = 11 - (X + cardWidth)
+          // Y' = 8.5 - (Y + cardHeight)
+          // This places the card so that when the page is flipped, it aligns exactly behind the front card.
+          
+          group.forEach((item, index) => {
+            const cardRow = Math.floor(index / 2);
+            const cardCol = index % 2;
+
+            // Original front coordinates
+            const frontX = marginLeft + cardCol * (cardWidth + horizontalSpacing);
+            const frontY = marginTop + cardRow * (cardHeight + verticalSpacing);
+
+            // Rotated coordinates
+            const backX = 11 - (frontX + cardWidth);
+            const backY = 8.5 - (frontY + cardHeight);
+
+            const lineNumber = groupIndex * 4 + index + 1;
+
+            pdf.setLineWidth(0.01);
+            pdf.rect(backX, backY, cardWidth, cardHeight);
+
+            pdf.setFontSize(10);
+            pdf.text(`#${lineNumber}`, backX + 0.1, backY + 0.2);
+
+            pdf.setFontSize(12);
+            const definition = item['Definition'] || '';
+            const sentence = item['Example Sentence'] || '';
+
+            const defLines = wrapText(definition, 50);
+            const sentLines = wrapText(sentence, 50);
+
+            let textY = backY + 0.5;
+            defLines.forEach(line => {
+              pdf.text(line, backX + 0.2, textY);
+              textY += lineHeight;
+            });
+
+            textY += 0.3; // space between definition and sentence
+            sentLines.forEach(line => {
+              pdf.text(line, backX + 0.2, textY);
+              textY += lineHeight;
+            });
+          });
+        });
+
+        pdf.save('vocab_cards.pdf');
+      }
+    });
+  </script>
+</body>
+</html>

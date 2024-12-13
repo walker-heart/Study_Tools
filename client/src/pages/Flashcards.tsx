@@ -7,11 +7,11 @@ import FileUpload from "../components/FileUpload";
 import { generatePDF } from "../lib/pdfGenerator";
 import CardPreview from "../components/CardPreview";
 
-interface VocabCard {
+interface VocabCard extends Record<string, string | number> {
   'Vocab Word': string;
-  'Identifying Part Of Speach': string;
+  'Identifying Part Of Speech': string;
   'Definition': string;
-  'Example Sentance': string;
+  'Example Sentence': string;
   lineNumber: number;
 }
 
@@ -24,25 +24,49 @@ export default function Flashcards() {
     return new Promise((resolve, reject) => {
       Papa.parse(file, {
         header: true,
+        skipEmptyLines: true,
+        transform: (value) => value.trim(),
         complete: (results) => {
-          const data = results.data
-            .map((row: any, index: number) => ({
-              ...row,
-              originalIndex: index + 2
-            }))
-            .filter((row: any) => {
-              return row['Vocab Word'] && 
-                row['Identifying Part Of Speach'] && 
-                row['Definition'] && 
-                row['Example Sentance'];
-            })
-            .map((row: any) => ({
-              ...row,
-              lineNumber: row.originalIndex - 1
-            }));
-          resolve(data as VocabCard[]);
+          if (results.errors.length > 0) {
+            console.error('CSV parsing errors:', results.errors);
+            reject(new Error('Failed to parse CSV file'));
+            return;
+          }
+
+          try {
+            const data = results.data
+              .map((row: any, index: number) => ({
+                ...row,
+                originalIndex: index + 2,
+                'Vocab Word': row['Vocab Word']?.trim() || '',
+                'Identifying Part Of Speech': row['Identifying Part Of Speech']?.trim() || '',
+                'Definition': row['Definition']?.trim() || '',
+                'Example Sentence': row['Example Sentence']?.trim() || ''
+              }))
+              .filter((row: any) => {
+                return row['Vocab Word'] && 
+                  row['Identifying Part Of Speech'] && 
+                  row['Definition'] && 
+                  row['Example Sentence'];
+              })
+              .map((row: any) => ({
+                ...row,
+                lineNumber: row.originalIndex - 1
+              }));
+
+            if (data.length === 0) {
+              reject(new Error('No valid flashcard data found in CSV'));
+              return;
+            }
+
+            resolve(data as VocabCard[]);
+          } catch (error) {
+            console.error('Error processing CSV data:', error);
+            reject(new Error('Failed to process CSV data'));
+          }
         },
         error: (error) => {
+          console.error('CSV parsing error:', error);
           reject(error);
         }
       });
@@ -50,15 +74,28 @@ export default function Flashcards() {
   };
 
   const handleFileSelect = async (file: File) => {
+    setIsProcessing(true);
     try {
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        throw new Error('Please upload a CSV file');
+      }
+
       const cards = await parseCSV(file);
       setPreviewCards(cards);
+      toast({
+        title: "Success",
+        description: `Successfully loaded ${cards.length} flashcards`,
+      });
     } catch (error) {
+      console.error('File processing error:', error);
       toast({
         title: "Error",
-        description: "Failed to parse CSV file",
+        description: error instanceof Error ? error.message : "Failed to parse CSV file",
         variant: "destructive",
       });
+      setPreviewCards([]);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -75,8 +112,7 @@ export default function Flashcards() {
     setIsProcessing(true);
     try {
       const csvContent = Papa.unparse(previewCards);
-      const csvFile = new File([csvContent], "vocab_cards.csv", { type: "text/csv" });
-      await generatePDF(csvFile);
+      await generatePDF(csvContent);
       toast({
         title: "Success",
         description: "PDF generated successfully!",

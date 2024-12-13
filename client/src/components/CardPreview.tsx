@@ -1,11 +1,11 @@
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-interface VocabCard {
+interface VocabCard extends Record<string, string | number> {
   'Vocab Word': string;
-  'Identifying Part Of Speach': string;
+  'Identifying Part Of Speech': string;
   'Definition': string;
-  'Example Sentance': string;
+  'Example Sentence': string;
   lineNumber: number;
 }
 
@@ -31,7 +31,7 @@ export default function CardPreview({ cards }: CardPreviewProps) {
                 <div className="pt-6">
                   <div className="text-xl font-bold">{card['Vocab Word']}</div>
                   <div className="text-sm text-gray-600 mt-1">
-                    {card['Identifying Part Of Speach']}
+                    {card['Identifying Part Of Speech']}
                   </div>
                 </div>
               </div>
@@ -42,7 +42,7 @@ export default function CardPreview({ cards }: CardPreviewProps) {
                   <p className="text-gray-600">{card['Definition']}</p>
                 </div>
                 <div className="text-sm">
-                  <p className="text-gray-600 italic">{card['Example Sentance']}</p>
+                  <p className="text-gray-600 italic">{card['Example Sentence']}</p>
                 </div>
               </div>
             </Card>

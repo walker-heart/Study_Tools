@@ -1,0 +1,76 @@
+Explanation
+
+The error message "SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON" clearly indicates that your translation service is returning HTML or XML instead of valid JSON. Your code expects JSON, but it's receiving something that starts with <!DOCTYPE ..., which is the beginning of an HTML document.
+
+Here's a breakdown of the problem and how to fix it:
+
+The Problem:
+
+Your handleTranslate function (line 93 in TranslationTool.tsx) is likely making a network request to a translation API. This API is responding with an HTML error page or some other non-JSON data instead of the expected translated text in JSON format. Your code then tries to parse this HTML as JSON, which causes the error.
+
+The Solution:
+
+Check the Translation API Response: The most crucial step is to inspect the actual response from your translation API. Use your browser's developer tools (Network tab) to examine the response when a translation request is made. Look at the response headers (especially the Content-Type) and the response body. You'll see the HTML error message there. This will tell you exactly why the translation failed on the server side.
+Handle Non-JSON Responses Gracefully: Modify your handleTranslate function to check the response's Content-Type header and handle non-JSON responses appropriately. Here's an example:
+js
+
+async function handleTranslate(text) {
+  try {
+    const response = await fetch(yourTranslationApiEndpoint, {
+      method: 'POST', // or GET, depending on your API
+      headers: {
+        'Content-Type': 'application/json', // Set appropriate content type for request
+        // ... other headers
+      },
+      body: JSON.stringify({ text: text }), // Send the text to translate
+    });
+
+    if (!response.ok) {
+      // Handle HTTP errors (4xx or 5xx status codes)
+      const errorText = await response.text(); // Get the error message from the response
+      console.error("Translation API error:", response.status, errorText);
+      showNotification({
+        message: `Translation API error: ${response.status} - ${errorText}`,
+        type: "error",
+      });
+      return; // Exit the function early if the API request failed
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      // Handle non-JSON responses
+      const errorText = await response.text();
+      console.error("Invalid Content-Type:", contentType, errorText);
+      showNotification({
+        message: "Invalid response from translation service. Please try again.", // Or a more specific message
+        type: "error",
+      });
+      return;
+    }
+
+    const data = await response.json();
+    // ... process the translated text (data) ...
+  } catch (error) {
+    console.error("Translation error:", error);
+    showNotification({
+      message: error instanceof Error ? error.message : "Failed to translate text. Please try again.",
+      type: "error",
+    });
+  }
+}
+Use code snippets with caution
+
+Explanation of Changes:
+
+Error Handling: The code now explicitly checks response.ok to handle HTTP errors (status codes 400 and above). It then reads the response text to provide more informative error messages.
+Content-Type Check: Critically, it checks the Content-Type header to ensure the response is actually JSON. If not, it handles it gracefully.
+More informative error messages: The error messages now include the HTTP status code and the response body, making debugging much easier.
+Early Exit: The return statements prevent further code execution if an error occurs, avoiding unexpected behavior.
+Important Considerations:
+
+API Documentation: Carefully review the documentation for your translation API. It should specify the expected request format and the structure of the JSON response.
+Authentication: Make sure you're correctly authenticating with your translation API. Incorrect authentication often results in error responses.
+Rate Limits: Be mindful of API rate limits. If you're exceeding the allowed number of requests, you might be getting error responses.
+By implementing these improvements, you'll be able to handle errors from the translation API gracefully and provide more helpful feedback to your users. Remember to examine the actual API response in your browser's developer tools – that's the key to understanding the root cause of the problem.
+
+Data used to understand this message
