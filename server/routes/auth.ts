@@ -102,7 +102,7 @@ export async function signIn(req: Request, res: Response) {
     res.json({ 
       token, 
       user: { 
-        id: user.id.toString(),
+        id: user.id, 
         email: user.email,
         theme: user.theme || 'light',
         isAdmin: user.isAdmin || false

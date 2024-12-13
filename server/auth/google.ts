@@ -1,155 +1,41 @@
-import { Router, Request } from 'express';
+import { Router } from 'express';
 import { env } from '../lib/env';
 import { db } from '../db';
-import { log, info, error } from '../lib/log';
-import passport from 'passport';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import type { Profile, StrategyOptions } from 'passport-google-oauth20';
-import type { AuthenticateOptions } from 'passport';
-import crypto from 'crypto';
-import { users } from '../../db/schema/users';
-import type { User } from '../types/user';
-import { eq } from 'drizzle-orm';
+import { log } from '../lib/log';
 
 const router = Router();
 
-if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
-  throw new Error('Missing required Google OAuth credentials');
-}
 
-// Configure passport serialization
-passport.serializeUser((user: Express.User, done: (err: any, id?: number) => void) => {
-  const typedUser = user as User;
-  done(null, typedUser.id);
-});
-
-passport.deserializeUser(async (id: number, done: (err: any, user?: Express.User | false) => void) => {
+router.get('/', (_req, res) => {
   try {
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, id)
+    // Redirect to signin page directly, Google Auth removed.
+    res.redirect('/signin');
+  } catch (error) {
+    console.error('Auth Error:', error);
+    console.error('Auth Error Details:', {
+      stack: error instanceof Error ? error.stack : undefined,
+      env: {
+        appUrl: env.APP_URL,
+        nodeEnv: env.NODE_ENV
+      }
     });
-    done(null, user || false);
-  } catch (err) {
-    done(err, false);
+    res.redirect(`${env.APP_URL}/signin?error=auth_init_failed`);
   }
 });
 
-// Get the appropriate callback URL based on the environment
-function getCallbackURL(): string {
-  const baseUrl = env.APP_URL;
-  const callbackUrl = `${baseUrl}/api/auth/google/callback`;
-  
-  // Log detailed information about the callback URL configuration
-  info({
-    message: 'Google OAuth callback URL configured',
-    metadata: {
-      callbackUrl,
-      environment: env.NODE_ENV,
-      isReplit: !!process.env.REPLIT_ENVIRONMENT,
-      baseUrl: env.APP_URL,
-      port: env.PORT
-    }
-  });
-
-  if (!callbackUrl) {
-    throw new Error('Failed to generate Google OAuth callback URL');
+router.get('/callback', async (req, res) => {
+  try {
+    //This route is now obsolete due to the removal of Google authentication.
+    res.status(404).send("Not Found");
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Detailed error:', errorMessage);
+    console.error('Full error object:', JSON.stringify(error, null, 2));
+    const redirectUrl = `${env.APP_URL}/signin?error=auth_failed&message=${encodeURIComponent(errorMessage)}`;
+    console.log('Error redirect to:', redirectUrl);
+    res.redirect(redirectUrl);
   }
-
-  return callbackUrl;
-}
-
-// Initialize Google OAuth 2.0 strategy
-const strategyConfig: StrategyOptions = {
-  clientID: env.GOOGLE_CLIENT_ID,
-  clientSecret: env.GOOGLE_CLIENT_SECRET,
-  callbackURL: getCallbackURL(),
-  passReqToCallback: false,
-  scope: ['profile', 'email']
-};
-
-passport.use(new GoogleStrategy(strategyConfig, 
-  async (accessToken: string, refreshToken: string, profile: Profile, done: (error: any, user?: any) => void) => {
-    try {
-      const email = profile.emails?.[0]?.value;
-      if (!email) {
-        return done(new Error('No email provided from Google'));
-      }
-
-      let user = await db.query.users.findFirst({
-        where: eq(users.email, email)
-      });
-
-      if (!user) {
-        const displayName = profile.displayName || email.split('@')[0];
-        const [firstName, ...lastNameParts] = displayName.split(' ');
-        const lastName = lastNameParts.join(' ') || firstName;
-        
-        const newUser = {
-          email,
-          firstName,
-          lastName,
-          passwordHash: `google_auth_${profile.id}`,
-          isAdmin: false,
-          theme: 'light' as const,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
-        
-        const result = await db.insert(users)
-          .values(newUser)
-          .returning();
-        user = result[0];
-        
-        info({
-          message: 'New user created via Google OAuth',
-          metadata: {
-            userId: user.id,
-            email: user.email
-          }
-        });
-      }
-
-      return done(null, user);
-    } catch (err: unknown) {
-      const errorObj = err instanceof Error ? err : new Error('Unknown error during Google authentication');
-      error({
-        message: 'Google auth error',
-        metadata: {
-          error: errorObj.message,
-          stack: errorObj.stack
-        }
-      });
-      return done(errorObj);
-    }
-  }
-));
-
-// OAuth routes with enhanced error handling
-router.get('/', (req, res, next) => {
-  const state = crypto.randomBytes(32).toString('hex');
-  
-  info({
-    message: 'Google OAuth authentication initiated',
-    metadata: {
-      path: req.path,
-      method: req.method,
-      state
-    }
-  });
-
-  passport.authenticate('google', {
-    scope: ['profile', 'email'],
-    state,
-    prompt: 'select_account'
-  })(req, res, next);
-});
-
-router.get('/callback', (req, res, next) => {
-  passport.authenticate('google', {
-    failureRedirect: '/signin?error=auth_failed',
-    successRedirect: '/dashboard',
-    failureMessage: true
-  })(req, res, next);
 });
 
 export default router;
