@@ -1,3 +1,2 @@
-import { Router } from 'express';
-const router = Router();
-export default router;
+// This file is intentionally empty as we've removed Google authentication
+export {};
