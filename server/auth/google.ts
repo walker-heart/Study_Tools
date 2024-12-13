@@ -4,8 +4,10 @@ import { db } from '../db';
 import { log, info, error, warn } from '../lib/log';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import type { Profile, StrategyOptionsWithRequest } from 'passport-google-oauth20';
+import type { AuthenticateOptions } from 'passport';
+import crypto from 'crypto';
 import { users } from '../db/schema';
-import type { Profile } from 'passport-google-oauth20';
 import type { User } from '../types/user';
 import { eq } from 'drizzle-orm';
 
@@ -33,16 +35,26 @@ passport.deserializeUser(async (id: number, done: (err: any, user?: Express.User
 });
 
 // Initialize Google OAuth 2.0 strategy
+// Determine the base URL based on environment and host
+const getBaseUrl = (req: Request) => {
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:3000';
+  }
+  // Check if the request is coming from www subdomain
+  const host = req.get('host') || '';
+  if (host.startsWith('www.')) {
+    return 'https://www.wtoolsw.com';
+  }
+  return 'https://wtoolsw.com';
+};
+
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID!,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    callbackURL: process.env.NODE_ENV === 'development' 
-      ? 'http://localhost:3000/api/auth/google/callback'
-      : 'https://www.wtoolsw.com/api/auth/google/callback', // Always use www in production
-    scope: ['profile', 'email'],
+    callbackURL: '/api/auth/google/callback',
     proxy: true,
     passReqToCallback: true
-  },
+  } as StrategyOptionsWithRequest,
   async (req: Request, accessToken: string, refreshToken: string, profile: Profile, done: (error: any, user?: any) => void) => {
     try {
       const email = profile.emails?.[0]?.value;
@@ -102,18 +114,27 @@ passport.use(new GoogleStrategy({
 
 // OAuth routes with enhanced error handling
 router.get('/', (req, res, next) => {
-  // Log the authentication attempt
+  const baseUrl = getBaseUrl(req);
+  
   info({
     message: 'Google OAuth authentication initiated',
     metadata: {
       path: req.path,
-      method: req.method
+      method: req.method,
+      baseUrl
     }
   });
   
-  passport.authenticate('google', {
-    scope: ['profile', 'email']
-  })(req, res, next);
+  // Set the callback URL dynamically based on the request
+  const strategyOptions: AuthenticateOptions = {
+    scope: ['profile', 'email'],
+    prompt: 'select_account',
+    state: crypto.randomBytes(32).toString('hex'),
+    session: true,
+    callbackURL: `${baseUrl}/api/auth/google/callback`
+  };
+  
+  passport.authenticate('google', strategyOptions)(req, res, next);
 });
 
 router.get('/callback', (req, res, next) => {
