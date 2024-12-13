@@ -10,12 +10,17 @@ import { env } from './lib/env';
 
 // Define User interface first
 interface User {
-  id: string;
+  id?: string;
   google_id: string;
   email: string;
-  name: string;
+  name?: string;
+  first_name?: string;
+  last_name?: string;
   picture?: string;
+  is_admin?: boolean;
   isNewUser?: boolean;
+  created_at?: Date;
+  last_login?: Date;
 }
 
 // Extend express-session types
@@ -36,7 +41,7 @@ const router = express.Router();
 const SITE_URL = process.env.REPLIT_ENVIRONMENT 
   ? 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
   : env.NODE_ENV === 'production'
-    ? 'https://www.wtoolsw.com'
+    ? 'https://wtoolsw.com'
     : 'http://localhost:5000';
 const API_URL = `${SITE_URL}/api`;
 
@@ -186,15 +191,9 @@ if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
 }
 
 // Get the base URL for the current environment
-const getBaseUrl = () => {
-  return process.env.REPLIT_ENVIRONMENT 
-    ? 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
-    : env.NODE_ENV === 'production'
-      ? 'https://www.wtoolsw.com'
-      : 'http://localhost:5000';
-};
+const getBaseUrl = () => SITE_URL;
 
-// Create consistent callback URL
+// Get consistent callback URL using the SITE_URL constant
 const getCallbackUrl = () => `${getBaseUrl()}/api/auth/google/callback`;
 
 const oauth2Client = new OAuth2Client(
@@ -237,16 +236,16 @@ passport.serializeUser((user: Express.User, done) => {
   done(null, userWithId.google_id);
 });
 
-passport.deserializeUser(async (id: string, done) => {
+passport.deserializeUser(async (id: string, done: (err: any, user?: User | false) => void) => {
   try {
     const result = await pool.query<User>(
       'SELECT * FROM users WHERE google_id = $1',
       [id]
     );
     const user = result.rows[0];
-    done(null, user || '');
+    done(null, user || false);
   } catch (err) {
-    done(err instanceof Error ? err : new Error('Unknown error'), '');
+    done(err instanceof Error ? err : new Error('Unknown error'), false);
   }
 });
 
@@ -345,7 +344,7 @@ router.get('/google/callback', async (req, res) => {
   try {
     console.log('Google callback received with code');
     const { code } = req.query;
-    const redirectUri = `${getBaseUrl()}/api/auth/google/callback`;
+    const redirectUri = getCallbackUrl();
 
     // Exchange code for tokens
     const { tokens } = await oauth2Client.getToken({
@@ -386,11 +385,13 @@ router.get('/google/callback', async (req, res) => {
     // Set up session
     if (req.session) {
       console.log('Setting up session for user:', dbUser.email);
-      req.session.user = {
-        id: dbUser.google_id,
-        email: dbUser.email,
-        isAdmin: false
-      };
+      if (req.session) {
+        req.session.user = {
+          id: dbUser.google_id,
+          email: dbUser.email,
+          isAdmin: Boolean(dbUser.is_admin)
+        };
+      }
 
       // Save session explicitly
       req.session.save((err: Error | null) => {

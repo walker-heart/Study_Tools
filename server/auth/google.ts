@@ -38,15 +38,23 @@ passport.deserializeUser(async (id: number, done: (err: any, user?: Express.User
 function getCallbackURL(): string {
   const baseUrl = env.APP_URL;
   const callbackUrl = `${baseUrl}/api/auth/google/callback`;
+  
+  // Log detailed information about the callback URL configuration
   info({
     message: 'Google OAuth callback URL configured',
     metadata: {
       callbackUrl,
       environment: env.NODE_ENV,
       isReplit: !!process.env.REPLIT_ENVIRONMENT,
-      baseUrl: env.APP_URL
+      baseUrl: env.APP_URL,
+      port: env.PORT
     }
   });
+
+  if (!callbackUrl) {
+    throw new Error('Failed to generate Google OAuth callback URL');
+  }
+
   return callbackUrl;
 }
 
