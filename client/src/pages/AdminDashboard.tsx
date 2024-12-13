@@ -226,68 +226,62 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <div className="flex min-h-screen bg-background dark:bg-[#0B0E14]">
+      <div className="flex h-screen bg-background dark:bg-[#0B0E14]">
         {/* Sidebar */}
-        <div className={`w-80 min-h-screen fixed left-0 border-r border-gray-200 dark:border-gray-700 flex flex-col ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
-          <div className="flex-1">
-            <div className="p-6">
-              <h2 className="text-xl font-semibold mb-6">Admin Dashboard</h2>
-              <nav className="space-y-2">
-                <button
-                  onClick={() => setActiveTab("overview")}
-                  className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
-                    activeTab === "overview"
-                      ? theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'
-                      : theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <Shield className="w-5 h-5" />
-                  Overview
-                </button>
-                <button
-                  onClick={() => setActiveTab("users")}
-                  className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
-                    activeTab === "users"
-                      ? theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'
-                      : theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <Users2 className="w-5 h-5" />
-                  Users
-                </button>
-                <button
-                  onClick={() => setActiveTab("analytics")}
-                  className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
-                    activeTab === "analytics"
-                      ? theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'
-                      : theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <BarChart3 className="w-5 h-5" />
-                  Analytics
-                </button>
-                <button
-                  onClick={() => setActiveTab("settings")}
-                  className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
-                    activeTab === "settings"
-                      ? theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'
-                      : theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <Settings className="w-5 h-5" />
-                  Settings
-                </button>
-              </nav>
-            </div>
+        <div className={`w-80 h-full fixed left-0 border-r border-gray-200 dark:border-gray-700 ${theme === 'dark' ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
+          <div className="p-6">
+            <h2 className="text-xl font-semibold mb-6">Admin Dashboard</h2>
+            <nav className="space-y-2">
+              <button
+                onClick={() => setActiveTab("overview")}
+                className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === "overview"
+                    ? theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'
+                    : theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
+                }`}
+              >
+                <Shield className="w-5 h-5" />
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveTab("users")}
+                className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === "users"
+                    ? theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'
+                    : theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
+                }`}
+              >
+                <Users2 className="w-5 h-5" />
+                Users
+              </button>
+              <button
+                onClick={() => setActiveTab("analytics")}
+                className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === "analytics"
+                    ? theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'
+                    : theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
+                }`}
+              >
+                <BarChart3 className="w-5 h-5" />
+                Analytics
+              </button>
+              <button
+                onClick={() => setActiveTab("settings")}
+                className={`flex items-center gap-2 w-full px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === "settings"
+                    ? theme === 'dark' ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-900'
+                    : theme === 'dark' ? 'hover:bg-gray-800' : 'hover:bg-gray-50'
+                }`}
+              >
+                <Settings className="w-5 h-5" />
+                Settings
+              </button>
+            </nav>
           </div>
-          
-          {/* Return to App Button - Now in a fixed position at the bottom */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <div className={`absolute bottom-0 w-full p-4 border-t ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
             <Link href="/dashboard">
-              <button className={`inline-flex items-center justify-center w-full gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                theme === 'dark' 
-                  ? 'bg-white text-gray-900 hover:bg-gray-100' 
-                  : 'bg-gray-900 text-white hover:bg-gray-800'
+              <button className={`inline-flex items-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 h-10 px-4 py-2 w-full justify-center ${
+                theme === 'dark' ? 'bg-white text-gray-900 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-800'
               }`}>
                 Return to App
               </button>
@@ -295,407 +289,405 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Main Content - Adjusted margin to match sidebar width */}
-        <div className="flex-1 ml-80 p-8">
-          <div className="max-w-7xl mx-auto">
-            <div className="space-y-8">
-              {activeTab === "overview" && (
-                <>
-                  <h1 className="text-3xl font-bold mb-8">Overview</h1>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="flex flex-col">
-                      <Card className="bg-white dark:bg-[#111827] h-[200px] flex flex-col justify-between">
-                        <CardHeader>
-                          <div className="flex items-center space-x-4">
-                            <div className="p-3 rounded-lg bg-[#2563EB] dark:bg-blue-500/20">
-                              <Users2 className="h-6 w-6 text-white dark:text-blue-400" />
-                            </div>
-                            <div>
-                              <CardTitle>User Management</CardTitle>
-                              <CardDescription className="text-gray-500 dark:text-gray-400">Manage user accounts and permissions</CardDescription>
-                            </div>
+        {/* Main Content */}
+        <div className="flex-1 p-8 overflow-auto ml-80">
+          <div className="space-y-8">
+            {activeTab === "overview" && (
+              <>
+                <h1 className="text-3xl font-bold mb-8">Overview</h1>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="flex flex-col">
+                    <Card className="bg-white dark:bg-[#111827] h-[200px] flex flex-col justify-between">
+                      <CardHeader>
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 rounded-lg bg-[#2563EB] dark:bg-blue-500/20">
+                            <Users2 className="h-6 w-6 text-white dark:text-blue-400" />
                           </div>
-                        </CardHeader>
-                        <CardContent>
-                          <Button 
-                            variant="secondary" 
-                            className="w-full bg-[#1F2937] hover:bg-[#374151] text-white"
-                            onClick={() => setActiveTab("users")}
-                          >
-                            Manage Users
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    <div className="flex flex-col">
-                      <Card className="bg-white dark:bg-[#111827] h-[200px] flex flex-col justify-between">
-                        <CardHeader>
-                          <div className="flex items-center space-x-4">
-                            <div className="p-3 rounded-lg bg-[#10B981] dark:bg-emerald-500/20">
-                              <BarChart3 className="h-6 w-6 text-white dark:text-emerald-400" />
-                            </div>
-                            <div>
-                              <CardTitle>Analytics</CardTitle>
-                              <CardDescription className="text-gray-500 dark:text-gray-400">View usage statistics and trends</CardDescription>
-                            </div>
+                          <div>
+                            <CardTitle>User Management</CardTitle>
+                            <CardDescription className="text-gray-500 dark:text-gray-400">Manage user accounts and permissions</CardDescription>
                           </div>
-                        </CardHeader>
-                        <CardContent>
-                          <Button 
-                            variant="secondary" 
-                            className="w-full bg-[#1F2937] hover:bg-[#374151] text-white"
-                            onClick={() => setActiveTab("analytics")}
-                          >
-                            View Analytics
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    <div className="flex flex-col">
-                      <Card className="bg-white dark:bg-[#111827] h-[200px] flex flex-col justify-between">
-                        <CardHeader>
-                          <div className="flex items-center space-x-4">
-                            <div className="p-3 rounded-lg bg-[#9333EA] dark:bg-purple-500/20">
-                              <BookOpen className="h-6 w-6 text-white dark:text-purple-400" />
-                            </div>
-                            <div>
-                              <CardTitle>Study Content</CardTitle>
-                              <CardDescription className="text-gray-500 dark:text-gray-400">Manage flashcards and study materials</CardDescription>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <Button 
-                            variant="secondary" 
-                            className="w-full bg-[#1F2937] hover:bg-[#374151] text-white"
-                          >
-                            Manage Content
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <Button 
+                          variant="secondary" 
+                          className="w-full bg-[#1F2937] hover:bg-[#374151] text-white"
+                          onClick={() => setActiveTab("users")}
+                        >
+                          Manage Users
+                        </Button>
+                      </CardContent>
+                    </Card>
                   </div>
-                </>
-              )}
 
-              {activeTab === "users" && (
-                <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
-                  <CardHeader>
-                    <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>User Management</CardTitle>
-                    <CardDescription className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>Manage system users and their roles</CardDescription>
-                  </CardHeader>
-                  <CardContent className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>
-                    <div className="flex justify-between mb-6">
-                      <div className="flex items-center space-x-2">
-                        <Search className="text-gray-400" />
-                        <Input
-                          placeholder="Search users..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="w-64"
-                        />
+                  <div className="flex flex-col">
+                    <Card className="bg-white dark:bg-[#111827] h-[200px] flex flex-col justify-between">
+                      <CardHeader>
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 rounded-lg bg-[#10B981] dark:bg-emerald-500/20">
+                            <BarChart3 className="h-6 w-6 text-white dark:text-emerald-400" />
+                          </div>
+                          <div>
+                            <CardTitle>Analytics</CardTitle>
+                            <CardDescription className="text-gray-500 dark:text-gray-400">View usage statistics and trends</CardDescription>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <Button 
+                          variant="secondary" 
+                          className="w-full bg-[#1F2937] hover:bg-[#374151] text-white"
+                          onClick={() => setActiveTab("analytics")}
+                        >
+                          View Analytics
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="flex flex-col">
+                    <Card className="bg-white dark:bg-[#111827] h-[200px] flex flex-col justify-between">
+                      <CardHeader>
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 rounded-lg bg-[#9333EA] dark:bg-purple-500/20">
+                            <BookOpen className="h-6 w-6 text-white dark:text-purple-400" />
+                          </div>
+                          <div>
+                            <CardTitle>Study Content</CardTitle>
+                            <CardDescription className="text-gray-500 dark:text-gray-400">Manage flashcards and study materials</CardDescription>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <Button 
+                          variant="secondary" 
+                          className="w-full bg-[#1F2937] hover:bg-[#374151] text-white"
+                        >
+                          Manage Content
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeTab === "users" && (
+              <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                <CardHeader>
+                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>User Management</CardTitle>
+                  <CardDescription className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>Manage system users and their roles</CardDescription>
+                </CardHeader>
+                <CardContent className={theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}>
+                  <div className="flex justify-between mb-6">
+                    <div className="flex items-center space-x-2">
+                      <Search className="text-gray-400" />
+                      <Input
+                        placeholder="Search users..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-64"
+                      />
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setSelectedUser(null);
+                        setIsUserDialogOpen(true);
+                      }}
+                      variant="outline"
+                      className="bg-white text-gray-900 hover:bg-gray-100"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add User
+                    </Button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className={theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}>
+                          <th className="text-left p-2 font-medium">Name</th>
+                          <th className="text-left p-2 font-medium">Email</th>
+                          <th className="text-left p-2 font-medium">Role</th>
+                          <th className="text-right p-2 font-medium">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {isLoading ? (
+                          <tr>
+                            <td colSpan={5} className="text-center py-4">
+                              Loading...
+                            </td>
+                          </tr>
+                        ) : error ? (
+                          <tr>
+                            <td colSpan={5} className="text-center py-4 text-red-500">
+                              Error loading users
+                            </td>
+                          </tr>
+                        ) : users.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="text-center py-4">
+                              No users found
+                            </td>
+                          </tr>
+                        ) : (
+                          users.map((user: User) => (
+                            <tr key={user.id} className="border-t">
+                              <td className="p-2">
+                                {user.firstName} {user.lastName}
+                              </td>
+                              <td className="p-2">{user.email}</td>
+                              <td className="p-2">
+                                {user.isAdmin ? "Admin" : "User"}
+                              </td>
+                              <td className="p-2 text-right">
+                                <div className="flex justify-end space-x-2">
+                                  <Button
+                                    variant={theme === "dark" ? "default" : "outline"}
+                                    size="icon"
+                                    onClick={() => {
+                                      setSelectedUser(user);
+                                      setIsUserDialogOpen(true);
+                                    }}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant={theme === "dark" ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedUser(user);
+                                      setIsPasswordDialogOpen(true);
+                                    }}
+                                  >
+                                    Change Password
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="icon"
+                                    onClick={() => {
+                                      setSelectedUser(user);
+                                      setIsDeleteDialogOpen(true);
+                                    }}
+                                    disabled={user.id === currentUserId}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination */}
+                  {!isLoading && !error && users.length > 0 && (
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        Page {currentPage} of {totalPages}
                       </div>
-                      <Button
-                        onClick={() => {
-                          setSelectedUser(null);
-                          setIsUserDialogOpen(true);
-                        }}
-                        variant="outline"
-                        className="bg-white text-gray-900 hover:bg-gray-100"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add User
+                      <div className="flex gap-2">
+                        <Button
+                          variant={theme === "dark" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                          disabled={currentPage === 1}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          variant={theme === "dark" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                          disabled={currentPage === totalPages}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {activeTab === "analytics" && (
+              <div>
+                <h1 className="text-3xl font-bold mb-8">Analytics Dashboard</h1>
+                
+                {/* Time Settings */}
+                <Card className={`mb-8 ${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                  <CardHeader>
+                    <CardTitle>Time Range</CardTitle>
+                    <div className="flex gap-4 mt-2">
+                      <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
+                        Last 24 Hours
+                      </Button>
+                      <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
+                        Last 7 Days
+                      </Button>
+                      <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
+                        Last 30 Days
+                      </Button>
+                      <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
+                        Custom Range
                       </Button>
                     </div>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className={theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}>
-                            <th className="text-left p-2 font-medium">Name</th>
-                            <th className="text-left p-2 font-medium">Email</th>
-                            <th className="text-left p-2 font-medium">Role</th>
-                            <th className="text-right p-2 font-medium">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {isLoading ? (
-                            <tr>
-                              <td colSpan={5} className="text-center py-4">
-                                Loading...
-                              </td>
-                            </tr>
-                          ) : error ? (
-                            <tr>
-                              <td colSpan={5} className="text-center py-4 text-red-500">
-                                Error loading users
-                              </td>
-                            </tr>
-                          ) : users.length === 0 ? (
-                            <tr>
-                              <td colSpan={5} className="text-center py-4">
-                                No users found
-                              </td>
-                            </tr>
-                          ) : (
-                            users.map((user: User) => (
-                              <tr key={user.id} className="border-t">
-                                <td className="p-2">
-                                  {user.firstName} {user.lastName}
-                                </td>
-                                <td className="p-2">{user.email}</td>
-                                <td className="p-2">
-                                  {user.isAdmin ? "Admin" : "User"}
-                                </td>
-                                <td className="p-2 text-right">
-                                  <div className="flex justify-end space-x-2">
-                                    <Button
-                                      variant={theme === "dark" ? "default" : "outline"}
-                                      size="icon"
-                                      onClick={() => {
-                                        setSelectedUser(user);
-                                        setIsUserDialogOpen(true);
-                                      }}
-                                    >
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant={theme === "dark" ? "default" : "outline"}
-                                      size="sm"
-                                      onClick={() => {
-                                        setSelectedUser(user);
-                                        setIsPasswordDialogOpen(true);
-                                      }}
-                                    >
-                                      Change Password
-                                    </Button>
-                                    <Button
-                                      variant="destructive"
-                                      size="icon"
-                                      onClick={() => {
-                                        setSelectedUser(user);
-                                        setIsDeleteDialogOpen(true);
-                                      }}
-                                      disabled={user.id === currentUserId}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Pagination */}
-                    {!isLoading && !error && users.length > 0 && (
-                      <div className="flex items-center justify-between mt-4">
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          Page {currentPage} of {totalPages}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant={theme === "dark" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                            disabled={currentPage === 1}
-                          >
-                            Previous
-                          </Button>
-                          <Button
-                            variant={theme === "dark" ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                            disabled={currentPage === totalPages}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
+                  </CardHeader>
                 </Card>
-              )}
 
-              {activeTab === "analytics" && (
-                <div>
-                  <h1 className="text-3xl font-bold mb-8">Analytics Dashboard</h1>
-                  
-                  {/* Time Settings */}
-                  <Card className={`mb-8 ${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                {/* Key Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
                     <CardHeader>
-                      <CardTitle>Time Range</CardTitle>
-                      <div className="flex gap-4 mt-2">
-                        <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
-                          Last 24 Hours
-                        </Button>
-                        <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
-                          Last 7 Days
-                        </Button>
-                        <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
-                          Last 30 Days
-                        </Button>
-                        <Button variant="outline" className={theme === 'dark' ? 'bg-gray-800' : ''}>
-                          Custom Range
-                        </Button>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users2 className="h-5 w-5 text-blue-500" />
+                        Total Users
+                      </CardTitle>
+                      {isLoadingAnalytics ? (
+                        <div className="text-3xl font-bold mt-2">Loading...</div>
+                      ) : (
+                        <>
+                          <div className="text-3xl font-bold mt-2">
+                            {analyticsData?.overview?.total_users || 0}
+                          </div>
+                          <CardDescription className="flex items-center mt-2 text-green-500">
+                            <span className="text-sm">Active and registered users</span>
+                          </CardDescription>
+                        </>
+                      )}
+                    </CardHeader>
+                  </Card>
+
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Users2 className="h-5 w-5 text-purple-500" />
+                        Active Users
+                      </CardTitle>
+                      {isLoadingAnalytics ? (
+                        <div className="text-3xl font-bold mt-2">Loading...</div>
+                      ) : (
+                        <>
+                          <div className="text-3xl font-bold mt-2">
+                            {analyticsData?.overview?.active_users?.count || 0}
+                          </div>
+                          <CardDescription className="flex items-center mt-2 text-green-500">
+                            <span className="text-sm">↑ {analyticsData?.overview?.active_users?.percent_change || 0}% from previous period</span>
+                          </CardDescription>
+                        </>
+                      )}
+                    </CardHeader>
+                  </Card>
+
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5 text-yellow-500" />
+                        Unique IP Addresses
+                      </CardTitle>
+                      {isLoadingAnalytics ? (
+                        <div className="text-3xl font-bold mt-2">Loading...</div>
+                      ) : (
+                        <>
+                          <div className="text-3xl font-bold mt-2">
+                            {analyticsData?.overview?.unique_ips?.count || 0}
+                          </div>
+                          <CardDescription className="flex items-center mt-2 text-green-500">
+                            <span className="text-sm">Distinct IP addresses</span>
+                          </CardDescription>
+                        </>
+                      )}
+                    </CardHeader>
+                  </Card>
+                </div>
+
+                {/* Detailed Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle>Usage Over Time</CardTitle>
+                      <CardDescription>Number of active users by hour</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[300px] flex items-center justify-center text-gray-500">
+                        Chart coming soon...
                       </div>
-                    </CardHeader>
+                    </CardContent>
                   </Card>
 
-                  {/* Key Metrics */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Users2 className="h-5 w-5 text-blue-500" />
-                          Total Users
-                        </CardTitle>
-                        {isLoadingAnalytics ? (
-                          <div className="text-3xl font-bold mt-2">Loading...</div>
-                        ) : (
-                          <>
-                            <div className="text-3xl font-bold mt-2">
-                              {analyticsData?.overview?.total_users || 0}
-                            </div>
-                            <CardDescription className="flex items-center mt-2 text-green-500">
-                              <span className="text-sm">Active and registered users</span>
-                            </CardDescription>
-                          </>
-                        )}
-                      </CardHeader>
-                    </Card>
-
-                    <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Users2 className="h-5 w-5 text-purple-500" />
-                          Active Users
-                        </CardTitle>
-                        {isLoadingAnalytics ? (
-                          <div className="text-3xl font-bold mt-2">Loading...</div>
-                        ) : (
-                          <>
-                            <div className="text-3xl font-bold mt-2">
-                              {analyticsData?.overview?.active_users?.count || 0}
-                            </div>
-                            <CardDescription className="flex items-center mt-2 text-green-500">
-                              <span className="text-sm">↑ {analyticsData?.overview?.active_users?.percent_change || 0}% from previous period</span>
-                            </CardDescription>
-                          </>
-                        )}
-                      </CardHeader>
-                    </Card>
-
-                    <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <BarChart3 className="h-5 w-5 text-yellow-500" />
-                          Unique IP Addresses
-                        </CardTitle>
-                        {isLoadingAnalytics ? (
-                          <div className="text-3xl font-bold mt-2">Loading...</div>
-                        ) : (
-                          <>
-                            <div className="text-3xl font-bold mt-2">
-                              {analyticsData?.overview?.unique_ips?.count || 0}
-                            </div>
-                            <CardDescription className="flex items-center mt-2 text-green-500">
-                              <span className="text-sm">Distinct IP addresses</span>
-                            </CardDescription>
-                          </>
-                        )}
-                      </CardHeader>
-                    </Card>
-                  </div>
-
-                  {/* Detailed Stats */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
-                      <CardHeader>
-                        <CardTitle>Usage Over Time</CardTitle>
-                        <CardDescription>Number of active users by hour</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="h-[300px] flex items-center justify-center text-gray-500">
-                          Chart coming soon...
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
-                      <CardHeader>
-                        <CardTitle>Top 5 Active Users</CardTitle>
-                        <CardDescription>Most active users in the selected period</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          {/* Placeholder for top users list */}
-                          <div className="text-gray-500 text-center">
-                            No data available
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
-                      <CardHeader>
-                        <CardTitle>Countries</CardTitle>
-                        <CardDescription>User distribution by country</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          {/* Placeholder for countries list */}
-                          <div className="text-gray-500 text-center">
-                            No data available
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
-                      <CardHeader>
-                        <CardTitle>Content Statistics</CardTitle>
-                        <CardDescription>Flashcards and Memorization Stats</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {isLoadingAnalytics ? (
-                          <div className="text-center">Loading...</div>
-                        ) : (
-                          <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                              <span>Total Flashcard Sets</span>
-                              <span>{analyticsData?.contentStats?.total_flashcard_sets || 0}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span>Total Memorizations</span>
-                              <span>{analyticsData?.contentStats?.total_memorizations || 0}</span>
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "settings" && (
-                <div>
-                  <h1 className="text-3xl font-bold mb-8">Admin Settings</h1>
-                  <Card>
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
                     <CardHeader>
-                      <CardTitle>Admin Settings</CardTitle>
-                      <CardDescription>
-                        Admin settings interface coming soon...
-                      </CardDescription>
+                      <CardTitle>Top 5 Active Users</CardTitle>
+                      <CardDescription>Most active users in the selected period</CardDescription>
                     </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {/* Placeholder for top users list */}
+                        <div className="text-gray-500 text-center">
+                          No data available
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle>Countries</CardTitle>
+                      <CardDescription>User distribution by country</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {/* Placeholder for countries list */}
+                        <div className="text-gray-500 text-center">
+                          No data available
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className={`${theme === 'dark' ? 'bg-[#111827]' : 'bg-white'}`}>
+                    <CardHeader>
+                      <CardTitle>Content Statistics</CardTitle>
+                      <CardDescription>Flashcards and Memorization Stats</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {isLoadingAnalytics ? (
+                        <div className="text-center">Loading...</div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <span>Total Flashcard Sets</span>
+                            <span>{analyticsData?.contentStats?.total_flashcard_sets || 0}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span>Total Memorizations</span>
+                            <span>{analyticsData?.contentStats?.total_memorizations || 0}</span>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
                   </Card>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {activeTab === "settings" && (
+              <div>
+                <h1 className="text-3xl font-bold mb-8">Admin Settings</h1>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Admin Settings</CardTitle>
+                    <CardDescription>
+                      Admin settings interface coming soon...
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </div>
+            )}
           </div>
         </div>
       </div>

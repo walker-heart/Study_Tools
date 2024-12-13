@@ -1,14 +1,12 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
-import type { ServeStaticOptions } from 'serve-static';
-import type { ServerResponse, IncomingMessage } from 'http';
-import type { Response as ExpressResponse } from 'express-serve-static-core';
-import type { Session, SessionData } from "express-session";
+import type { ServeStaticOptions } from 'express-serve-static-core';
 import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
 import { createServer } from "http";
 import session from "express-session";
+import type { Session, SessionData } from "express-session";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
@@ -18,18 +16,6 @@ import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
 import { log, debug, info, warn, error } from "./lib/log";
 import { createSessionConfig } from './config/session';
-import { 
-  trackError, 
-  initRequestTracking, 
-  AuthenticationError,
-  DatabaseError,
-  ValidationError,
-  AppError,
-  type LogMessage,
-  type ErrorHandler,
-  type TypedRequest,
-  type TypedErrorHandler
-} from './lib/errorTracking';
 
 // ES Module compatibility
 const __filename = fileURLToPath(import.meta.url);
@@ -39,7 +25,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Define extended error types for better type safety
-// Static file serving interfaces
+// Static file serving types
 interface StaticFileHeaders extends Record<string, string | undefined> {
   'Content-Type'?: string;
   'Cache-Control'?: string;
@@ -50,11 +36,11 @@ interface StaticFileHeaders extends Record<string, string | undefined> {
   'Last-Modified'?: string;
 }
 
-interface StaticFileOptions extends Omit<ServeStaticOptions, 'setHeaders'> {
+interface StaticFileOptions extends ServeStaticOptions {
   index: boolean;
   etag: boolean;
   lastModified: boolean;
-  setHeaders: (res: ServerResponse<IncomingMessage>, filepath: string, stat: any) => void;
+  setHeaders: (res: Response, filepath: string, stat?: any) => void;
   maxAge?: number | string;
   immutable?: boolean;
 }
@@ -90,43 +76,59 @@ interface StaticFileError extends ExtendedError {
   metadata?: StaticFileMetadata;
   syscall?: string;
   errno?: number;
-  code?: 'ENOENT' | string;
+  code?: string;
+}
+
+type ErrorHandler = (
+  err: ExtendedError | StaticFileError,
+  req: TypedRequest,
+  res: Response,
+  next: NextFunction
+) => void;
+
+interface LogMessage {
+  message: string;
+  [key: string]: unknown;
 }
 
 interface StaticErrorLog extends Omit<LogMessage, "level"> {
+  message: string;
   path?: string;
   error_message?: string;
   metadata?: Record<string, unknown>;
 }
 
+interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
+  session: Session & Partial<SessionData> & {
+    user?: {
+      id: string | number;
+      [key: string]: any;
+    };
+  };
+  sessionID: string;
+  requestId?: string;
+}
+
 // Configure CORS options
 const corsOptions: cors.CorsOptions = {
-  origin: (origin: string | undefined, callback: (err: Error | null, origin?: boolean | string | RegExp | (string | RegExp)[]) => void) => {
+  origin: (origin, callback) => {
     const allowedOrigins = [
       env.APP_URL,
       'http://localhost:3000',
       'http://localhost:5000',
-      'http://0.0.0.0:3000',
-      'http://0.0.0.0:5000',
       // Allow all subdomains of repl.co and replit.dev
-      /^https?:\/\/[^.]+\.repl\.co$/,
-      /^https?:\/\/[^.]+\.replit\.dev$/
+      /\.repl\.co$/,
+      /\.replit\.dev$/
     ];
     
-    // Allow requests with no origin (like mobile apps, curl requests, or same-origin)
-    if (!origin || origin === 'null') {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
       callback(null, true);
       return;
     }
 
     // Allow all origins in development
     if (env.NODE_ENV === 'development') {
-      callback(null, true);
-      return;
-    }
-
-    // Allow access to static assets from any origin
-    if (/\.(js|css|png|jpg|jpeg|gif|ico|svg)$/.test(origin)) {
       callback(null, true);
       return;
     }
@@ -152,7 +154,7 @@ const corsOptions: cors.CorsOptions = {
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
-  exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie', 'ETag', 'Cache-Control'],
+  exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie'],
   maxAge: 86400,
   optionsSuccessStatus: 204,
   preflightContinue: false
@@ -282,37 +284,33 @@ async function initializeMiddleware() {
         index: false,
         etag: true,
         lastModified: true,
-        setHeaders: (res: ServerResponse<IncomingMessage>, filepath: string) => {
-          try {
-            // Set secure headers
-            res.setHeader('X-Content-Type-Options', 'nosniff');
-            
-            const ext = path.extname(filepath).toLowerCase();
-            const cacheControl = (() => {
-              if (ext === '.html') {
-                res.setHeader('Pragma', 'no-cache');
-                res.setHeader('Expires', '0');
-                return 'no-cache, no-store, must-revalidate';
-              }
-              
-              if (['.js', '.mjs', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg'].includes(ext)) {
-                return 'public, max-age=31536000, immutable';
-              }
-              
-              return 'public, max-age=86400';
-            })();
-
-            res.setHeader('Cache-Control', cacheControl);
-
-            // Set content type for script and style files
+        setHeaders: (res: Response, filepath: string) => {
+          const ext = path.extname(filepath).toLowerCase();
+          const headers: StaticFileHeaders = {
+            'X-Content-Type-Options': 'nosniff'
+          };
+          
+          // Cache control
+          if (ext === '.html') {
+            headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+            headers['Pragma'] = 'no-cache';
+            headers['Expires'] = '0';
+          } else if (filepath.includes('/assets/')) {
+            // Set correct MIME types for assets
             if (ext === '.js' || ext === '.mjs') {
-              res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+              headers['Content-Type'] = 'application/javascript; charset=UTF-8';
             } else if (ext === '.css') {
-              res.setHeader('Content-Type', 'text/css; charset=UTF-8');
+              headers['Content-Type'] = 'text/css; charset=UTF-8';
             }
-          } catch (err) {
-            console.error('Error setting headers:', err);
+            headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+          } else {
+            headers['Cache-Control'] = 'public, max-age=86400';
           }
+          
+          // Apply all headers
+          Object.entries(headers).forEach(([key, value]) => {
+            if (value) res.setHeader(key, value);
+          });
         }
       };
 
@@ -324,34 +322,17 @@ async function initializeMiddleware() {
       app.use('/assets', express.static(path.join(publicPath, 'assets'), staticOptions));
       app.use(express.static(publicPath, staticOptions));
 
-      // Add static file error handling middleware
+      // Add static file error logging middleware
       app.use((err: Error | StaticFileError, req: Request, res: Response, next: NextFunction) => {
-        if (err && (req.path.startsWith('/assets/') || req.path.includes('.'))) {
-          const errorDetails: StaticErrorLog = {
+        if (err && req.path.startsWith('/assets/')) {
+          error({
             message: 'Static file serving error',
             path: req.path,
             error_message: err.message,
             metadata: {
               request_headers: Object.fromEntries(Object.entries(req.headers)),
-              response_headers: Object.fromEntries(Object.entries(res.getHeaders())),
-              mime_type: req.get('Content-Type'),
-              method: req.method
+              response_headers: Object.fromEntries(Object.entries(res.getHeaders()))
             }
-          };
-          
-          error(errorDetails);
-          
-          if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-            return res.status(404).json({ 
-              message: 'File not found',
-              path: req.path,
-              requestId: req.headers['x-request-id']
-            });
-          }
-          
-          return res.status(500).json({ 
-            message: 'Error serving static file',
-            requestId: req.headers['x-request-id']
           });
         }
         next(err);
@@ -372,13 +353,22 @@ async function initializeMiddleware() {
   }
 }
 
+import { 
+  trackError, 
+  initRequestTracking, 
+  AuthenticationError,
+  DatabaseError,
+  ValidationError,
+  AppError 
+} from './lib/errorTracking';
+
 // Setup error handlers
 function setupErrorHandlers() {
   // Add request tracking
   app.use(initRequestTracking());
 
   // API route not found handler
-  app.use('/api/*', (req: Request, res: Response) => {
+  app.use('/api/*', (req: TypedRequest, res: Response) => {
     const context = trackError(
       new AppError('API endpoint not found', {
         errorCode: 'NOT_FOUND',
@@ -394,7 +384,7 @@ function setupErrorHandlers() {
   });
 
   // Authentication error handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
     if (err instanceof AuthenticationError || err.name === 'SessionError') {
       const context = trackError(err, req);
       return res.status(401).json({ 
@@ -407,7 +397,7 @@ function setupErrorHandlers() {
   });
 
   // Validation error handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
     if (err instanceof ValidationError) {
       const context = trackError(err, req);
       return res.status(400).json({
@@ -420,7 +410,7 @@ function setupErrorHandlers() {
   });
 
   // Database error handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
     if (err instanceof DatabaseError || err.message.includes('database')) {
       const context = trackError(err, req);
       return res.status(503).json({ 
@@ -433,22 +423,23 @@ function setupErrorHandlers() {
   });
 
   // Final error handler
-  app.use((err: Error | AppError, req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: Error | AppError, req: TypedRequest, res: Response, _next: NextFunction) => {
     const context = trackError(err, req, res);
-    const statusCode = isAppError(err) && err.context.statusCode ? err.context.statusCode : 500;
+    const status = 'context' in err && err.context?.statusCode ? err.context.statusCode : 500;
+    
     const response = {
       message: env.NODE_ENV === 'production' 
         ? 'An unexpected error occurred' 
         : err.message,
-      status: statusCode,
+      status,
       requestId: context.requestId,
       ...(env.NODE_ENV === 'development' ? { 
         stack: err.stack,
-        errorCode: isAppError(err) ? err.context.errorCode : 'UNKNOWN_ERROR'
+        errorCode: 'context' in err ? err.context.errorCode : 'UNKNOWN_ERROR'
       } : {})
     };
 
-    res.status(statusCode).json(response);
+    res.status(status).json(response);
   });
 
   // Handle client-side routing for non-API routes
@@ -461,12 +452,6 @@ function setupErrorHandlers() {
       });
     }
   });
-}
-
-function isAppError(error: Error | AppError): error is AppError {
-  return 'context' in error && 
-         typeof (error as AppError).context?.statusCode === 'number' &&
-         typeof (error as AppError).context?.errorCode === 'string';
 }
 
 // Main application entry point
@@ -543,30 +528,17 @@ async function main() {
         resolve();
       });
 
-      server.listen(PORT, '0.0.0.0', () => {
-        info(`Server is now listening on http://0.0.0.0:${PORT}`);
-      });
+      server.listen(PORT, '0.0.0.0');
     });
 
   } catch (err) {
-    const errorLog: LogMessage = {
+    error({
       message: 'Fatal error in server startup',
-      metadata: {
-        error: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-        timestamp: new Date().toISOString()
-      }
-    };
-    error(errorLog);
+      stack: err instanceof Error ? err.stack : String(err)
+    });
 
     if (server?.listening) {
-      info('Closing server due to startup error');
-      await new Promise<void>((resolve) => {
-        server!.close(() => {
-          info('Server closed');
-          resolve();
-        });
-      });
+      await new Promise<void>((resolve) => server!.close(() => resolve()));
     }
     
     process.exit(1);
@@ -590,11 +562,7 @@ try {
 } catch (err) {
   error({
     message: 'Fatal error starting server',
-    metadata: {
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      timestamp: new Date().toISOString()
-    }
+    stack: err instanceof Error ? err.stack : String(err)
   });
   process.exit(1);
 }

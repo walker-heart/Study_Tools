@@ -9,24 +9,14 @@ export const queryClient = new QueryClient({
         });
 
         if (!res.ok) {
-          const errorText = await res.text();
-          // Try to parse as JSON first
-          try {
-            const errorJson = JSON.parse(errorText);
-            throw new Error(errorJson.message || `${res.status}: ${res.statusText}`);
-          } catch (e) {
-            // If not JSON, use text content but clean up any HTML
-            const cleanText = errorText.replace(/<[^>]*>/g, '');
-            throw new Error(`${res.status}: ${cleanText.slice(0, 200)}`);
+          if (res.status >= 500) {
+            throw new Error(`${res.status}: ${res.statusText}`);
           }
+
+          throw new Error(`${res.status}: ${await res.text()}`);
         }
 
-        const contentType = res.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          return res.json();
-        } else {
-          throw new Error('Expected JSON response but received: ' + contentType);
-        }
+        return res.json();
       },
       refetchInterval: false,
       refetchOnWindowFocus: false,

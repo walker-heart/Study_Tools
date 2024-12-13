@@ -3,50 +3,55 @@ import { jsPDF } from 'jspdf';
 
 interface VocabCard {
   'Vocab Word': string;
-  'Identifying Part Of Speech': string;
+  'Identifying Part Of Speach': string; // Handle misspelling in CSV
   'Definition': string;
-  'Example Sentence': string;
-  lineNumber: number;
+  'Example Sentance': string; // Handle misspelling in CSV
+  lineNumber: number; // Add line number tracking
 }
 
 type ParseResults = Papa.ParseResult<VocabCard>;
+type ParseError = Papa.ParseError;
 
-export async function generatePDF(csvContent: string): Promise<void> {
+export async function generatePDF(file: File): Promise<void> {
   return new Promise((resolve, reject) => {
-    try {
-      const results = Papa.parse<VocabCard>(csvContent, {
-        header: true,
-        skipEmptyLines: true
-      });
-      
-      // Log headers for debugging
-      console.log('CSV Headers:', results.meta.fields);
-      
-      // Process data while preserving cell positions
-      const data = results.data
-        .filter((row: any) => {
-          // Keep only non-empty rows
-          return row['Vocab Word'] && 
-            row['Identifying Part Of Speech'] && 
-            row['Definition'] && 
-            row['Example Sentence'];
-        })
-        .map((row: any, index: number) => ({
-          ...row,
-          lineNumber: index + 1
-        }));
-      
-      if (data.length === 0) {
-        throw new Error('No valid data found in CSV content. Please ensure all required columns are present.');
+    Papa.parse<VocabCard>(file, {
+      header: true,
+      complete: (results: ParseResults) => {
+        try {
+          // Log headers for debugging
+          console.log('CSV Headers:', results.meta.fields);
+          
+          // Process data while preserving cell positions
+          const data = results.data
+            .filter((row: any) => {
+              // Keep only non-empty rows
+              return row['Vocab Word'] && 
+                row['Identifying Part Of Speach'] && 
+                row['Definition'] && 
+                row['Example Sentance'];
+            })
+            .map((row: any, index: number) => ({
+              ...row,
+              lineNumber: row.originalIndex - 1 // Use originalIndex from Home.tsx parsing, minus 1 for header
+            }));
+          
+          if (data.length === 0) {
+            throw new Error('No valid data found in CSV file. Please ensure all required columns are present: Vocab Word, Identifying Part Of Speach, Definition, Example Sentance');
+          }
+          
+          console.log('Processing data:', data);
+          createPDF(data);
+          resolve();
+        } catch (error) {
+          console.error('PDF Generation Error:', error);
+          reject(error instanceof Error ? error : new Error('Failed to generate PDF'));
+        }
+      },
+      error: (error: Error) => {
+        console.error('CSV Parsing Error:', error);
+        reject(new Error(`Failed to parse CSV: ${error.message}`));
       }
-      
-      console.log('Processing data:', data);
-      createPDF(data);
-      resolve();
-    } catch (error) {
-      console.error('PDF Generation Error:', error);
-      reject(error instanceof Error ? error : new Error('Failed to generate PDF'));
-    }
+    });
   });
 }
 
@@ -109,7 +114,7 @@ function createPDF(data: VocabCard[]) {
       pdf.text(word, x + (cardWidth / 2), y + (cardHeight * 0.6), { align: 'center' });
 
       // Part of speech (below word)
-      const pos = card['Identifying Part Of Speech'] || '';
+      const pos = card['Identifying Part Of Speach'] || '';
       pdf.setFontSize(16);
       pdf.text(pos, x + (cardWidth / 2), y + (cardHeight * 0.8), { align: 'center' });
     });
@@ -141,7 +146,7 @@ function createPDF(data: VocabCard[]) {
 
       // Calculate optimal font sizes based on content length
       const definition = card['Definition'] || '';
-      const sentence = card['Example Sentence'] || '';
+      const sentence = card['Example Sentance'] || '';
       
       // Adjust font size based on content length
       const baseSize = 16;
