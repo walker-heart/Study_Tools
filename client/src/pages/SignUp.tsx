@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSettings } from '@/contexts/SettingsContext';
-import { signUpWithEmail } from '@/lib/auth/index';
+import { signUpWithEmail } from '@/lib/auth';
 
 export default function SignUp() {
   const [, setLocation] = useLocation();

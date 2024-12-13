@@ -19,9 +19,10 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./client/src/*"],
-      "@db/*": ["./db/*"]
+      "@/*": ["client/src/*"],
+      "@db/*": ["db/*"],
+      "@server/*": ["server/*"]
     },
-    "types": ["node", "vite/client"]
+    "types": ["node", "vite/client", "@firebase/auth-types", "@firebase/firestore-types"]
   }
 }
