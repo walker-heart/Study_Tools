@@ -36,8 +36,12 @@ passport.deserializeUser(async (id: number, done: (err: any, user?: Express.User
 
 // Get the appropriate callback URL based on the environment
 function getCallbackURL(): string {
-  // Always use the configured APP_URL as it properly handles both Replit and local environments
-  return `${env.APP_URL}/api/auth/google/callback`;
+  const baseUrl = env.APP_URL || (
+    env.NODE_ENV === 'development' 
+      ? 'http://localhost:5000'
+      : `https://${process.env.REPL_SLUG}.repl.co`
+  );
+  return `${baseUrl}/api/auth/google/callback`;
 }
 
 // Initialize Google OAuth 2.0 strategy
