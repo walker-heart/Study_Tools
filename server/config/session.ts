@@ -43,7 +43,6 @@ const createPool = (): pkg.Pool => {
     keepAliveInitialDelayMillis: 10000
   });
 
-  // Add event listeners for connection issues
   pool.on('error', (err: unknown) => {
     const logMessage: LogMessage = {
       message: 'Unexpected error on idle client',
@@ -99,7 +98,6 @@ async function testDatabaseConnection(pool: pkg.Pool, maxRetries = 5): Promise<b
         return false;
       }
 
-      // Wait before retry with exponential backoff
       await new Promise(resolve => setTimeout(resolve, backoff));
       backoff *= 2; // Double the backoff time for next attempt
     }
@@ -114,22 +112,18 @@ async function initializeSessionStore(): Promise<session.Store> {
   try {
     pool = createPool();
     
-    // Test database connection first
     const isConnected = await testDatabaseConnection(pool);
     if (!isConnected) {
       throw new Error('Failed to establish database connection after retries');
     }
 
-    // Initialize session store
     const pgSession = connectPgSimple(session);
     
-    // Create session store with enhanced error handling
     const store = new pgSession({
       pool,
       tableName: 'session',
       createTableIfMissing: true,
-      pruneSessionInterval: 60 * 15, // Prune every 15 minutes
-      // Enhanced error logging with context
+      pruneSessionInterval: 60 * 15,
       errorLog: (err: unknown) => {
         const poolConfig = {
           max: 20,
@@ -152,12 +146,10 @@ async function initializeSessionStore(): Promise<session.Store> {
         };
         log(logMessage);
       },
-      // Connection configuration
       ttl: 24 * 60 * 60,
       disableTouch: false
     });
 
-    // Verify session store functionality with timeout
     try {
       await Promise.race([
         new Promise<void>((resolve, reject) => {
@@ -196,7 +188,6 @@ async function initializeSessionStore(): Promise<session.Store> {
       stack: error instanceof Error ? error.stack : undefined
     });
 
-    // Clean up pool if it exists
     if (pool) {
       try {
         await pool.end();
@@ -215,20 +206,19 @@ async function initializeSessionStore(): Promise<session.Store> {
       }
     }
 
-    // Return memory store as fallback
-    const memoryStore = new MemoryStoreSession({
-      checkPeriod: 86400000, // Prune expired entries every 24h
-      stale: false, // Don't keep stale sessions
-      max: 100 // Limit maximum number of sessions
+    return new MemoryStoreSession({
+      checkPeriod: 86400000,
+      stale: false,
+      max: 100
     });
-
-    return memoryStore;
   }
 }
 
-// Export the initialization function instead of the store directly
+// Export the session configuration with proper domain handling
 export async function createSessionConfig(): Promise<session.SessionOptions> {
   const store = await initializeSessionStore();
+  
+  const cookieDomain = env.NODE_ENV === 'production' ? '.wtoolsw.com' : undefined;
   
   return {
     store,
@@ -243,9 +233,8 @@ export async function createSessionConfig(): Promise<session.SessionOptions> {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
-      domain: env.NODE_ENV === 'production' ? '.wtoolsw.com' : undefined
+      domain: cookieDomain
     },
-    name: 'sid',
     name: 'sid'
   };
 }

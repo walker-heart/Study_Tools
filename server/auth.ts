@@ -6,6 +6,7 @@ import { Pool } from 'pg';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import type { Profile } from 'passport-google-oauth20';
+import { env } from './lib/env';
 
 // Extend express-session types
 declare module 'express-session' {
@@ -19,14 +20,13 @@ declare module 'express-session' {
   }
 }
 
-const app = express();
 const router = express.Router();
 
-// Use environment-specific URLs
-const SITE_URL = process.env.NODE_ENV === 'development' 
+// Use environment-specific URLs from env configuration
+const SITE_URL = env.NODE_ENV === 'development' 
   ? 'http://localhost:3000'
   : 'https://www.wtoolsw.com';
-const API_URL = process.env.NODE_ENV === 'development'
+const API_URL = env.NODE_ENV === 'development'
   ? 'http://localhost:3000/api'
   : 'https://www.wtoolsw.com/api';
 
@@ -140,24 +140,28 @@ router.get('/test-db', async (req, res) => {
 });
 
 // Middleware setup
-app.use(cors({
+router.use(cors({
   origin: SITE_URL,
   credentials: true
 }));
 
-app.use(express.json());
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'dev-secret-key',
+router.use(express.json());
+router.use(session({
+  secret: env.JWT_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: true,
+    secure: env.NODE_ENV === 'production',
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000,
-    sameSite: 'none',
-    domain: '.wtoolsw.com'
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+    domain: env.NODE_ENV === 'production' ? '.wtoolsw.com' : undefined
   }
 }));
+
+// Initialize passport and session handling
+router.use(passport.initialize());
+router.use(passport.session());
 
 // OAuth Setup
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
