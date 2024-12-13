@@ -25,13 +25,16 @@ const router = express.Router();
 // Use environment-specific URLs that match Google Cloud Console settings
 const SITE_URL = env.NODE_ENV === 'production'
   ? 'https://www.wtoolsw.com'
-  : 'http://localhost:5000';
+  : process.env.REPLIT_ENVIRONMENT 
+    ? 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
+    : 'http://localhost:5000';
 const API_URL = `${SITE_URL}/api`;
 
 // Verify the environment and URL configuration
 console.log('Environment:', env.NODE_ENV);
 console.log('Site URL:', SITE_URL);
 console.log('API URL:', API_URL);
+console.log('Is Replit Environment:', !!process.env.REPLIT_ENVIRONMENT);
 
 // PostgreSQL connection with connection logging
 const pool = new Pool({
