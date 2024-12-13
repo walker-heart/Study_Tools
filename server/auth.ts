@@ -4,6 +4,18 @@ import { OAuth2Client } from 'google-auth-library';
 import cors from 'cors';
 import { Pool } from 'pg';
 
+// Extend express-session types
+declare module 'express-session' {
+  interface Session {
+    authType?: 'signup' | 'signin';
+    user?: {
+      id: string;
+      email: string;
+      isAdmin?: boolean;
+    };
+  }
+}
+
 const app = express();
 const router = express.Router();
 
@@ -77,7 +89,7 @@ router.get('/test-db', async (req, res) => {
       `, ['test_id', 'test@example.com', 'Test User', 'https://example.com/pic.jpg']);
       console.log('Test user insertion result:', testUser.rows);
     } catch (insertError) {
-      console.log('Test user already exists or insertion failed:', insertError.message);
+      console.log('Test user already exists or insertion failed:', insertError instanceof Error ? insertError.message : 'Unknown error');
     }
 
     // Return comprehensive status
@@ -108,8 +120,8 @@ router.get('/test-db', async (req, res) => {
     console.error('Database test error:', error);
     res.status(500).json({ 
       error: 'Database test failed',
-      details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      details: error instanceof Error ? error.message : 'Unknown error',
+      stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined,
       config: {
         host: process.env.PGHOST,
         database: process.env.PGDATABASE,

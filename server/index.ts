@@ -471,32 +471,34 @@ function isAppError(error: Error | AppError): error is AppError {
 
 // Main application entry point
 async function main() {
-  const PORT = parseInt(process.env.PORT || '5000', 10);
+  // Get available port, starting from PORT env var or 5000
+  async function getAvailablePort(startPort: number): Promise<number> {
+    const net = await import('net');
+    return new Promise((resolve, reject) => {
+      const server = net.createServer();
+      server.unref();
+      server.on('error', () => {
+        resolve(getAvailablePort(startPort + 1));
+      });
+      server.listen(startPort, '0.0.0.0', () => {
+        server.close(() => {
+          resolve(startPort);
+        });
+      });
+    });
+  }
+  
+  const PORT = await getAvailablePort(parseInt(process.env.PORT || '5000', 10));
   let server: ReturnType<typeof createServer> | undefined;
 
   try {
-    // Test database connection with retry mechanism
-    let retries = 5;
-    let backoff = 1000; // Start with 1 second
-
-    while (retries > 0) {
-      try {
-        await db.execute(sql`SELECT NOW()`);
-        info('Database connection successful');
-        break;
-      } catch (err) {
-        retries--;
-        if (retries === 0) {
-          throw new Error('Failed to connect to database after multiple attempts');
-        }
-        warn({
-          message: `Database connection failed, retrying in ${backoff/1000} seconds...`,
-          error_message: err instanceof Error ? err.message : String(err)
-        });
-        
-        await new Promise(resolve => setTimeout(resolve, backoff));
-        backoff *= 2; // Exponential backoff
-      }
+    // Test database connection before starting server
+    try {
+      await db.execute(sql`SELECT NOW()`);
+      info('Database connection successful');
+    } catch (err) {
+      error('Failed to connect to database');
+      throw err;
     }
 
     // Initialize middleware
@@ -524,13 +526,8 @@ async function main() {
 
       server.on('error', (err: NodeJS.ErrnoException) => {
         if (err.code === 'EADDRINUSE') {
-          // Try the next available port
-          warn(`Port ${PORT} is in use, trying ${PORT + 1}`);
-          if (server) {
-            server.listen(PORT + 1, '0.0.0.0');
-          } else {
-            reject(new Error('Server is not initialized'));
-          }
+          warn(`Port ${PORT} is in use`);
+          reject(err);
         } else {
           error(`Server error: ${err.message}`);
           reject(err);
@@ -538,14 +535,15 @@ async function main() {
       });
 
       server.on('listening', () => {
-        info(`Server running in ${env.NODE_ENV} mode on port ${PORT}`);
+        const addr = server.address();
+        const actualPort = typeof addr === 'object' && addr ? addr.port : PORT;
+        info(`Server running in ${env.NODE_ENV} mode on port ${actualPort}`);
         info(`APP_URL: ${env.APP_URL}`);
+        info(`Server is now listening on http://0.0.0.0:${actualPort}`);
         resolve();
       });
 
-      server.listen(PORT, '0.0.0.0', () => {
-        info(`Server is now listening on http://0.0.0.0:${PORT}`);
-      });
+      server.listen(PORT, '0.0.0.0');
     });
 
   } catch (err) {
@@ -584,17 +582,32 @@ async function main() {
   });
 }
 
-// Start server
-try {
-  await main();
-} catch (err) {
-  error({
-    message: 'Fatal error starting server',
-    metadata: {
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      timestamp: new Date().toISOString()
+// Start server with retries
+  async function startWithRetries(maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        info(`Starting server attempt ${attempt}/${maxRetries}`);
+        await main();
+        return;
+      } catch (err) {
+        error({
+          message: `Server start attempt ${attempt} failed`,
+          metadata: {
+            error: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+            timestamp: new Date().toISOString()
+          }
+        });
+        
+        if (attempt === maxRetries) {
+          process.exit(1);
+        }
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
     }
-  });
-  process.exit(1);
-}
+  }
+
+  // Start the server
+  startWithRetries();
