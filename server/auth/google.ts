@@ -39,9 +39,13 @@ function getCallbackURL(): string {
   // Exactly match the authorized redirect URIs from Google Cloud Console
   const baseUrl = env.NODE_ENV === 'production'
     ? 'https://www.wtoolsw.com'
-    : 'http://localhost:5000';
+    : process.env.REPLIT_ENVIRONMENT
+      ? 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
+      : 'http://localhost:5000';
   const callbackUrl = `${baseUrl}/api/auth/google/callback`;
   console.log('Google Auth Callback URL:', callbackUrl);
+  console.log('Environment:', env.NODE_ENV);
+  console.log('Is Replit Environment:', !!process.env.REPLIT_ENVIRONMENT);
   return callbackUrl;
 }
 
@@ -54,8 +58,7 @@ const strategyConfig: StrategyOptions = {
   scope: ['profile', 'email']
 };
 
-passport.use(new GoogleStrategy(
-  strategyConfig,
+passport.use(new GoogleStrategy(strategyConfig, 
   async (accessToken: string, refreshToken: string, profile: Profile, done: (error: any, user?: any) => void) => {
     try {
       const email = profile.emails?.[0]?.value;

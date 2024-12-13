@@ -107,7 +107,8 @@ const corsOptions: cors.CorsOptions = {
     // These should exactly match the Authorized JavaScript origins in Google Cloud Console
     const allowedOrigins = [
       'https://www.wtoolsw.com',
-      'http://localhost:5000'
+      'http://localhost:5000',
+      'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
     ];
     
     // Allow requests with no origin (like mobile apps, curl requests)
@@ -242,14 +243,34 @@ async function initializeMiddleware() {
       if (!sessionConfig) {
         throw new Error('Failed to create session configuration');
       }
-      app.use(session(sessionConfig));
+      // Configure session middleware with proper settings
+      const sessionMiddleware = session(sessionConfig);
+      app.use((req, res, next) => {
+        // Ensure session configuration is properly applied
+        sessionMiddleware(req, res, (err) => {
+          if (err) {
+            error({
+              message: 'Session middleware error',
+              metadata: {
+                error: err instanceof Error ? err.message : 'Unknown error',
+                path: req.path
+              }
+            });
+            next(err);
+            return;
+          }
+          next();
+        });
+      });
+
       app.use(cleanupSessions);
       app.use(sessionSecurity);
-      
+
       // Initialize Passport and restore authentication state from session
       app.use(passport.initialize());
       app.use(passport.session());
-      info('Session and Passport middleware initialized');
+
+      info('Session and authentication middleware configured');
       
       // Mount Google authentication routes
       app.use('/api/auth/google', googleAuthRouter);
@@ -522,7 +543,7 @@ function isAppError(error: Error | AppError): error is AppError {
 // Main application entry point
 async function main() {
   // Server configuration
-  const PORT = 5000; // Fixed port for consistency with Google OAuth
+  const PORT = process.env.PORT || 5000; // Use environment PORT or default to 5000
   let server: ReturnType<typeof createServer>;
   info(`Starting server on port ${PORT}`);
   
@@ -569,22 +590,44 @@ async function main() {
         metadata: {
           port: PORT,
           environment: env.NODE_ENV,
-          nodeVersion: process.version
+          nodeVersion: process.version,
+          isReplit: !!process.env.REPLIT_ENVIRONMENT
         }
       });
 
-      server.on('error', handleError);
+      // Handle server errors
+      server.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          error({
+            message: `Port ${PORT} is already in use`,
+            metadata: { port: PORT }
+          });
+        }
+        handleError(err);
+      });
       
-      server.listen(PORT, '0.0.0.0', () => {
+      // Attempt to start server
+      server.listen(Number(PORT), '0.0.0.0', () => {
         const address = server.address();
         if (!address || typeof address !== 'object') {
           handleError(new Error('Failed to get server address'));
           return;
         }
+
+        // Log successful startup
+        info({
+          message: 'Server started successfully',
+          metadata: {
+            port: address.port,
+            address: address.address
+          }
+        });
         
-        const serverUrl = process.env.NODE_ENV === 'production'
+        const serverUrl = env.NODE_ENV === 'production'
           ? env.APP_URL
-          : `http://localhost:${address.port}`;
+          : process.env.REPLIT_ENVIRONMENT
+            ? `https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev`
+            : `http://localhost:${address.port}`;
         
         info({
           message: 'Server started successfully',
@@ -592,7 +635,8 @@ async function main() {
             port: address.port,
             address: address.address,
             url: serverUrl,
-            environment: process.env.NODE_ENV
+            environment: env.NODE_ENV,
+            isReplit: !!process.env.REPLIT_ENVIRONMENT
           }
         });
         

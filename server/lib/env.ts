@@ -8,12 +8,16 @@ const envSchema = z.object({
   APP_URL: z.string().default(
     process.env.NODE_ENV === 'production'
       ? 'https://www.wtoolsw.com'
-      : 'http://localhost:5000'
+      : process.env.REPLIT_ENVIRONMENT
+        ? 'https://343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
+        : 'http://localhost:5000'
   ).transform(url => url.replace(/\/$/, '')), // Remove trailing slash if present
   APP_DOMAIN: z.string().default(
     process.env.NODE_ENV === 'production'
       ? 'wtoolsw.com'
-      : 'localhost:5000'
+      : process.env.REPLIT_ENVIRONMENT
+        ? '343460df-6523-41a1-9a70-d687f288a6a5-00-25snbpzyn9827.spock.replit.dev'
+        : 'localhost:5000'
   ),
   PORT: z.string()
     .default("5000")
