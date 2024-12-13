@@ -1,30 +1,27 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { Pool } from 'pg';
-import bcrypt from 'bcryptjs';
+import { auth } from 'firebase-admin';
 import { log } from './lib/log';
 import { AuthenticationError } from './lib/errorTracking';
+import type { User as DbUser } from '../db/schema/users';
 
 // Define user type for type safety
 interface User {
-  id: string;
+  id: number;
   email: string;
-  first_name: string;
-  last_name: string;
-  password_hash: string;
-  is_admin: boolean;
+  firstName: string;
+  lastName: string;
+  isAdmin: boolean;
+  firebaseUid: string;
 }
 
-// Extend express-session types
-declare module 'express-session' {
-  interface SessionData {
-    user?: {
-      id: string;
-      email: string;
-      first_name: string;
-      last_name: string;
-      is_admin: boolean;
-    };
+// Extend express Request type to include user from Firebase
+declare global {
+  namespace Express {
+    interface Request {
+      user?: auth.DecodedIdToken;
+    }
   }
 }
 
@@ -58,157 +55,82 @@ pool.on('error', (err) => {
 
 // Check authentication status
 router.get('/check', async (req: Request, res: Response) => {
-  if (req.session.user) {
-    try {
-      const result = await pool.query(
-        'SELECT id, email, first_name, last_name, is_admin FROM users WHERE id = $1',
-        [req.session.user.id]
-      );
-      
-      if (result.rows.length > 0) {
-        const user = result.rows[0];
-        res.json({ 
-          authenticated: true, 
-          user: {
-            id: user.id,
-            email: user.email,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            is_admin: user.is_admin
-          }
-        });
-      } else {
-        req.session.destroy(() => {
-          res.json({ authenticated: false });
-        });
-      }
-    } catch (error) {
-      log({
-        message: 'Database error during auth check',
-        metadata: {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined
-        }
-      }, 'error');
-      res.status(500).json({ error: 'Internal server error' });
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.json({ authenticated: false });
     }
-  } else {
+
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await auth().verifyIdToken(token);
+    
+    const result = await pool.query<DbUser>(
+      'SELECT id, email, first_name as "firstName", last_name as "lastName", is_admin as "isAdmin" FROM users WHERE firebase_uid = $1',
+      [decodedToken.uid]
+    );
+    
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      res.json({ 
+        authenticated: true, 
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          isAdmin: user.isAdmin
+        }
+      });
+    } else {
+      res.json({ authenticated: false });
+    }
+  } catch (error) {
+    log({
+      message: 'Auth check error',
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }
+    }, 'error');
     res.json({ authenticated: false });
   }
 });
 
-// Sign in endpoint
-router.post('/signin', async (req: Request, res: Response) => {
+// Create or update user profile after Firebase authentication
+router.post('/profile', async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { firstName, lastName } = req.body;
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
 
-    const result = await pool.query(
-      'SELECT id, email, first_name, last_name, password_hash, is_admin FROM users WHERE email = $1',
-      [email]
+    const result = await pool.query<DbUser>(
+      `INSERT INTO users (email, first_name, last_name, firebase_uid, is_admin)
+       VALUES ($1, $2, $3, $4, false)
+       ON CONFLICT (firebase_uid) 
+       DO UPDATE SET first_name = $2, last_name = $3, email = $1
+       RETURNING id, email, first_name as "firstName", last_name as "lastName", is_admin as "isAdmin"`,
+      [req.user.email, firstName, lastName, req.user.uid]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(401).json({ message: 'Invalid email or password' });
-    }
-
     const user = result.rows[0];
-    const isValid = await bcrypt.compare(password, user.password_hash);
-
-    if (!isValid) {
-      return res.status(401).json({ message: 'Invalid email or password' });
-    }
-
-    req.session.user = {
-      id: user.id,
-      email: user.email,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      is_admin: user.is_admin
-    };
-
     res.json({
       id: user.id,
       email: user.email,
-      first_name: user.first_name,
-      last_name: user.last_name,
-      is_admin: user.is_admin
+      firstName: user.firstName,
+      lastName: user.lastName,
+      isAdmin: user.isAdmin
     });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Failed to sign in';
+  } catch (error) {
     log({
-        message: 'Sign in error',
-        metadata: {
-          error: errorMessage,
-          stack: error instanceof Error ? error.stack : undefined
-        }
-      }, 'error');
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Sign up endpoint
-router.post('/signup', async (req: Request, res: Response) => {
-  try {
-    const { email, password, firstName, lastName } = req.body;
-    
-    // Check if user already exists
-    const existingUser = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
-    );
-
-    if (existingUser.rows.length > 0) {
-      return res.status(400).json({ message: 'Email already registered' });
-    }
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    // Insert new user
-    const result = await pool.query(
-      `INSERT INTO users (email, password_hash, first_name, last_name, is_admin)
-       VALUES ($1, $2, $3, $4, false)
-       RETURNING id, email, first_name, last_name, is_admin`,
-      [email, passwordHash, firstName, lastName]
-    );
-
-    const newUser = result.rows[0];
-    res.status(201).json({
-      id: newUser.id,
-      email: newUser.email,
-      first_name: newUser.first_name,
-      last_name: newUser.last_name,
-      is_admin: newUser.is_admin
-    });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Failed to sign up';
-    log({
-      message: 'Sign up error',
+      message: 'Profile update error',
       metadata: {
-        error: errorMessage,
+        error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       }
     }, 'error');
     res.status(500).json({ message: 'Internal server error' });
   }
-});
-
-// Sign out endpoint
-router.post('/signout', (req: Request, res: Response) => {
-  req.session.destroy((err: Error | null) => {
-    if (err) {
-      log({
-        message: 'Sign out error',
-        metadata: {
-          error: err.message,
-          stack: err.stack
-        }
-      }, 'error');
-      return res.status(500).json({ message: 'Failed to sign out' });
-    }
-    res.json({ message: 'Signed out successfully' });
-  });
 });
 
 export default router;

@@ -1,12 +1,7 @@
-import { initializeApp } from '@firebase/app';
-import { getAuth } from '@firebase/auth';
-import { getFirestore } from '@firebase/firestore';
+import { type FirebaseOptions } from '@firebase/app';
 
-// Environment detection
-const isDevelopment = import.meta.env.DEV;
-
-// Firebase configuration
-const firebaseConfig = {
+// Firebase configuration using environment variables
+export const firebaseConfig: FirebaseOptions = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -15,25 +10,20 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-// Initialize Firebase services
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// Validate config before export
+const requiredFields = [
+  'apiKey',
+  'authDomain',
+  'projectId',
+  'storageBucket',
+  'messagingSenderId',
+  'appId'
+] as const;
 
-// Configure environment-specific settings
-if (isDevelopment) {
-  console.log('🔧 Running in development mode');
-  console.log('🔥 Firebase Config:', {
-    projectId: firebaseConfig.projectId,
-    authDomain: firebaseConfig.authDomain
-  });
+for (const field of requiredFields) {
+  if (!firebaseConfig[field]) {
+    console.warn(`Missing Firebase config field: ${field}`);
+  }
 }
 
-// Export configuration and instances
-export {
-  app,
-  auth,
-  db,
-  isDevelopment,
-  firebaseConfig
-};
+export default firebaseConfig;

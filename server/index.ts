@@ -101,7 +101,9 @@ interface StaticErrorLog extends Omit<LogMessage, "level"> {
 
 // Configure CORS options
 const corsOptions: cors.CorsOptions = {
-  origin: true, // Allow all origins in development
+  origin: env.NODE_ENV === 'production'
+    ? env.ALLOWED_ORIGINS?.split(',').map(origin => origin.trim()) || ['https://your-main-domain.com']
+    : true, // Allow all origins in development
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
@@ -168,10 +170,7 @@ async function initializeMiddleware() {
     // Basic middleware
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
-    app.use(cors({
-      origin: true,
-      credentials: true
-    }));
+    app.use(cors(corsOptions));
 
     // Initialize session configuration
     console.log('Initializing session configuration...');
