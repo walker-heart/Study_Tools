@@ -198,8 +198,11 @@ import { securityHeaders, sanitizeInput, sessionSecurity, cleanupSessions } from
 // Initialize middleware
 async function initializeMiddleware() {
   try {
+    console.log('Starting middleware initialization...');
+    
     // Environment-specific settings
     if (env.NODE_ENV === 'production') {
+      console.log('Configuring production settings...');
       // Configure trust proxy for Replit's environment
       app.set('trust proxy', (ip: string) => {
         return ip === '127.0.0.1' || 
@@ -208,24 +211,41 @@ async function initializeMiddleware() {
                ip.startsWith('192.168.');
       });
     } else {
+      console.log('Configuring development settings...');
       app.set('json spaces', 2);
     }
     app.set('x-powered-by', false);
     
-    info(`Server initializing in ${env.NODE_ENV} mode`);
+    console.log(`Server initializing in ${env.NODE_ENV} mode`);
 
     // Initialize PostgreSQL session configuration
-    const sessionConfig = await createSessionConfig();
-    if (!sessionConfig) {
-      throw new Error('Failed to create session configuration');
+    console.log('Initializing session configuration...');
+    let sessionConfig;
+    try {
+      sessionConfig = await createSessionConfig();
+      if (!sessionConfig) {
+        throw new Error('Session configuration is undefined');
+      }
+      console.log('Session configuration created successfully');
+    } catch (configError) {
+      console.error('Failed to create session configuration:', configError);
+      throw new Error(`Session configuration failed: ${configError instanceof Error ? configError.message : String(configError)}`);
     }
     
     // Configure session middleware with PostgreSQL store
-    app.use(session(sessionConfig));
-    info('Session middleware configured with PostgreSQL store');
-    
-    // Add session cleanup middleware
-    app.use(cleanupSessions);
+    try {
+      console.log('Setting up session middleware...');
+      app.use(session(sessionConfig));
+      console.log('Session middleware configured successfully');
+      
+      // Add session cleanup middleware
+      console.log('Adding session cleanup middleware...');
+      app.use(cleanupSessions);
+      console.log('Session cleanup middleware added successfully');
+    } catch (sessionError) {
+      console.error('Session middleware initialization failed:', sessionError);
+      throw new Error(`Session middleware failed: ${sessionError instanceof Error ? sessionError.message : String(sessionError)}`);
+    }
 
     // Apply basic security headers
     app.use(securityHeaders);
@@ -481,10 +501,12 @@ async function main() {
     // Log environment and configuration
     info({
       message: 'Starting server initialization',
-      env: env.NODE_ENV,
-      port: PORT,
-      database_url_exists: !!env.DATABASE_URL,
-      app_url: env.APP_URL
+      metadata: {
+        environment: env.NODE_ENV,
+        port: PORT,
+        database_url_exists: !!env.DATABASE_URL,
+        app_url: env.APP_URL
+      }
     });
 
     // Test database connection with retry mechanism
@@ -492,30 +514,65 @@ async function main() {
     let backoff = 1000; // Start with 1 second
 
     info('Attempting database connection...');
+    info({
+      message: 'Database configuration',
+      metadata: {
+        database_url_exists: !!env.DATABASE_URL,
+        database_url_masked: env.DATABASE_URL?.replace(/:[^:@]*@/, ':***@'),
+        node_env: env.NODE_ENV
+      }
+    });
+
     while (retries > 0) {
       try {
-        const result = await db.execute(sql`SELECT NOW()`);
+        const result = await db.execute(sql`
+          SELECT 
+            current_database() as db_name,
+            current_schema as schema_name,
+            version() as version,
+            NOW() as timestamp
+        `);
+        
+        const dbResult = result.rows[0];
         info({
           message: 'Database connection successful',
-          timestamp: result.rows[0]?.now,
-          attempt: 6 - retries
+          metadata: {
+            database: dbResult?.db_name,
+            schema: dbResult?.schema_name,
+            version: typeof dbResult?.version === 'string' ? dbResult.version.split(' ')[0] : undefined,
+            timestamp: dbResult?.timestamp,
+            attempt: 6 - retries
+          }
         });
         break;
       } catch (err) {
         retries--;
         const errorMessage = err instanceof Error ? err.message : String(err);
+        const errorDetails = {
+          name: err instanceof Error ? err.name : 'UnknownError',
+          code: (err as any)?.code,
+          errno: (err as any)?.errno,
+          syscall: (err as any)?.syscall
+        };
+        
         warn({
           message: `Database connection attempt failed`,
-          attempt: 6 - retries,
-          remaining_attempts: retries,
-          error: errorMessage,
-          backoff_seconds: backoff/1000
+          metadata: {
+            attempt: 6 - retries,
+            remaining_attempts: retries,
+            error: errorMessage,
+            details: errorDetails,
+            backoff_seconds: backoff/1000
+          }
         });
         
         if (retries === 0) {
           error({
             message: 'All database connection attempts failed',
-            final_error: errorMessage
+            metadata: {
+              final_error: errorMessage,
+              error_details: errorDetails
+            }
           });
           throw new Error(`Failed to connect to database after multiple attempts: ${errorMessage}`);
         }
@@ -556,9 +613,11 @@ async function main() {
       server.on('error', (err: NodeJS.ErrnoException) => {
         error({
           message: 'Server startup error',
-          error: err.message,
-          code: err.code,
-          port: serverPort
+          metadata: {
+            error: err.message,
+            code: err.code,
+            port: serverPort
+          }
         });
         reject(err);
       });
@@ -612,9 +671,22 @@ async function main() {
 }
 
 // Start server
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit, just log
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  // Don't exit, just log
+});
+
 try {
+  console.log('Starting server initialization...');
   await main();
+  console.log('Server started successfully');
 } catch (err) {
+  console.error('Fatal error starting server:', err);
   error({
     message: 'Fatal error starting server',
     metadata: {
@@ -623,5 +695,8 @@ try {
       timestamp: new Date().toISOString()
     }
   });
+  
+  // Give time for logs to flush
+  await new Promise(resolve => setTimeout(resolve, 1000));
   process.exit(1);
 }
