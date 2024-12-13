@@ -340,3 +340,6 @@ export async function updateUserPassword(req: Request, res: Response) {
     res.status(500).json({ message: "Error updating user password" });
   }
 }
+import { Router } from 'express';
+const router = Router();
+export default router;
