@@ -474,15 +474,34 @@ async function main() {
   const isPortInUse = async (port: number): Promise<boolean> => {
     return new Promise((resolve) => {
       const testServer = createServer();
-      testServer.once('error', () => {
-        resolve(true);
+      testServer.once('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          resolve(true);
+        } else {
+          error({
+            message: 'Port check error',
+            error_message: err.message,
+            metadata: { port }
+          });
+          resolve(true);
+        }
       });
       testServer.once('listening', () => {
-        testServer.close();
-        resolve(false);
+        testServer.close(() => resolve(false));
       });
       testServer.listen(port, '0.0.0.0');
     });
+  };
+
+  // Function to find an available port
+  const findAvailablePort = async (startPort: number, endPort: number): Promise<number> => {
+    for (let port = startPort; port <= endPort; port++) {
+      if (!(await isPortInUse(port))) {
+        return port;
+      }
+      info(`Port ${port} is in use, trying next port`);
+    }
+    throw new Error(`No available ports found between ${startPort} and ${endPort}`);
   };
 
   try {
@@ -556,26 +575,37 @@ async function main() {
 
 
     // Function to try starting the server on a specific port
-    const tryPort = (port: number): Promise<void> => {
-      return new Promise((resolve, reject) => {
-        if (!server) {
-          reject(new Error('Server initialization failed'));
-          return;
-        }
+    const tryPort = async (port: number): Promise<void> => {
+      if (!server) {
+        throw new Error('Server initialization failed');
+      }
 
+      // Close server if it's already listening
+      if (server.listening) {
+        await new Promise<void>((resolve) => server!.close(() => resolve()));
+      }
+
+      return new Promise((resolve, reject) => {
         const onError = (err: NodeJS.ErrnoException) => {
           server?.removeListener('error', onError);
           server?.removeListener('listening', onListening);
           
           if (err.code === 'EADDRINUSE') {
             if (port < maxPort) {
-              warn(`Port ${port} is in use, trying ${port + 1}`);
+              warn({
+                message: `Port ${port} is in use, trying next port`,
+                metadata: { current_port: port, next_port: port + 1 }
+              });
               resolve(tryPort(port + 1));
             } else {
-              reject(new Error(`Unable to find an available port (tried ${currentPort}-${maxPort})`));
+              reject(new Error(`Unable to find an available port (tried ${basePort}-${maxPort})`));
             }
           } else {
-            error(`Server error: ${err.message}`);
+            error({
+              message: 'Server startup error',
+              error_message: err.message,
+              metadata: { port }
+            });
             reject(err);
           }
         };
@@ -584,16 +614,25 @@ async function main() {
           server?.removeListener('error', onError);
           server?.removeListener('listening', onListening);
           currentPort = port;
-          info(`Server running in ${env.NODE_ENV} mode on port ${port}`);
-          info(`APP_URL: ${env.APP_URL}`);
+          info({
+            message: `Server running in ${env.NODE_ENV} mode on port ${port}`,
+            metadata: { port, environment: env.NODE_ENV }
+          });
+          info({ message: `APP_URL: ${env.APP_URL}` });
           resolve();
         };
 
-        server.once('error', onError);
-        server.once('listening', onListening);
+        const currentServer = server;
+        if (!currentServer) {
+          reject(new Error('Server instance not available'));
+          return;
+        }
+
+        currentServer.once('error', onError);
+        currentServer.once('listening', onListening);
         
         try {
-          server.listen(port, '0.0.0.0');
+          currentServer.listen(port, '0.0.0.0');
         } catch (e) {
           reject(e);
         }
