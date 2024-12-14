@@ -44,8 +44,8 @@ export function registerRoutes(app: Express) {
 
   // Handle static files in production
   if (env.NODE_ENV === 'production') {
-    const distPath = path.join(__dirname, '..', 'dist');
-    console.log('Static files path:', distPath);
+    const publicPath = path.join(__dirname, '..', 'dist', 'public');
+    console.log('Static files path:', publicPath);
     
     // Add static file middleware with detailed error logging
     app.use((req, res, next) => {
@@ -59,7 +59,7 @@ export function registerRoutes(app: Express) {
       next();
     });
 
-    app.use(express.static(distPath, {
+    app.use(express.static(publicPath, {
       maxAge: '1h',
       index: false,
       fallthrough: true
@@ -72,7 +72,7 @@ export function registerRoutes(app: Express) {
       return res.status(404).json({ message: 'API endpoint not found' });
     }
     
-    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+    const indexPath = path.join(__dirname, '..', 'dist', 'public', 'index.html');
     console.log('Serving index.html for path:', req.path);
     
     res.sendFile(indexPath, (err) => {
