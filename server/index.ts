@@ -8,7 +8,6 @@ import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
 import { createServer } from "http";
-import session from "express-session";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
@@ -17,7 +16,6 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
 import { log, debug, info, warn, error } from "./lib/log";
-import { createSessionConfig } from './config/session';
 import { 
   trackError, 
   initRequestTracking, 
@@ -30,6 +28,7 @@ import {
   type TypedRequest,
   type TypedErrorHandler
 } from './lib/errorTracking';
+import { requireAuth, optionalAuth } from './config/session';
 
 // ES Module compatibility
 const __filename = fileURLToPath(import.meta.url);
@@ -148,7 +147,7 @@ app.set('trust proxy', (ip: string) => {
          ip.startsWith('192.168.');
 });
 
-import { securityHeaders, sanitizeInput, sessionSecurity, cleanupSessions } from './middleware/security';
+import { securityHeaders, sanitizeInput, sessionSecurity } from './middleware/security';
 
 // Initialize middleware
 async function initializeMiddleware() {
@@ -172,26 +171,12 @@ async function initializeMiddleware() {
     app.use(express.urlencoded({ extended: true }));
     app.use(cors(corsOptions));
 
-    // Initialize session configuration
-    console.log('Initializing session configuration...');
-    const sessionConfig = await createSessionConfig();
-    if (!sessionConfig) {
-      throw new Error('Session configuration is undefined');
-    }
 
-    // Configure session middleware
-    console.log('Setting up session middleware...');
-    app.use(session({
-      ...sessionConfig,
-      cookie: {
-        ...sessionConfig.cookie,
-        secure: env.NODE_ENV === 'production'
-      }
-    }));
+    // Initialize Firebase authentication middleware
+    console.log('Setting up Firebase authentication middleware...');
+    app.use(optionalAuth);
+    console.log('Firebase authentication middleware configured successfully');
 
-    // Add session cleanup middleware
-    app.use(cleanupSessions);
-    console.log('Session middleware configured successfully');
 
     // Apply basic security headers
     app.use(securityHeaders);

@@ -117,12 +117,12 @@ function Router() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <AuthProvider>
+    <AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <SettingsProvider>
           <Router />
-        </AuthProvider>
-      </SettingsProvider>
-    </QueryClientProvider>
+        </SettingsProvider>
+      </QueryClientProvider>
+    </AuthProvider>
   </StrictMode>
 );
