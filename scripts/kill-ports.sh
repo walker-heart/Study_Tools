@@ -12,9 +12,5 @@ kill_port() {
     fi
 }
 
-# Kill common development ports
-kill_port 3000
-kill_port 3001 
+# Kill port 5000
 kill_port 5000
-kill_port 8000
-kill_port 8080
