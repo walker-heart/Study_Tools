@@ -457,9 +457,7 @@ function setupErrorHandlers() {
     if (req.path.startsWith('/api/')) {
       next();
     } else {
-      res.sendFile('index.html', { 
-        root: path.join(__dirname, '..', 'dist', 'public')
-      });
+      res.sendFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'));
     }
   });
 }
@@ -513,29 +511,49 @@ async function main() {
     }
 
     try {
+      info('Starting server initialization...');
+      
+      // Create HTTP server first
+      server = createServer(app);
+      info('HTTP server created');
+
       // Initialize middleware
+      info('Initializing middleware...');
       await initializeMiddleware();
       info('Middleware initialized successfully');
 
       // Register routes
+      info('Registering routes...');
       registerRoutes(app);
-      info('Routes registered');
+      info('Routes registered successfully');
 
       // Setup error handlers
+      info('Configuring error handlers...');
       setupErrorHandlers();
-      info('Error handlers configured');
+      info('Error handlers configured successfully');
 
-      // Create HTTP server
-      server = createServer(app);
-      info('HTTP server created');
     } catch (initError) {
       error({
         message: 'Server initialization failed',
-        error: initError instanceof Error ? initError.message : String(initError),
+        error_message: initError instanceof Error ? initError.message : String(initError),
         stack: initError instanceof Error ? initError.stack : undefined
       });
+      
+      // Cleanup server if it exists
+      if (server?.listening) {
+        try {
+          await new Promise<void>((resolve) => server!.close(() => resolve()));
+          info('Server closed successfully after error');
+        } catch (closeError) {
+          error({
+            message: 'Failed to close server after initialization error',
+            error_message: closeError instanceof Error ? closeError.message : String(closeError)
+          });
+        }
+      }
       throw initError;
     }
+
 
     // Function to try starting the server on a specific port
     const tryPort = (port: number): Promise<void> => {
@@ -582,6 +600,11 @@ async function main() {
       });
     };
 
+    // Cleanup any existing server instance
+    if (server?.listening) {
+      await new Promise<void>((resolve) => server!.close(() => resolve()));
+    }
+
     // Start server with port retry mechanism
     await tryPort(currentPort);
 
@@ -591,12 +614,24 @@ async function main() {
       stack: err instanceof Error ? err.stack : String(err)
     });
 
+    // Ensure server is properly closed on error
     if (server?.listening) {
       await new Promise<void>((resolve) => server!.close(() => resolve()));
     }
     
     process.exit(1);
   }
+
+  // Handle cleanup on process termination
+  const cleanup = async () => {
+    if (server?.listening) {
+      await new Promise<void>((resolve) => server!.close(() => resolve()));
+    }
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', cleanup);
+  process.on('SIGINT', cleanup);
 
   // Handle process signals
   process.on('SIGTERM', () => {

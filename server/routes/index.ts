@@ -8,11 +8,22 @@ export function registerRoutes(app: Express): void {
   const router = Router();
 
   // Auth routes - Email/Password only
-  router.post('/api/auth/signup', signUp);
-  router.post('/api/auth/signin', signIn);
-  router.post('/api/auth/signout', signOut);
-  router.get('/api/auth/check', checkAuth);
-  router.get('/api/auth/check-admin', checkAdmin);
+  router.post('/auth/signup', signUp);
+  router.post('/auth/signin', signIn);
+  router.post('/auth/signout', signOut);
+  router.get('/auth/check', checkAuth);
+  router.get('/auth/check-admin', checkAdmin);
+
+  // Debug route to check if auth routes are registered
+  router.get('/auth/routes', (_req, res) => {
+    const routes = router.stack
+      .filter(r => r.route !== undefined)
+      .map(r => ({
+        path: r.route?.path || '',
+        methods: r.route?.stack?.[0]?.method ? [r.route.stack[0].method] : []
+      }));
+    res.json(routes);
+  });
 
   // User routes
   router.get('/api/user/theme', getTheme);
