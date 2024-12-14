@@ -36,14 +36,21 @@ interface StaticFileHeaders extends Record<string, string | undefined> {
   'Last-Modified'?: string;
 }
 
-interface StaticFileOptions extends ServeStaticOptions {
-  index: boolean;
-  etag: boolean;
-  lastModified: boolean;
-  setHeaders?: (res: express.Response, filepath: string, stat?: any) => void;
+interface StaticFileOptions {
+  index?: boolean | string;
+  etag?: boolean;
+  lastModified?: boolean;
+  setHeaders?: (res: Response, path: string, stat: Stats) => void;
   maxAge?: number | string;
   immutable?: boolean;
+  dotfiles?: 'allow' | 'deny' | 'ignore';
+  extensions?: string[];
+  fallthrough?: boolean;
+  redirect?: boolean;
 }
+
+// Import Stats type from fs
+import { Stats } from 'fs';
 
 interface StaticFileMetadata {
   request_headers: Record<string, string | string[] | undefined>;
@@ -88,14 +95,17 @@ type ErrorHandler = (
 
 interface LogMessage {
   message: string;
+  error?: string;
+  error_message?: string;
+  stack?: string;
+  metadata?: Record<string, unknown>;
+  path?: string;
   [key: string]: unknown;
 }
 
-interface StaticErrorLog extends Omit<LogMessage, "level"> {
-  message: string;
-  path?: string;
-  error_message?: string;
-  metadata?: Record<string, unknown>;
+interface StaticErrorLog extends LogMessage {
+  error_type?: string;
+  status_code?: number;
 }
 
 interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
@@ -226,22 +236,13 @@ async function initializeMiddleware() {
     // Add session cleanup middleware
     app.use(cleanupSessions);
 
+    // Apply CORS with credentials first
+    app.use(cors(corsOptions));
+
     // Apply basic security headers
     app.use(securityHeaders);
-    
-    // Apply CORS
-    app.use(cors(corsOptions));
-    
-    // Apply general rate limiting for DoS protection
-    app.use(limiter);
-    
-    // Apply parameter sanitization
-    app.use(sanitizeInput);
-    
-    // Apply session security
-    app.use(sessionSecurity);
 
-    // Body parsing middleware with size limits and validation
+    // Body parsing middleware before other middleware
     app.use(express.json({ 
       limit: '10mb',
       verify: (req: Request, res: Response, buf: Buffer) => {
@@ -257,6 +258,15 @@ async function initializeMiddleware() {
       }
     }));
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+    // Apply general rate limiting for DoS protection
+    app.use(limiter);
+    
+    // Apply parameter sanitization
+    app.use(sanitizeInput);
+    
+    // Apply session security
+    app.use(sessionSecurity);
 
     // Static file serving with proper caching
     const publicPath = path.resolve(__dirname, '..', 'dist', 'public');
@@ -456,9 +466,26 @@ function setupErrorHandlers() {
 
 // Main application entry point
 async function main() {
-  let currentPort = parseInt(process.env.PORT || '5000', 10);
-  const maxPort = currentPort + 10; // Try up to 10 ports
+  // Get port from environment or use default
+  const basePort = parseInt(process.env.PORT || '5000', 10);
+  const maxPort = basePort + 10; // Try up to 10 ports
+  let currentPort = basePort;
   let server: ReturnType<typeof createServer> | undefined;
+
+  // Function to check if a port is in use
+  const isPortInUse = async (port: number): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const testServer = createServer();
+      testServer.once('error', () => {
+        resolve(true);
+      });
+      testServer.once('listening', () => {
+        testServer.close();
+        resolve(false);
+      });
+      testServer.listen(port, '0.0.0.0');
+    });
+  };
 
   try {
     // Test database connection with retry mechanism
