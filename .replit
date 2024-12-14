@@ -11,9 +11,16 @@ build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
 
 [[ports]]
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
 localPort = 5000
 externalPort = 80
-exposeLocalhost = true
+
+[[ports]]
+localPort = 5003
+externalPort = 3003
 
 [workflows]
 runButton = "Project"
@@ -34,10 +41,6 @@ args = "Express Server"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Type Check"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Development Server"
 
 [[workflows.workflow]]
 name = "Build Client"
@@ -65,7 +68,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "NODE_ENV=development tsx watch --clear-screen=false server/index.ts"
+args = "NODE_ENV=production tsx watch --clear-screen=false server/index.ts"
 waitForPort = 5000
 
 [[workflows.workflow]]
@@ -81,21 +84,6 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "tsc --noEmit"
-
-[[workflows.workflow]]
-name = "Development Server"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "NODE_ENV=development tsx watch --clear-screen=false server/index.ts"
-waitForPort = 5000
 
 [objectStorage]
 defaultBucketID = "replit-objstore-6dd59cd2-cf93-4a5d-9ba1-3b2545b019a0"

@@ -1,17 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { Card } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useSettings } from '@/contexts/SettingsContext';
-import { useAuth } from '@/contexts/AuthContext';
-import { createUser } from '@/lib/firestore';
 
 export default function SignUp() {
   const [, setLocation] = useLocation();
   const { theme } = useSettings();
-  const { signUp, signInWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -19,43 +16,52 @@ export default function SignUp() {
     password: '',
   });
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+
+  // Check if user is already authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/check', {
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.authenticated) {
+            setLocation('/dashboard');
+          }
+        }
+      } catch (error) {
+        // If there's an error checking auth, we stay on the signup page
+        console.error('Auth check error:', error);
+      }
+    };
+
+    checkAuth();
+  }, [setLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     try {
-      const { email, password, firstName, lastName } = formData;
-      await signUp(email, password);
-      
-      // Create user document in Firestore
-      await createUser({
-        email,
-        firstName,
-        lastName,
-        createdAt: new Date(),
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
       });
       
-      setLocation('/dashboard');
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else if (typeof err === 'object' && err !== null && 'message' in err) {
-        setError(err.message as string);
-      } else {
-        setError('Failed to sign up');
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to sign up');
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleSignUp = async () => {
-    try {
-      await signInWithGoogle();
-      setLocation('/dashboard');
+      
+      setLocation('/signin');
     } catch (err) {
-      setError('Failed to sign up with Google');
+      setError(err instanceof Error ? err.message : 'Failed to sign up');
     }
   };
 
@@ -113,11 +119,8 @@ export default function SignUp() {
             <div className="text-red-500 text-sm">{error}</div>
           )}
           
-          <Button type="submit" className="w-full mb-4" disabled={loading}>
-            {loading ? 'Signing Up...' : 'Sign Up with Email'}
-          </Button>
-          <Button onClick={handleGoogleSignUp} className="w-full">
-            Sign Up with Google
+          <Button type="submit" className="w-full mb-4">
+            Sign Up with Email
           </Button>
 
           <div className="text-center">

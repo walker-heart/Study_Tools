@@ -6,7 +6,6 @@ import "./index.css";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { SettingsProvider } from "./contexts/SettingsContext";
-import { AuthProvider } from "./contexts/AuthContext";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminProtectedRoute from "./components/AdminProtectedRoute";
@@ -117,12 +116,10 @@ function Router() {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <AuthProvider>
-      <QueryClientProvider client={queryClient}>
-        <SettingsProvider>
-          <Router />
-        </SettingsProvider>
-      </QueryClientProvider>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <SettingsProvider>
+        <Router />
+      </SettingsProvider>
+    </QueryClientProvider>
   </StrictMode>
 );

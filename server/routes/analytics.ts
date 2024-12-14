@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAdmin } from '../middleware/auth';
+import { requireAdmin } from './auth';
 import { analyticsStore } from '../lib/analytics-store';
 
 const router = Router();

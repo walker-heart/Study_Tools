@@ -1,44 +1,70 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSettings } from '@/contexts/SettingsContext';
-import { useAuth } from '@/contexts/AuthContext';
+
 
 export default function SignIn() {
   const [, setLocation] = useLocation();
   const { theme } = useSettings();
-  const { signIn, signInWithGoogle } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+
+  // Check if user is already authenticated
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/check', {
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache',
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.authenticated) {
+            setLocation('/dashboard');
+          }
+        }
+      } catch (error) {
+        // If there's an error checking auth, we stay on the signin page
+        console.error('Auth check error:', error);
+      }
+    };
+
+    checkAuth();
+  }, [setLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError('');
-    
     try {
-      await signIn(formData.email, formData.password);
+      const response = await fetch('/api/auth/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        credentials: 'include', // Important for cookies
+        body: JSON.stringify(formData),
+        mode: 'cors', // Explicitly set CORS mode
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Failed to sign in');
+      }
+      
+      await response.json(); // We don't need to store the token anymore
       setLocation('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    try {
-      await signInWithGoogle();
-      setLocation('/dashboard');
-    } catch (err) {
-      setError('Failed to sign in with Google');
     }
   };
 
@@ -56,8 +82,6 @@ export default function SignIn() {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
-              disabled={isLoading}
-              className="bg-background"
             />
           </div>
           
@@ -69,8 +93,6 @@ export default function SignIn() {
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required
-              disabled={isLoading}
-              className="bg-background"
             />
           </div>
 
@@ -78,31 +100,15 @@ export default function SignIn() {
             <div className="text-red-500 text-sm">{error}</div>
           )}
           
-          <Button type="submit" className="w-full mb-4" disabled={isLoading}>
-            {isLoading ? 'Signing in...' : 'Sign In with Email'}
-          </Button>
-
-          <Button 
-            type="button"
-            onClick={handleGoogleSignIn} 
-            className="w-full"
-            disabled={isLoading}
-          >
-            Sign In with Google
+          <Button type="submit" className="w-full mb-4">
+            Sign In
           </Button>
 
           <div className="text-center mt-4">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Don't have an account?{' '}
-              <Button 
-                variant="link" 
-                onClick={() => setLocation('/signup')} 
-                className="text-sm"
-                disabled={isLoading}
-              >
-                Sign Up
-              </Button>
-            </div>
+            <span className="text-sm">Don't have an account? </span>
+            <Button variant="link" onClick={() => setLocation('/signup')} className="text-sm">
+              Sign Up
+            </Button>
           </div>
         </form>
       </Card>
