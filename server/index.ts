@@ -1,13 +1,12 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
-import type { ServeStaticOptions } from 'serve-static';
-import type { ServerResponse, IncomingMessage } from 'http';
-import type { Response as ExpressResponse } from 'express-serve-static-core';
-import type { Session, SessionData } from "express-session";
+import type { ServeStaticOptions } from 'express-serve-static-core';
 import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
 import { createServer } from "http";
+import session from "express-session";
+import type { Session, SessionData } from "express-session";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
@@ -16,19 +15,7 @@ import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
 import { log, debug, info, warn, error } from "./lib/log";
-import { 
-  trackError, 
-  initRequestTracking, 
-  AuthenticationError,
-  DatabaseError,
-  ValidationError,
-  AppError,
-  type LogMessage,
-  type ErrorHandler,
-  type TypedRequest,
-  type TypedErrorHandler
-} from './lib/errorTracking';
-import { requireAuth, optionalAuth } from './config/session';
+import { createSessionConfig } from './config/session';
 
 // ES Module compatibility
 const __filename = fileURLToPath(import.meta.url);
@@ -38,7 +25,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Define extended error types for better type safety
-// Static file serving interfaces
+// Static file serving types
 interface StaticFileHeaders extends Record<string, string | undefined> {
   'Content-Type'?: string;
   'Cache-Control'?: string;
@@ -49,11 +36,11 @@ interface StaticFileHeaders extends Record<string, string | undefined> {
   'Last-Modified'?: string;
 }
 
-interface StaticFileOptions extends Omit<ServeStaticOptions, 'setHeaders'> {
+interface StaticFileOptions extends ServeStaticOptions {
   index: boolean;
   etag: boolean;
   lastModified: boolean;
-  setHeaders: (res: ServerResponse<IncomingMessage>, filepath: string, stat: any) => void;
+  setHeaders: (res: Response, filepath: string, stat?: any) => void;
   maxAge?: number | string;
   immutable?: boolean;
 }
@@ -89,24 +76,85 @@ interface StaticFileError extends ExtendedError {
   metadata?: StaticFileMetadata;
   syscall?: string;
   errno?: number;
-  code?: 'ENOENT' | string;
+  code?: string;
+}
+
+type ErrorHandler = (
+  err: ExtendedError | StaticFileError,
+  req: TypedRequest,
+  res: Response,
+  next: NextFunction
+) => void;
+
+interface LogMessage {
+  message: string;
+  [key: string]: unknown;
 }
 
 interface StaticErrorLog extends Omit<LogMessage, "level"> {
+  message: string;
   path?: string;
   error_message?: string;
   metadata?: Record<string, unknown>;
 }
 
+interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
+  session: Session & Partial<SessionData> & {
+    user?: {
+      id: string | number;
+      [key: string]: any;
+    };
+  };
+  sessionID: string;
+  requestId?: string;
+}
+
 // Configure CORS options
 const corsOptions: cors.CorsOptions = {
-  origin: env.NODE_ENV === 'production'
-    ? env.ALLOWED_ORIGINS || ['https://your-main-domain.com']
-    : true, // Allow all origins in development
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      env.APP_URL,
+      'http://localhost:3000',
+      'http://localhost:5000',
+      // Allow all subdomains of repl.co and replit.dev
+      /\.repl\.co$/,
+      /\.replit\.dev$/
+    ];
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    // Allow all origins in development
+    if (env.NODE_ENV === 'development') {
+      callback(null, true);
+      return;
+    }
+
+    // Check against allowed origins in production
+    const isAllowed = allowedOrigins.some(allowed => 
+      typeof allowed === 'string' 
+        ? allowed === origin 
+        : allowed.test(origin)
+    );
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      warn({
+        message: 'CORS blocked origin',
+        origin,
+        allowedOrigins: allowedOrigins.map(o => o.toString())
+      });
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
-  exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie', 'ETag', 'Cache-Control'],
+  exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie'],
   maxAge: 86400,
   optionsSuccessStatus: 204,
   preflightContinue: false
@@ -147,58 +195,50 @@ app.set('trust proxy', (ip: string) => {
          ip.startsWith('192.168.');
 });
 
-import { securityHeaders, sanitizeInput, sessionSecurity } from './middleware/security';
+import { securityHeaders, sanitizeInput, sessionSecurity, cleanupSessions } from './middleware/security';
 
 // Initialize middleware
 async function initializeMiddleware() {
   try {
-    info('Starting middleware initialization...');
-    
     // Environment-specific settings
     if (env.NODE_ENV === 'production') {
-      info('Configuring production settings...');
-      app.set('trust proxy', 1);
+      // Configure trust proxy for Replit's environment
+      app.set('trust proxy', (ip: string) => {
+        return ip === '127.0.0.1' || 
+               ip.startsWith('10.') || 
+               ip.startsWith('172.16.') || 
+               ip.startsWith('192.168.');
+      });
     } else {
-      info('Configuring development settings...');
       app.set('json spaces', 2);
     }
     app.set('x-powered-by', false);
     
     info(`Server initializing in ${env.NODE_ENV} mode`);
 
-    // Basic middleware
-    app.use(express.json({
-      limit: '10mb',
-      verify: (req: Request, res: Response, buf: Buffer) => {
-        if (req.headers['content-type']?.includes('application/json')) {
-          try {
-            JSON.parse(buf.toString());
-          } catch (e) {
-            res.status(400).json({ message: 'Invalid JSON' });
-            throw new Error('Invalid JSON');
-          }
-        }
-        return true;
-      }
-    }));
-    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-    app.use(cors(corsOptions));
+    // Initialize session first
+    const sessionConfig = await createSessionConfig();
+    if (!sessionConfig) {
+      throw new Error('Failed to create session configuration');
+    }
+    app.use(session(sessionConfig));
+    
+    // Add session cleanup middleware
+    app.use(cleanupSessions);
 
-    // Initialize Firebase authentication middleware
-    info('Setting up Firebase authentication middleware...');
-    app.use(optionalAuth);
-    info('Firebase authentication middleware configured successfully');
-
-    // Apply security headers
+    // Apply basic security headers
     app.use(securityHeaders);
     
-    // Apply rate limiting for DoS protection
+    // Apply CORS
+    app.use(cors(corsOptions));
+    
+    // Apply general rate limiting for DoS protection
     app.use(limiter);
     
     // Apply parameter sanitization
     app.use(sanitizeInput);
     
-    // Apply Firebase-based security
+    // Apply session security
     app.use(sessionSecurity);
 
     // Body parsing middleware with size limits and validation
@@ -244,37 +284,33 @@ async function initializeMiddleware() {
         index: false,
         etag: true,
         lastModified: true,
-        setHeaders: (res: ServerResponse<IncomingMessage>, filepath: string) => {
-          try {
-            // Set secure headers
-            res.setHeader('X-Content-Type-Options', 'nosniff');
-            
-            const ext = path.extname(filepath).toLowerCase();
-            const cacheControl = (() => {
-              if (ext === '.html') {
-                res.setHeader('Pragma', 'no-cache');
-                res.setHeader('Expires', '0');
-                return 'no-cache, no-store, must-revalidate';
-              }
-              
-              if (['.js', '.mjs', '.css', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg'].includes(ext)) {
-                return 'public, max-age=31536000, immutable';
-              }
-              
-              return 'public, max-age=86400';
-            })();
-
-            res.setHeader('Cache-Control', cacheControl);
-
-            // Set content type for script and style files
+        setHeaders: (res: Response, filepath: string) => {
+          const ext = path.extname(filepath).toLowerCase();
+          const headers: StaticFileHeaders = {
+            'X-Content-Type-Options': 'nosniff'
+          };
+          
+          // Cache control
+          if (ext === '.html') {
+            headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+            headers['Pragma'] = 'no-cache';
+            headers['Expires'] = '0';
+          } else if (filepath.includes('/assets/')) {
+            // Set correct MIME types for assets
             if (ext === '.js' || ext === '.mjs') {
-              res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+              headers['Content-Type'] = 'application/javascript; charset=UTF-8';
             } else if (ext === '.css') {
-              res.setHeader('Content-Type', 'text/css; charset=UTF-8');
+              headers['Content-Type'] = 'text/css; charset=UTF-8';
             }
-          } catch (err) {
-            console.error('Error setting headers:', err);
+            headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+          } else {
+            headers['Cache-Control'] = 'public, max-age=86400';
           }
+          
+          // Apply all headers
+          Object.entries(headers).forEach(([key, value]) => {
+            if (value) res.setHeader(key, value);
+          });
         }
       };
 
@@ -286,34 +322,17 @@ async function initializeMiddleware() {
       app.use('/assets', express.static(path.join(publicPath, 'assets'), staticOptions));
       app.use(express.static(publicPath, staticOptions));
 
-      // Add static file error handling middleware
+      // Add static file error logging middleware
       app.use((err: Error | StaticFileError, req: Request, res: Response, next: NextFunction) => {
-        if (err && (req.path.startsWith('/assets/') || req.path.includes('.'))) {
-          const errorDetails: StaticErrorLog = {
+        if (err && req.path.startsWith('/assets/')) {
+          error({
             message: 'Static file serving error',
             path: req.path,
             error_message: err.message,
             metadata: {
               request_headers: Object.fromEntries(Object.entries(req.headers)),
-              response_headers: Object.fromEntries(Object.entries(res.getHeaders())),
-              mime_type: req.get('Content-Type'),
-              method: req.method
+              response_headers: Object.fromEntries(Object.entries(res.getHeaders()))
             }
-          };
-          
-          error(errorDetails);
-          
-          if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-            return res.status(404).json({ 
-              message: 'File not found',
-              path: req.path,
-              requestId: req.headers['x-request-id']
-            });
-          }
-          
-          return res.status(500).json({ 
-            message: 'Error serving static file',
-            requestId: req.headers['x-request-id']
           });
         }
         next(err);
@@ -334,13 +353,22 @@ async function initializeMiddleware() {
   }
 }
 
+import { 
+  trackError, 
+  initRequestTracking, 
+  AuthenticationError,
+  DatabaseError,
+  ValidationError,
+  AppError 
+} from './lib/errorTracking';
+
 // Setup error handlers
 function setupErrorHandlers() {
   // Add request tracking
   app.use(initRequestTracking());
 
   // API route not found handler
-  app.use('/api/*', (req: Request, res: Response) => {
+  app.use('/api/*', (req: TypedRequest, res: Response) => {
     const context = trackError(
       new AppError('API endpoint not found', {
         errorCode: 'NOT_FOUND',
@@ -356,7 +384,7 @@ function setupErrorHandlers() {
   });
 
   // Authentication error handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
     if (err instanceof AuthenticationError || err.name === 'SessionError') {
       const context = trackError(err, req);
       return res.status(401).json({ 
@@ -369,7 +397,7 @@ function setupErrorHandlers() {
   });
 
   // Validation error handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
     if (err instanceof ValidationError) {
       const context = trackError(err, req);
       return res.status(400).json({
@@ -382,7 +410,7 @@ function setupErrorHandlers() {
   });
 
   // Database error handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
     if (err instanceof DatabaseError || err.message.includes('database')) {
       const context = trackError(err, req);
       return res.status(503).json({ 
@@ -395,22 +423,23 @@ function setupErrorHandlers() {
   });
 
   // Final error handler
-  app.use((err: Error | AppError, req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: Error | AppError, req: TypedRequest, res: Response, _next: NextFunction) => {
     const context = trackError(err, req, res);
-    const statusCode = isAppError(err) && err.context.statusCode ? err.context.statusCode : 500;
+    const status = 'context' in err && err.context?.statusCode ? err.context.statusCode : 500;
+    
     const response = {
       message: env.NODE_ENV === 'production' 
         ? 'An unexpected error occurred' 
         : err.message,
-      status: statusCode,
+      status,
       requestId: context.requestId,
       ...(env.NODE_ENV === 'development' ? { 
         stack: err.stack,
-        errorCode: isAppError(err) ? err.context.errorCode : 'UNKNOWN_ERROR'
+        errorCode: 'context' in err ? err.context.errorCode : 'UNKNOWN_ERROR'
       } : {})
     };
 
-    res.status(statusCode).json(response);
+    res.status(status).json(response);
   });
 
   // Handle client-side routing for non-API routes
@@ -425,97 +454,30 @@ function setupErrorHandlers() {
   });
 }
 
-function isAppError(error: Error | AppError): error is AppError {
-  return 'context' in error && 
-         typeof (error as AppError).context?.statusCode === 'number' &&
-         typeof (error as AppError).context?.errorCode === 'string';
-}
-
 // Main application entry point
 async function main() {
   const PORT = parseInt(process.env.PORT || '5000', 10);
-  const HOST = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
   let server: ReturnType<typeof createServer> | undefined;
 
   try {
-    // Log environment and configuration
-    info({
-      message: 'Starting server initialization',
-      metadata: {
-        environment: env.NODE_ENV,
-        port: PORT,
-        database_url_exists: !!env.DATABASE_URL,
-        app_url: env.APP_URL
-      }
-    });
-
     // Test database connection with retry mechanism
     let retries = 5;
     let backoff = 1000; // Start with 1 second
 
-    info('Attempting database connection...');
-    info({
-      message: 'Database configuration',
-      metadata: {
-        database_url_exists: !!env.DATABASE_URL,
-        database_url_masked: env.DATABASE_URL?.replace(/:[^:@]*@/, ':***@'),
-        node_env: env.NODE_ENV
-      }
-    });
-
     while (retries > 0) {
       try {
-        const result = await db.execute(sql`
-          SELECT 
-            current_database() as db_name,
-            current_schema as schema_name,
-            version() as version,
-            NOW() as timestamp
-        `);
-        
-        const dbResult = result.rows[0];
-        info({
-          message: 'Database connection successful',
-          metadata: {
-            database: dbResult?.db_name,
-            schema: dbResult?.schema_name,
-            version: typeof dbResult?.version === 'string' ? dbResult.version.split(' ')[0] : undefined,
-            timestamp: dbResult?.timestamp,
-            attempt: 6 - retries
-          }
-        });
+        await db.execute(sql`SELECT NOW()`);
+        info('Database connection successful');
         break;
       } catch (err) {
         retries--;
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        const errorDetails = {
-          name: err instanceof Error ? err.name : 'UnknownError',
-          code: (err as any)?.code,
-          errno: (err as any)?.errno,
-          syscall: (err as any)?.syscall
-        };
-        
-        warn({
-          message: `Database connection attempt failed`,
-          metadata: {
-            attempt: 6 - retries,
-            remaining_attempts: retries,
-            error: errorMessage,
-            details: errorDetails,
-            backoff_seconds: backoff/1000
-          }
-        });
-        
         if (retries === 0) {
-          error({
-            message: 'All database connection attempts failed',
-            metadata: {
-              final_error: errorMessage,
-              error_details: errorDetails
-            }
-          });
-          throw new Error(`Failed to connect to database after multiple attempts: ${errorMessage}`);
+          throw new Error('Failed to connect to database after multiple attempts');
         }
+        warn({
+          message: `Database connection failed, retrying in ${backoff/1000} seconds...`,
+          error_message: err instanceof Error ? err.message : String(err)
+        });
         
         await new Promise(resolve => setTimeout(resolve, backoff));
         backoff *= 2; // Exponential backoff
@@ -538,61 +500,45 @@ async function main() {
     server = createServer(app);
     info('HTTP server created');
 
-    // Start server with fixed port
+    // Start server
     await new Promise<void>((resolve, reject) => {
       if (!server) {
         reject(new Error('Server initialization failed'));
         return;
       }
 
-      // Always use port 5000 in production for consistency
-      const serverPort = 5000;
-      
-      info(`Attempting to start server on port ${serverPort}`);
-      
       server.on('error', (err: NodeJS.ErrnoException) => {
-        error({
-          message: 'Server startup error',
-          metadata: {
-            error: err.message,
-            code: err.code,
-            port: serverPort
+        if (err.code === 'EADDRINUSE') {
+          // Try the next available port
+          warn(`Port ${PORT} is in use, trying ${PORT + 1}`);
+          if (server) {
+            server.listen(PORT + 1, '0.0.0.0');
+          } else {
+            reject(new Error('Server is not initialized'));
           }
-        });
-        reject(err);
+        } else {
+          error(`Server error: ${err.message}`);
+          reject(err);
+        }
       });
 
-      server.listen(serverPort, HOST, () => {
-        const address = server!.address();
-        const actualPort = typeof address === 'object' && address ? address.port : serverPort;
-        
-        info(`Server running in ${env.NODE_ENV} mode on port ${actualPort}`);
+      server.on('listening', () => {
+        info(`Server running in ${env.NODE_ENV} mode on port ${PORT}`);
         info(`APP_URL: ${env.APP_URL}`);
-        info(`Server is now listening on http://0.0.0.0:${actualPort}`);
-        info('Server started successfully');
         resolve();
       });
+
+      server.listen(PORT, '0.0.0.0');
     });
 
   } catch (err) {
-    const errorLog: LogMessage = {
+    error({
       message: 'Fatal error in server startup',
-      metadata: {
-        error: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-        timestamp: new Date().toISOString()
-      }
-    };
-    error(errorLog);
+      stack: err instanceof Error ? err.stack : String(err)
+    });
 
     if (server?.listening) {
-      info('Closing server due to startup error');
-      await new Promise<void>((resolve) => {
-        server!.close(() => {
-          info('Server closed');
-          resolve();
-        });
-      });
+      await new Promise<void>((resolve) => server!.close(() => resolve()));
     }
     
     process.exit(1);
@@ -611,32 +557,12 @@ async function main() {
 }
 
 // Start server
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Don't exit, just log
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  // Don't exit, just log
-});
-
 try {
-  console.log('Starting server initialization...');
   await main();
-  console.log('Server started successfully');
 } catch (err) {
-  console.error('Fatal error starting server:', err);
   error({
     message: 'Fatal error starting server',
-    metadata: {
-      error: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined,
-      timestamp: new Date().toISOString()
-    }
+    stack: err instanceof Error ? err.stack : String(err)
   });
-  
-  // Give time for logs to flush
-  await new Promise(resolve => setTimeout(resolve, 1000));
   process.exit(1);
 }

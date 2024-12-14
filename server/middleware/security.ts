@@ -1,91 +1,24 @@
 import type { Request, Response, NextFunction } from "express";
 import rateLimit from 'express-rate-limit';
 import { env } from '../lib/env';
-import { log, error as logError } from '../lib/log';
+import { log } from '../lib/log';
+import { db } from '../db';
+import { sql } from 'drizzle-orm';
 import { AuthenticationError, trackError } from '../lib/errorTracking';
-import { auth } from '../config/firebase';
-import { isValidFirebaseIdToken, type ExtendedDecodedIdToken } from '../types/firebase-auth';
 
-// Firebase auth middleware with type safety
-export async function validateFirebaseSession(req: Request, res: Response, next: NextFunction) {
+// Session cleanup middleware
+export async function cleanupSessions(req: Request, _res: Response, next: NextFunction) {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      const context = trackError(
-        new AuthenticationError('No token provided', {
-          statusCode: 401,
-          errorCode: 'NO_TOKEN'
-        }), 
-        req
-      );
-      return res.status(401).json({ 
-        error: 'Authentication required',
-        message: 'No token provided',
-        requestId: context.requestId
-      });
+    // Only run cleanup periodically (e.g., every 100 requests)
+    if (Math.random() < 0.01) {
+      await db.execute(sql`
+        UPDATE user_sessions 
+        SET ended_at = NOW() 
+        WHERE ended_at IS NULL 
+        AND created_at < NOW() - INTERVAL '24 hours'`);
     }
-
-    const idToken = authHeader.split('Bearer ')[1];
-    const decodedToken = await auth.verifyIdToken(idToken);
-    
-    if (!isValidFirebaseIdToken(decodedToken)) {
-      throw new AuthenticationError('Invalid token format', {
-        statusCode: 401,
-        errorCode: 'INVALID_TOKEN_FORMAT'
-      });
-    }
-
-    // Type assertion is safe here because we validated the token
-    req.user = decodedToken as ExtendedDecodedIdToken;
-    next();
-  } catch (err) {
-    const context = trackError(
-      new AuthenticationError(
-        err instanceof Error ? err.message : 'Authentication failed',
-        { statusCode: 401, errorCode: 'AUTH_FAILED' }
-      ),
-      req
-    );
-    
-    logError({
-      message: 'Authentication error',
-      metadata: {
-        error: err instanceof Error ? err.message : String(err),
-        path: req.path,
-        method: req.method,
-        requestId: context.requestId
-      }
-    });
-
-    res.status(401).json({ 
-      error: 'Authentication failed',
-      message: 'Please sign in again',
-      requestId: context.requestId
-    });
-  }
-}
-
-// Optional auth middleware that doesn't require authentication but adds user if token is present
-export async function optionalAuth(req: Request, _res: Response, next: NextFunction) {
-  try {
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      const idToken = authHeader.split('Bearer ')[1];
-      const decodedToken = await auth.verifyIdToken(idToken);
-      
-      if (isValidFirebaseIdToken(decodedToken)) {
-        req.user = decodedToken as ExtendedDecodedIdToken;
-      }
-    }
-  } catch (err) {
-    logError({
-      message: 'Optional auth error',
-      metadata: {
-        error: err instanceof Error ? err.message : String(err),
-        path: req.path,
-        method: req.method
-      }
-    });
+  } catch (error) {
+    console.error('Session cleanup error:', error);
   }
   next();
 }
@@ -160,16 +93,54 @@ export function sanitizeInput(req: Request, _res: Response, next: NextFunction) 
   next();
 }
 
-// Firebase auth security middleware
+// Session security middleware
 export function sessionSecurity(req: Request, res: Response, next: NextFunction) {
-  // Skip security checks for non-auth routes
+  // Skip session security for non-auth routes
   if (!req.path.startsWith('/api/auth/')) {
     return next();
   }
 
+  // Ensure session exists
+  if (!req.session) {
+    log({
+      message: 'No session found',
+      path: req.path,
+      method: req.method
+    }, 'warn');
+    return res.status(500).json({ message: 'Session initialization failed' });
+  }
+
+  // Handle login requests
+  if (req.path === '/api/auth/signin' && req.method === 'POST') {
+    // Store original session data
+    const originalUser = req.session.user;
+    
+    // Regenerate session
+    req.session.regenerate((err: Error | null) => {
+      if (err) {
+        const error = new AuthenticationError('Failed to regenerate session', {
+          path: req.path,
+          method: req.method,
+          statusCode: 500
+        });
+        trackError(error, req);
+        return res.status(500).json({ 
+          message: 'Session error occurred',
+          error: 'Please try again',
+          requestId: req.headers['x-request-id']
+        });
+      }
+      
+      // Restore user data to new session
+      req.session.user = originalUser;
+      next();
+    });
+    return;
+  }
+
   // Check admin access
   if (req.path.startsWith('/api/admin/')) {
-    if (!req.user?.admin) {
+    if (!req.session?.user?.isAdmin) {
       const error = new AuthenticationError('Unauthorized admin access attempt', {
         path: req.path,
         method: req.method,
@@ -184,6 +155,33 @@ export function sessionSecurity(req: Request, res: Response, next: NextFunction)
         requestId: context.requestId,
         code: 'ADMIN_ACCESS_DENIED'
       });
+    }
+  }
+
+  // Check for session fixation on authenticated routes
+  if (req.session.user) {
+    const currentSessionID = req.sessionID;
+    const originalID = req.session.originalID;
+    
+    if (originalID && currentSessionID !== originalID) {
+      log({
+        message: 'Session fixation attempt detected',
+        path: req.path,
+        method: req.method
+      }, 'warn');
+      
+      req.session.destroy((err: Error | null) => {
+        if (err) {
+          log({
+            message: 'Error destroying suspicious session',
+            path: req.path,
+            method: req.method,
+            stack: err.stack
+          }, 'error');
+        }
+        res.status(401).json({ message: 'Session invalid' });
+      });
+      return;
     }
   }
 

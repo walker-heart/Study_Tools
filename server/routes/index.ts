@@ -1,7 +1,5 @@
 import { Router, type Express } from "express";
-import authRouter, { checkAdmin } from "./auth";
-import { requireAdmin } from "../middleware/auth";
-import { auth } from "../lib/firebase-admin";
+import { signUp, signIn, signOut, checkAuth, checkAdmin, requireAdmin, getUsers, updateUser, updateUserPassword } from "./auth";
 import { updateTheme, getTheme, getOpenAIKey, updateOpenAIKey, getUserAPIStats, testOpenAIEndpoint, analyzeImage, generateSpeech, translateText } from "./user";
 import analyticsRoutes from "./analytics";
 import proxyRoutes from "./proxy";
@@ -9,8 +7,11 @@ import proxyRoutes from "./proxy";
 export function registerRoutes(app: Express): void {
   const router = Router();
 
-  // Auth routes - Firebase based
-  router.use('/api/auth', authRouter);
+  // Auth routes - Email/Password only
+  router.post('/api/auth/signup', signUp);
+  router.post('/api/auth/signin', signIn);
+  router.post('/api/auth/signout', signOut);
+  router.get('/api/auth/check', checkAuth);
   router.get('/api/auth/check-admin', checkAdmin);
 
   // User routes
@@ -25,46 +26,9 @@ export function registerRoutes(app: Express): void {
   router.post('/api/ai/translate', translateText);
 
   // Admin routes
-  router.get('/api/admin/users', requireAdmin, async (_req, res) => {
-    try {
-      const listUsersResult = await auth.listUsers();
-      res.json({ users: listUsersResult.users });
-    } catch (error) {
-      console.error('Error listing users:', error);
-      res.status(500).json({ error: 'Failed to list users' });
-    }
-  });
-
-  router.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { displayName, email, disabled } = req.body;
-      
-      await auth.updateUser(id, {
-        displayName,
-        email,
-        disabled
-      });
-      
-      res.json({ message: 'User updated successfully' });
-    } catch (error) {
-      console.error('Error updating user:', error);
-      res.status(500).json({ error: 'Failed to update user' });
-    }
-  });
-
-  router.put('/api/admin/users/:id/password', requireAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { password } = req.body;
-      
-      await auth.updateUser(id, { password });
-      res.json({ message: 'Password updated successfully' });
-    } catch (error) {
-      console.error('Error updating password:', error);
-      res.status(500).json({ error: 'Failed to update password' });
-    }
-  });
+  router.get('/api/admin/users', requireAdmin, getUsers);
+  router.put('/api/admin/users/:id', requireAdmin, updateUser);
+  router.put('/api/admin/users/:id/password', requireAdmin, updateUserPassword);
 
   // Analytics routes
   router.use('/api/analytics', analyticsRoutes);

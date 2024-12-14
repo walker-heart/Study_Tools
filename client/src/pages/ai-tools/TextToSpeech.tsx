@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSettings } from "@/contexts/SettingsContext";
+import { useNotification } from "@/components/ui/notification";
 import {
   Select,
   SelectContent,
@@ -12,8 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Mic, Loader2 } from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
+import { Mic } from "lucide-react";
 
 // Define interfaces for API responses
 interface TTSErrorResponse {
@@ -38,6 +38,7 @@ const VOICE_OPTIONS = [
 
 export default function TextToSpeech() {
   const { theme } = useSettings();
+  const { showNotification } = useNotification();
   const [, setLocation] = useLocation();
   const [textToRead, setTextToRead] = useState("");
   const [selectedVoice, setSelectedVoice] = useState("alloy");
@@ -61,10 +62,9 @@ export default function TextToSpeech() {
     };
     
     reader.onerror = (error: ProgressEvent<FileReader>) => {
-      toast({
-        title: "Error",
-        description: `Error reading file: ${error.target?.error?.message || 'Unknown error'}`,
-        variant: "destructive"
+      showNotification({
+        message: `Error reading file: ${error.target?.error?.message || 'Unknown error'}`,
+        type: 'error'
       });
     };
     
@@ -72,33 +72,39 @@ export default function TextToSpeech() {
   };
 
   const handleGenerate = async () => {
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-      setAudioUrl(null);
-    }
-
     try {
       // Validate input
       if (!textToRead.trim()) {
-        toast({
-          title: "Error",
-          description: "Please enter some text to convert to speech",
-          variant: "destructive",
+        showNotification({
+          message: 'Please enter some text to convert to speech',
+          type: 'error'
         });
         return;
       }
 
       // Set processing state
       setIsProcessing(true);
-      toast({
-        title: "Processing",
-        description: "Generating speech...",
+      showNotification({
+        message: 'Generating speech...',
+        type: 'info'
       });
 
-      const response = await fetch('/api/user/generate-speech', {
+      console.log('Making API request with:', {
+        text: textToRead.substring(0, 50) + '...',
+        voice: selectedVoice
+      });
+
+      // Make API request
+      console.log('Making TTS request with:', {
+        text: textToRead.substring(0, 50) + '...',
+        voice: selectedVoice
+      });
+
+      const response = await fetch('/api/ai/text-to-speech', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json, audio/mpeg',
         },
         body: JSON.stringify({
           text: textToRead,
@@ -107,84 +113,114 @@ export default function TextToSpeech() {
         credentials: 'include'
       });
 
+      // Get content type once and store it
       const contentType = response.headers.get('content-type');
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        const errorMessage = errorData.details || errorData.message || "Speech generation failed";
-        
-        if (response.status === 400 && errorMessage.includes("API key")) {
-          toast({
-            title: "API Key Required",
-            description: "OpenAI API key not configured. Please configure it in settings.",
-            variant: "destructive",
+      // Define response type
+  interface TTSErrorResponse {
+    details?: string;
+    message?: string;
+    error?: string;
+  }
+
+  // Handle JSON responses (usually errors)
+  if (contentType?.includes('application/json')) {
+    const data = await response.json() as TTSErrorResponse;
+    
+    if (!response.ok) {
+      const errorMessage = data.details || data.message || "Speech generation failed";
+      console.error('Speech generation error response:', { status: response.status, data });
+      
+      if (response.status === 400 && errorMessage.includes("API key")) {
+        showNotification({
+          message: "OpenAI API key not configured. Please configure it in settings.",
+          type: "error",
+        });
+        setLocation("/settings/api");
+        return;
+      }
+      
+      if (response.status === 401) {
+        if (errorMessage.includes("OpenAI API key")) {
+          showNotification({
+            message: "Invalid OpenAI API key. Please check your settings.",
+            type: "error",
           });
           setLocation("/settings/api");
-          return;
-        }
-        
-        if (response.status === 401) {
-          if (errorMessage.includes("OpenAI API key")) {
-            toast({
-              title: "Invalid API Key",
-              description: "Please check your API key in settings.",
-              variant: "destructive",
-            });
-            setLocation("/settings/api");
-          } else {
-            toast({
-              title: "Authentication Required",
-              description: "Please sign in to use this feature.",
-              variant: "destructive",
-            });
-            setLocation("/signin");
-          }
-          return;
-        }
-        
-        if (response.status === 429) {
-          toast({
-            title: "Rate Limit Exceeded",
-            description: "Too many requests. Please try again later.",
-            variant: "destructive",
+        } else {
+          showNotification({
+            message: "Please sign in to use the text-to-speech feature",
+            type: "error",
           });
-          return;
+          setLocation("/signin");
         }
-        
-        throw new Error(errorMessage);
+        return;
       }
+      
+      if (response.status === 429) {
+        showNotification({
+          message: "Too many requests. Please try again later.",
+          type: "error",
+        });
+        return;
+      }
+      
+      throw new Error(errorMessage);
+    }
+  }
 
       // Verify audio response
       if (!contentType?.includes('audio/mpeg')) {
+        console.error('Unexpected content type:', contentType);
+        const text = await response.text();
+        console.error('Response body:', text);
         throw new Error('Server returned non-audio data');
       }
 
+      if (!response.ok) {
+        throw new Error('Failed to generate speech');
+      }
+
+      console.log('Response received, processing audio data...');
+
       // Process audio response
       const arrayBuffer = await response.arrayBuffer();
+      console.log('Received array buffer size:', arrayBuffer.byteLength);
+      
       if (arrayBuffer.byteLength === 0) {
         throw new Error('Received empty response from server');
       }
 
-      // Create audio blob and URL
-      const audioBlob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+      // Create audio blob
+      const audioBlob = new Blob([arrayBuffer], { 
+        type: contentType || 'audio/mpeg'
+      });
+      
+      // Validate blob
       if (audioBlob.size === 0) {
         throw new Error('Failed to create audio blob');
       }
 
+      // Clean up previous audio URL
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+
+      // Create new audio URL
       const newAudioUrl = URL.createObjectURL(audioBlob);
-      setAudioUrl(newAudioUrl);
       
-      toast({
-        title: "Success",
-        description: "Audio generated successfully",
+      // Update state and show success message
+      setAudioUrl(newAudioUrl);
+      showNotification({
+        message: 'Audio generated successfully',
+        type: 'success'
       });
 
     } catch (error) {
       console.error('Speech generation error:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate speech",
-        variant: "destructive"
+      showNotification({
+        message: error instanceof Error ? error.message : 'Failed to generate speech',
+        type: 'error'
       });
     } finally {
       setIsProcessing(false);
@@ -238,11 +274,7 @@ export default function TextToSpeech() {
             disabled={!textToRead.trim() || isProcessing}
             className="w-full"
           >
-            {isProcessing ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Mic className="w-4 h-4 mr-2" />
-            )}
+            <Mic className="w-4 h-4 mr-2" />
             {isProcessing ? "Generating..." : "Generate"}
           </Button>
 
@@ -256,12 +288,19 @@ export default function TextToSpeech() {
                 className="w-full"
                 src={audioUrl}
                 onError={(e) => {
-                  const audioElement = e.currentTarget;
-                  console.error('Audio playback error:', audioElement.error);
-                  toast({
-                    title: "Error",
-                    description: `Failed to play audio: ${audioElement.error?.message || 'Unknown error'}`,
-                    variant: "destructive"
+                  const audioElement = e.currentTarget as HTMLAudioElement;
+                  const errorInfo = {
+                    code: audioElement.error?.code,
+                    message: audioElement.error?.message,
+                    networkState: audioElement.networkState,
+                    readyState: audioElement.readyState,
+                  };
+                  
+                  console.error('Audio Error:', errorInfo);
+                  
+                  showNotification({
+                    message: `Audio Error: ${errorInfo.message || 'Unknown error'} (Code: ${errorInfo.code})`,
+                    type: 'error'
                   });
                 }}
                 onEnded={() => {

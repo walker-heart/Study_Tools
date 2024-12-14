@@ -1,19 +1,6 @@
-import { Request, Response, NextFunction } from 'express';
-import { Session, SessionData } from 'express-session';
+import { Request, Response } from 'express';
 import { log, LogMessage } from './log';
 import { randomUUID } from 'crypto';
-
-// Define TypedRequest interface here as it's used across the application
-export interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
-  session: Session & Partial<SessionData> & {
-    user?: {
-      id: string | number;
-      [key: string]: unknown;
-    };
-  };
-  sessionID: string;
-  requestId?: string;
-}
 
 export interface ErrorContext {
   requestId?: string;
@@ -26,15 +13,6 @@ export interface ErrorContext {
   stack?: string;
   additionalInfo?: Record<string, any>;
 }
-
-// Re-export LogMessage type from log for convenience
-export type { LogMessage } from './log';
-
-// Export unified error handler type
-export type ErrorHandler = (err: Error | AppError, req: Request, res: Response, next: NextFunction) => void;
-
-// Export typed error handler for use with session
-export type TypedErrorHandler = (err: Error | AppError, req: TypedRequest, res: Response, next: NextFunction) => void;
 
 export class AppError extends Error {
   public context: ErrorContext;
@@ -77,7 +55,7 @@ export function trackError(error: Error | AppError, req?: Request, res?: Respons
     userId: req?.session?.user?.id,
     path: req?.path,
     method: req?.method,
-    statusCode: res?.statusCode || 500,
+    statusCode: res?.statusCode,
     timestamp: new Date(),
     stack: error.stack
   };
@@ -88,7 +66,7 @@ export function trackError(error: Error | AppError, req?: Request, res?: Respons
 
   const logMessage: LogMessage = {
     message: error.message,
-    errorCode: 'context' in error ? (error as AppError).context?.errorCode : 'UNKNOWN_ERROR',
+    errorCode: 'context' in error ? error.context.errorCode : 'UNKNOWN_ERROR',
     level: 'error',
     metadata: {
       errorName: error.name,
@@ -98,15 +76,6 @@ export function trackError(error: Error | AppError, req?: Request, res?: Respons
   };
   
   log(logMessage, 'error');
-
-  if (res) {
-    res.setHeader('Content-Type', 'application/json');
-    res.status(context.statusCode || 500).json({
-      error: error.message,
-      errorCode: logMessage.errorCode,
-      requestId: context.requestId
-    });
-  }
 
   return context;
 }
