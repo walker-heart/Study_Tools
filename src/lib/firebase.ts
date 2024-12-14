@@ -1,25 +1,64 @@
-import { initializeApp } from '@firebase/app';
-import { getAuth } from '@firebase/auth';
-import { getFirestore } from '@firebase/firestore';
+import { initializeApp, type FirebaseApp } from '@firebase/app';
+import { getAuth, type Auth } from '@firebase/auth';
+import { getFirestore, type Firestore } from '@firebase/firestore';
+import { log, error } from '../../server/lib/log';
+
+// Validate required environment variables
+const requiredVars = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_APP_ID'
+] as const;
+
+const missingVars = requiredVars.filter(key => !import.meta.env[key]);
+if (missingVars.length > 0) {
+  throw new Error(`Missing required Firebase configuration: ${missingVars.join(', ')}`);
+}
 
 // Load environment-specific configuration
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY,
-  authDomain: `${process.env.FIREBASE_PROJECT_ID}.firebaseapp.com`,
-  projectId: process.env.FIREBASE_PROJECT_ID,
-  storageBucket: `${process.env.FIREBASE_PROJECT_ID}.appspot.com`,
-  appId: process.env.FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 
+    `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 
+    `${import.meta.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+let app: FirebaseApp;
+let auth: Auth;
+let db: Firestore;
 
-// Initialize Firebase Authentication and get a reference to the service
-export const auth = getAuth(app);
-auth.useDeviceLanguage(); // Set language to user's device language
+try {
+  // Initialize Firebase
+  app = initializeApp(firebaseConfig);
+  
+  // Initialize Firebase Authentication
+  auth = getAuth(app);
+  auth.useDeviceLanguage(); // Set language to user's device language
+  
+  // Initialize Cloud Firestore
+  db = getFirestore(app);
+  
+  log({
+    message: 'Firebase client initialized successfully',
+    metadata: {
+      projectId: firebaseConfig.projectId,
+      authDomain: firebaseConfig.authDomain
+    }
+  });
+} catch (err) {
+  error({
+    message: 'Failed to initialize Firebase client',
+    metadata: {
+      error: err instanceof Error ? err.message : String(err),
+      projectId: firebaseConfig.projectId
+    }
+  });
+  throw err;
+}
 
-// Initialize Cloud Firestore and get a reference to the service
-export const db = getFirestore(app);
-
-// Export configured app instance
-export default app;
+export { app, auth, db };
+export type { FirebaseApp, Auth, Firestore };

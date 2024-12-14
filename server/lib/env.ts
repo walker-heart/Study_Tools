@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// Firebase Admin Configuration Schema
+// Firebase Configuration Schemas
 const firebaseAdminSchema = z.object({
   FIREBASE_PROJECT_ID: z.string().min(1, "Firebase Project ID is required"),
   FIREBASE_CLIENT_EMAIL: z.string()
@@ -9,13 +9,17 @@ const firebaseAdminSchema = z.object({
   FIREBASE_PRIVATE_KEY: z.string()
     .min(1, "Firebase Private Key is required")
     .transform(key => key?.replace(/\\n/g, '\n') || ''),
-  FIREBASE_STORAGE_BUCKET: z.string()
-    .optional()
-    .transform(val => {
-      if (val) return val;
-      const projectId = process.env.FIREBASE_PROJECT_ID;
-      return projectId ? `${projectId}.appspot.com` : '';
-    }),
+}).strict();
+
+const firebaseClientSchema = z.object({
+  VITE_FIREBASE_API_KEY: z.string().min(1, "Firebase API Key is required"),
+  VITE_FIREBASE_PROJECT_ID: z.string().min(1, "Firebase Project ID is required"),
+  VITE_FIREBASE_AUTH_DOMAIN: z.string().optional(),
+  VITE_FIREBASE_STORAGE_BUCKET: z.string().optional(),
+  VITE_FIREBASE_MESSAGING_SENDER_ID: z.string().optional(),
+  VITE_FIREBASE_APP_ID: z.string().min(1, "Firebase App ID is required"),
+  VITE_FIREBASE_CLIENT_EMAIL: z.string().email().optional(),
+  VITE_FIREBASE_PRIVATE_KEY: z.string().optional(),
 }).strict();
 
 // Core Application Schema
@@ -39,9 +43,12 @@ const coreAppSchema = z.object({
 const envSchema = z.object({
   ...coreAppSchema.shape,
   ...firebaseAdminSchema.shape,
+  ...firebaseClientSchema.shape,
 }).strict();
 
-// Environment Type
+// Environment Types
+type FirebaseAdminConfig = z.infer<typeof firebaseAdminSchema>;
+type FirebaseClientConfig = z.infer<typeof firebaseClientSchema>;
 type Env = z.infer<typeof envSchema>;
 
 // Validate environment variables
