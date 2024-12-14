@@ -1,22 +1,91 @@
 import type { Request, Response, NextFunction } from "express";
 import rateLimit from 'express-rate-limit';
 import { env } from '../lib/env';
-import { log } from '../lib/log';
+import { log, error as logError } from '../lib/log';
 import { AuthenticationError, trackError } from '../lib/errorTracking';
 import { auth } from '../config/firebase';
+import { isValidFirebaseIdToken, type ExtendedDecodedIdToken } from '../types/firebase-auth';
 
-// Firebase session validation middleware
-export async function validateFirebaseSession(req: Request, _res: Response, next: NextFunction) {
+// Firebase auth middleware with type safety
+export async function validateFirebaseSession(req: Request, res: Response, next: NextFunction) {
   try {
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const idToken = authHeader.split('Bearer ')[1];
-      // Firebase Admin SDK will handle token verification
-      const decodedToken = await auth.verifyIdToken(idToken);
-      req.user = decodedToken;
+    if (!authHeader?.startsWith('Bearer ')) {
+      const context = trackError(
+        new AuthenticationError('No token provided', {
+          statusCode: 401,
+          errorCode: 'NO_TOKEN'
+        }), 
+        req
+      );
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        message: 'No token provided',
+        requestId: context.requestId
+      });
     }
-  } catch (error) {
-    console.error('Firebase session validation error:', error);
+
+    const idToken = authHeader.split('Bearer ')[1];
+    const decodedToken = await auth.verifyIdToken(idToken);
+    
+    if (!isValidFirebaseIdToken(decodedToken)) {
+      throw new AuthenticationError('Invalid token format', {
+        statusCode: 401,
+        errorCode: 'INVALID_TOKEN_FORMAT'
+      });
+    }
+
+    // Type assertion is safe here because we validated the token
+    req.user = decodedToken as ExtendedDecodedIdToken;
+    next();
+  } catch (err) {
+    const context = trackError(
+      new AuthenticationError(
+        err instanceof Error ? err.message : 'Authentication failed',
+        { statusCode: 401, errorCode: 'AUTH_FAILED' }
+      ),
+      req
+    );
+    
+    logError({
+      message: 'Authentication error',
+      metadata: {
+        error: err instanceof Error ? err.message : String(err),
+        path: req.path,
+        method: req.method,
+        requestId: context.requestId
+      }
+    });
+
+    res.status(401).json({ 
+      error: 'Authentication failed',
+      message: 'Please sign in again',
+      requestId: context.requestId
+    });
+  }
+}
+
+// Optional auth middleware that doesn't require authentication but adds user if token is present
+export async function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const idToken = authHeader.split('Bearer ')[1];
+      const decodedToken = await auth.verifyIdToken(idToken);
+      
+      if (isValidFirebaseIdToken(decodedToken)) {
+        req.user = decodedToken as ExtendedDecodedIdToken;
+      }
+    }
+  } catch (err) {
+    logError({
+      message: 'Optional auth error',
+      metadata: {
+        error: err instanceof Error ? err.message : String(err),
+        path: req.path,
+        method: req.method
+      }
+    });
   }
   next();
 }

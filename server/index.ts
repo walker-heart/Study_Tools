@@ -152,45 +152,53 @@ import { securityHeaders, sanitizeInput, sessionSecurity } from './middleware/se
 // Initialize middleware
 async function initializeMiddleware() {
   try {
-    console.log('Starting middleware initialization...');
+    info('Starting middleware initialization...');
     
     // Environment-specific settings
     if (env.NODE_ENV === 'production') {
-      console.log('Configuring production settings...');
+      info('Configuring production settings...');
       app.set('trust proxy', 1);
     } else {
-      console.log('Configuring development settings...');
+      info('Configuring development settings...');
       app.set('json spaces', 2);
     }
     app.set('x-powered-by', false);
     
-    console.log(`Server initializing in ${env.NODE_ENV} mode`);
+    info(`Server initializing in ${env.NODE_ENV} mode`);
 
     // Basic middleware
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
+    app.use(express.json({
+      limit: '10mb',
+      verify: (req: Request, res: Response, buf: Buffer) => {
+        if (req.headers['content-type']?.includes('application/json')) {
+          try {
+            JSON.parse(buf.toString());
+          } catch (e) {
+            res.status(400).json({ message: 'Invalid JSON' });
+            throw new Error('Invalid JSON');
+          }
+        }
+        return true;
+      }
+    }));
+    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     app.use(cors(corsOptions));
-
 
     // Initialize Firebase authentication middleware
-    console.log('Setting up Firebase authentication middleware...');
+    info('Setting up Firebase authentication middleware...');
     app.use(optionalAuth);
-    console.log('Firebase authentication middleware configured successfully');
+    info('Firebase authentication middleware configured successfully');
 
-
-    // Apply basic security headers
+    // Apply security headers
     app.use(securityHeaders);
     
-    // Apply CORS
-    app.use(cors(corsOptions));
-    
-    // Apply general rate limiting for DoS protection
+    // Apply rate limiting for DoS protection
     app.use(limiter);
     
     // Apply parameter sanitization
     app.use(sanitizeInput);
     
-    // Apply session security
+    // Apply Firebase-based security
     app.use(sessionSecurity);
 
     // Body parsing middleware with size limits and validation
