@@ -42,19 +42,32 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
         // Then try to get theme from the server
         console.log('Fetching theme from server...');
         const response = await fetch('/api/user/theme', {
-          credentials: 'include'
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json'
+          }
         });
         
+        // First check if the response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.log('Server returned non-JSON response, keeping localStorage theme');
+          return;
+        }
+
         if (response.ok) {
           const data = await response.json();
           console.log('Server theme response:', data);
           
-          if (data.theme && (data.theme === 'light' || data.theme === 'dark')) {
+          const validTheme = data?.theme === 'light' || data?.theme === 'dark';
+          if (validTheme) {
             setTheme(data.theme);
             document.documentElement.classList.remove('light', 'dark');
             document.documentElement.classList.add(data.theme);
             localStorage.setItem('theme', data.theme);
             console.log('Theme updated from server:', data.theme);
+          } else {
+            console.log('Invalid theme from server, keeping localStorage theme');
           }
         } else {
           console.log('Server theme fetch failed, keeping localStorage theme');

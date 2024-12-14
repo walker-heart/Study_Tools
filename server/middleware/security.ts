@@ -2,23 +2,21 @@ import type { Request, Response, NextFunction } from "express";
 import rateLimit from 'express-rate-limit';
 import { env } from '../lib/env';
 import { log } from '../lib/log';
-import { db } from '../db';
-import { sql } from 'drizzle-orm';
 import { AuthenticationError, trackError } from '../lib/errorTracking';
+import { auth } from '../config/firebase';
 
-// Session cleanup middleware
-export async function cleanupSessions(req: Request, _res: Response, next: NextFunction) {
+// Firebase session validation middleware
+export async function validateFirebaseSession(req: Request, _res: Response, next: NextFunction) {
   try {
-    // Only run cleanup periodically (e.g., every 100 requests)
-    if (Math.random() < 0.01) {
-      await db.execute(sql`
-        UPDATE user_sessions 
-        SET ended_at = NOW() 
-        WHERE ended_at IS NULL 
-        AND created_at < NOW() - INTERVAL '24 hours'`);
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const idToken = authHeader.split('Bearer ')[1];
+      // Firebase Admin SDK will handle token verification
+      const decodedToken = await auth.verifyIdToken(idToken);
+      req.user = decodedToken;
     }
   } catch (error) {
-    console.error('Session cleanup error:', error);
+    console.error('Firebase session validation error:', error);
   }
   next();
 }
@@ -93,54 +91,16 @@ export function sanitizeInput(req: Request, _res: Response, next: NextFunction) 
   next();
 }
 
-// Session security middleware
+// Firebase auth security middleware
 export function sessionSecurity(req: Request, res: Response, next: NextFunction) {
-  // Skip session security for non-auth routes
+  // Skip security checks for non-auth routes
   if (!req.path.startsWith('/api/auth/')) {
     return next();
   }
 
-  // Ensure session exists
-  if (!req.session) {
-    log({
-      message: 'No session found',
-      path: req.path,
-      method: req.method
-    }, 'warn');
-    return res.status(500).json({ message: 'Session initialization failed' });
-  }
-
-  // Handle login requests
-  if (req.path === '/api/auth/signin' && req.method === 'POST') {
-    // Store original session data
-    const originalUser = req.session.user;
-    
-    // Regenerate session
-    req.session.regenerate((err: Error | null) => {
-      if (err) {
-        const error = new AuthenticationError('Failed to regenerate session', {
-          path: req.path,
-          method: req.method,
-          statusCode: 500
-        });
-        trackError(error, req);
-        return res.status(500).json({ 
-          message: 'Session error occurred',
-          error: 'Please try again',
-          requestId: req.headers['x-request-id']
-        });
-      }
-      
-      // Restore user data to new session
-      req.session.user = originalUser;
-      next();
-    });
-    return;
-  }
-
   // Check admin access
   if (req.path.startsWith('/api/admin/')) {
-    if (!req.session?.user?.isAdmin) {
+    if (!req.user?.admin) {
       const error = new AuthenticationError('Unauthorized admin access attempt', {
         path: req.path,
         method: req.method,
@@ -155,33 +115,6 @@ export function sessionSecurity(req: Request, res: Response, next: NextFunction)
         requestId: context.requestId,
         code: 'ADMIN_ACCESS_DENIED'
       });
-    }
-  }
-
-  // Check for session fixation on authenticated routes
-  if (req.session.user) {
-    const currentSessionID = req.sessionID;
-    const originalID = req.session.originalID;
-    
-    if (originalID && currentSessionID !== originalID) {
-      log({
-        message: 'Session fixation attempt detected',
-        path: req.path,
-        method: req.method
-      }, 'warn');
-      
-      req.session.destroy((err: Error | null) => {
-        if (err) {
-          log({
-            message: 'Error destroying suspicious session',
-            path: req.path,
-            method: req.method,
-            stack: err.stack
-          }, 'error');
-        }
-        res.status(401).json({ message: 'Session invalid' });
-      });
-      return;
     }
   }
 
