@@ -1,27 +1,20 @@
 import { z } from 'zod';
 
-// Firebase Configuration Schema (used for both client and admin)
-const firebaseSchema = z.object({
-  VITE_FIREBASE_API_KEY: z.string().min(1, "Firebase API Key is required"),
-  VITE_FIREBASE_PROJECT_ID: z.string().min(1, "Firebase Project ID is required"),
-  VITE_FIREBASE_STORAGE_BUCKET: z.string()
-    .optional()
-    .transform((val, ctx) => {
-      if (val) return val;
-      const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-      return projectId ? `${projectId}.appspot.com` : '';
-    }),
-  VITE_FIREBASE_MESSAGING_SENDER_ID: z.string().min(1, "Firebase Messaging Sender ID is required"),
-  VITE_FIREBASE_APP_ID: z.string().min(1, "Firebase App ID is required"),
-  VITE_FIREBASE_CLIENT_EMAIL: z.string()
+// Firebase Admin Configuration Schema
+const firebaseAdminSchema = z.object({
+  FIREBASE_PROJECT_ID: z.string().min(1, "Firebase Project ID is required"),
+  FIREBASE_CLIENT_EMAIL: z.string()
     .email("Firebase Client Email must be a valid email")
     .min(1, "Firebase Client Email is required"),
-  VITE_FIREBASE_PRIVATE_KEY: z.string()
+  FIREBASE_PRIVATE_KEY: z.string()
     .min(1, "Firebase Private Key is required")
-    .transform(key => {
-      // Handle both escaped and unescaped newlines
-      if (!key) return '';
-      return key.includes('\\n') ? key.replace(/\\n/g, '\n') : key;
+    .transform(key => key?.replace(/\\n/g, '\n') || ''),
+  FIREBASE_STORAGE_BUCKET: z.string()
+    .optional()
+    .transform(val => {
+      if (val) return val;
+      const projectId = process.env.FIREBASE_PROJECT_ID;
+      return projectId ? `${projectId}.appspot.com` : '';
     }),
 }).strict();
 
@@ -45,8 +38,8 @@ const coreAppSchema = z.object({
 // Combined Environment Schema
 const envSchema = z.object({
   ...coreAppSchema.shape,
-  ...firebaseSchema.shape,
-});
+  ...firebaseAdminSchema.shape,
+}).strict();
 
 // Environment Type
 type Env = z.infer<typeof envSchema>;
@@ -64,12 +57,10 @@ function validateEnv(): Env {
       appUrl: validated.APP_URL,
       allowedOrigins: validated.ALLOWED_ORIGINS,
       firebase: {
-        projectId: validated.VITE_FIREBASE_PROJECT_ID,
-        storageBucket: validated.VITE_FIREBASE_STORAGE_BUCKET,
-        hasApiKey: !!validated.VITE_FIREBASE_API_KEY,
-        hasAppId: !!validated.VITE_FIREBASE_APP_ID,
-        hasClientEmail: !!validated.VITE_FIREBASE_CLIENT_EMAIL,
-        hasPrivateKey: !!validated.VITE_FIREBASE_PRIVATE_KEY,
+        projectId: validated.FIREBASE_PROJECT_ID,
+        storageBucket: validated.FIREBASE_STORAGE_BUCKET,
+        hasClientEmail: !!validated.FIREBASE_CLIENT_EMAIL,
+        hasPrivateKey: !!validated.FIREBASE_PRIVATE_KEY?.length,
       }
     });
 

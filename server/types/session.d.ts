@@ -1,18 +1,9 @@
-import { DecodedIdToken } from 'firebase-admin/auth';
+// Import Firebase auth types from our centralized type definition file
+import type { ExtendedDecodedIdToken } from './firebase-auth';
 
+// Only declare additional non-Firebase related session types here
 declare module 'express-session' {
   interface SessionData {
-    // Remove old session-specific properties since we're using Firebase tokens
-  }
-}
-
-declare module 'express' {
-  interface Request {
-    user?: DecodedIdToken & {
-      admin?: boolean;
-      uid: string;
-      email?: string;
-    };
     requestId?: string;
   }
 }
