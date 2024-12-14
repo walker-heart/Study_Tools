@@ -8,19 +8,15 @@ channel = "stable-24_05"
 [deployment]
 deploymentTarget = "cloudrun"
 build = ["npm", "run", "build"]
-run = ["npm", "run", "start"]
-
-[[ports]]
-localPort = 3000
-externalPort = 3000
+run = ["sh", "-c", "NODE_ENV=production PORT=5001 tsx watch --clear-screen=false server/index.ts"]
 
 [[ports]]
 localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 5003
-externalPort = 3003
+localPort = 5001
+externalPort = 3000
 
 [workflows]
 runButton = "Project"
@@ -32,29 +28,15 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Build Client"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "Express Server"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Type Check"
 
-[[workflows.workflow]]
-name = "Build Client"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
 [[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run build"
+task = "workflow.run"
+args = "Build Client"
 
 [[workflows.workflow]]
 name = "Express Server"
@@ -68,8 +50,8 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "NODE_ENV=production tsx watch --clear-screen=false server/index.ts"
-waitForPort = 5000
+args = "NODE_ENV=production PORT=5001 tsx watch --clear-screen=false server/index.ts"
+waitForPort = 5001
 
 [[workflows.workflow]]
 name = "Type Check"
@@ -84,6 +66,20 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "tsc --noEmit"
+
+[[workflows.workflow]]
+name = "Build Client"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run build"
 
 [objectStorage]
 defaultBucketID = "replit-objstore-6dd59cd2-cf93-4a5d-9ba1-3b2545b019a0"

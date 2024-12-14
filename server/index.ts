@@ -1,6 +1,6 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
-import type { ServeStaticOptions } from 'express-serve-static-core';
+import type { ServeStaticOptions } from 'serve-static';
 import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
@@ -40,7 +40,7 @@ interface StaticFileOptions extends ServeStaticOptions {
   index: boolean;
   etag: boolean;
   lastModified: boolean;
-  setHeaders: (res: Response, filepath: string, stat?: any) => void;
+  setHeaders?: (res: express.Response, filepath: string, stat?: any) => void;
   maxAge?: number | string;
   immutable?: boolean;
 }
@@ -456,7 +456,8 @@ function setupErrorHandlers() {
 
 // Main application entry point
 async function main() {
-  const PORT = parseInt(process.env.PORT || '5000', 10);
+  let currentPort = parseInt(process.env.PORT || '5000', 10);
+  const maxPort = currentPort + 10; // Try up to 10 ports
   let server: ReturnType<typeof createServer> | undefined;
 
   try {
@@ -484,52 +485,78 @@ async function main() {
       }
     }
 
-    // Initialize middleware
-    await initializeMiddleware();
-    info('Middleware initialized successfully');
+    try {
+      // Initialize middleware
+      await initializeMiddleware();
+      info('Middleware initialized successfully');
 
-    // Register routes
-    registerRoutes(app);
-    info('Routes registered');
+      // Register routes
+      registerRoutes(app);
+      info('Routes registered');
 
-    // Setup error handlers
-    setupErrorHandlers();
-    info('Error handlers configured');
+      // Setup error handlers
+      setupErrorHandlers();
+      info('Error handlers configured');
 
-    // Create HTTP server
-    server = createServer(app);
-    info('HTTP server created');
+      // Create HTTP server
+      server = createServer(app);
+      info('HTTP server created');
+    } catch (initError) {
+      error({
+        message: 'Server initialization failed',
+        error: initError instanceof Error ? initError.message : String(initError),
+        stack: initError instanceof Error ? initError.stack : undefined
+      });
+      throw initError;
+    }
 
-    // Start server
-    await new Promise<void>((resolve, reject) => {
-      if (!server) {
-        reject(new Error('Server initialization failed'));
-        return;
-      }
+    // Function to try starting the server on a specific port
+    const tryPort = (port: number): Promise<void> => {
+      return new Promise((resolve, reject) => {
+        if (!server) {
+          reject(new Error('Server initialization failed'));
+          return;
+        }
 
-      server.on('error', (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE') {
-          // Try the next available port
-          warn(`Port ${PORT} is in use, trying ${PORT + 1}`);
-          if (server) {
-            server.listen(PORT + 1, '0.0.0.0');
+        const onError = (err: NodeJS.ErrnoException) => {
+          server?.removeListener('error', onError);
+          server?.removeListener('listening', onListening);
+          
+          if (err.code === 'EADDRINUSE') {
+            if (port < maxPort) {
+              warn(`Port ${port} is in use, trying ${port + 1}`);
+              resolve(tryPort(port + 1));
+            } else {
+              reject(new Error(`Unable to find an available port (tried ${currentPort}-${maxPort})`));
+            }
           } else {
-            reject(new Error('Server is not initialized'));
+            error(`Server error: ${err.message}`);
+            reject(err);
           }
-        } else {
-          error(`Server error: ${err.message}`);
-          reject(err);
+        };
+
+        const onListening = () => {
+          server?.removeListener('error', onError);
+          server?.removeListener('listening', onListening);
+          currentPort = port;
+          info(`Server running in ${env.NODE_ENV} mode on port ${port}`);
+          info(`APP_URL: ${env.APP_URL}`);
+          resolve();
+        };
+
+        server.once('error', onError);
+        server.once('listening', onListening);
+        
+        try {
+          server.listen(port, '0.0.0.0');
+        } catch (e) {
+          reject(e);
         }
       });
+    };
 
-      server.on('listening', () => {
-        info(`Server running in ${env.NODE_ENV} mode on port ${PORT}`);
-        info(`APP_URL: ${env.APP_URL}`);
-        resolve();
-      });
-
-      server.listen(PORT, '0.0.0.0');
-    });
+    // Start server with port retry mechanism
+    await tryPort(currentPort);
 
   } catch (err) {
     error({
