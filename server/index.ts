@@ -1,21 +1,24 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
-import type { ServeStaticOptions } from 'serve-static';
-import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
 import { createServer } from "http";
-import session from "express-session";
-import type { Session, SessionData } from "express-session";
+import session, { Session, SessionData } from "express-session";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
-import fs from "fs";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
-import { log, debug, info, warn, error } from "./lib/log";
+import { log, info, warn, error } from "./lib/log";
 import { createSessionConfig } from './config/session';
+import { securityHeaders, sanitizeInput, sessionSecurity, cleanupSessions } from './middleware/security';
+import rateLimit from 'express-rate-limit';
+import fs from "fs";
+import type { ServeStaticOptions } from 'serve-static';
+import type { ServerResponse } from 'http';
+import type { IncomingMessage } from 'http';
+import { Stats } from 'fs';
 
 // ES Module compatibility
 const __filename = fileURLToPath(import.meta.url);
@@ -49,8 +52,6 @@ interface StaticFileOptions {
   redirect?: boolean;
 }
 
-// Import Stats type from fs
-import { Stats } from 'fs';
 
 interface StaticFileMetadata {
   request_headers: Record<string, string | string[] | undefined>;
@@ -119,57 +120,6 @@ interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
   requestId?: string;
 }
 
-// Configure CORS options
-const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      env.APP_URL,
-      'http://localhost:3000',
-      'http://localhost:5000',
-      // Allow all subdomains of repl.co and replit.dev
-      /\.repl\.co$/,
-      /\.replit\.dev$/
-    ];
-    
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-
-    // Allow all origins in development
-    if (env.NODE_ENV === 'development') {
-      callback(null, true);
-      return;
-    }
-
-    // Check against allowed origins in production
-    const isAllowed = allowedOrigins.some(allowed => 
-      typeof allowed === 'string' 
-        ? allowed === origin 
-        : allowed.test(origin)
-    );
-
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      warn({
-        message: 'CORS blocked origin',
-        origin,
-        allowedOrigins: allowedOrigins.map(o => o.toString())
-      });
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
-  exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie'],
-  maxAge: 86400,
-  optionsSuccessStatus: 204,
-  preflightContinue: false
-};
-
 // Configure basic rate limiting for DoS protection
 const limiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
@@ -197,36 +147,76 @@ const limiter = rateLimit({
   }
 });
 
-// Configure trust proxy settings separately
-app.set('trust proxy', (ip: string) => {
-  return ip === '127.0.0.1' || 
-         ip.startsWith('10.') || 
-         ip.startsWith('172.16.') || 
-         ip.startsWith('192.168.');
-});
 
-import { securityHeaders, sanitizeInput, sessionSecurity, cleanupSessions } from './middleware/security';
+async function findAvailablePort(startPort: number): Promise<number> {
+  const maxPort = startPort + 10; // Try up to 10 ports
+  let lastError: Error | undefined;
+  
+  for (let port = startPort; port <= maxPort; port++) {
+    try {
+      const server = createServer();
+      await new Promise<void>((resolve, reject) => {
+        // Set a timeout to avoid hanging
+        const timeout = setTimeout(() => {
+          server.close();
+          reject(new Error(`Timeout while checking port ${port}`));
+        }, 3000);
 
-// Initialize middleware
-async function initializeMiddleware() {
-  try {
-    // Environment-specific settings
-    if (env.NODE_ENV === 'production') {
-      // Configure trust proxy for Replit's environment
-      app.set('trust proxy', (ip: string) => {
-        return ip === '127.0.0.1' || 
-               ip.startsWith('10.') || 
-               ip.startsWith('172.16.') || 
-               ip.startsWith('192.168.');
+        server.once('error', (err: NodeJS.ErrnoException) => {
+          clearTimeout(timeout);
+          if (err.code === 'EADDRINUSE') {
+            server.close();
+            resolve(); // Port is in use, try next one
+          } else {
+            server.close();
+            reject(err);
+          }
+        });
+
+        server.once('listening', () => {
+          clearTimeout(timeout);
+          server.close(() => resolve());
+        });
+
+        // Explicitly set keepAlive to false and timeout to 1000ms
+        server.on('connection', socket => {
+          socket.setKeepAlive(false);
+          socket.setTimeout(1000);
+        });
+
+        try {
+          server.listen(port, '0.0.0.0');
+        } catch (err) {
+          clearTimeout(timeout);
+          server.close();
+          reject(err);
+        }
       });
-    } else {
-      app.set('json spaces', 2);
+      
+      // If we get here, the port is available
+      return port;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      warn({
+        message: `Port ${port} check failed`,
+        error: lastError.message
+      });
+      continue;
     }
-    app.set('x-powered-by', false);
-    
-    info(`Server initializing in ${env.NODE_ENV} mode`);
+  }
+  
+  throw new Error(`No available ports found between ${startPort} and ${maxPort}. Last error: ${lastError?.message}`);
+}
 
-    // Initialize session first
+async function startServer(initialPort: number): Promise<void> {
+  let server: ReturnType<typeof createServer> | null = null;
+  
+  try {
+    // Test database connection
+    await db.execute(sql`SELECT NOW()`);
+    info('Database connection successful');
+
+    // Initialize session configuration first
     const sessionConfig = await createSessionConfig();
     if (!sessionConfig) {
       throw new Error('Failed to create session configuration');
@@ -236,13 +226,68 @@ async function initializeMiddleware() {
     // Add session cleanup middleware
     app.use(cleanupSessions);
 
-    // Apply CORS with credentials first
-    app.use(cors(corsOptions));
+    // Find available port
+    const port = await findAvailablePort(initialPort);
+    info(`Found available port: ${port}`);
+    
+    // Create HTTP server instance
+    server = createServer(app);
 
-    // Apply basic security headers
+    // Configure CORS
+    app.use(cors({
+      origin: (origin, callback) => {
+        const allowedOrigins = [
+          env.APP_URL,
+          'http://localhost:3000',
+          'http://localhost:5000',
+          // Allow all subdomains of repl.co and replit.dev
+          /\.repl\.co$/,
+          /\.replit\.dev$/
+        ];
+        
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+
+        // Allow all origins in development
+        if (env.NODE_ENV === 'development') {
+          callback(null, true);
+          return;
+        }
+
+        // Check against allowed origins in production
+        const isAllowed = allowedOrigins.some(allowed => 
+          typeof allowed === 'string' 
+            ? allowed === origin 
+            : allowed.test(origin)
+        );
+
+        if (isAllowed) {
+          callback(null, true);
+        } else {
+          warn({
+            message: 'CORS blocked origin',
+            origin,
+            allowedOrigins: allowedOrigins.map(o => o.toString())
+          });
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+      credentials: true,
+      methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
+      exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie'],
+      maxAge: 86400,
+      optionsSuccessStatus: 204,
+      preflightContinue: false
+    }));
+
+    // Basic security headers
     app.use(securityHeaders);
 
-    // Body parsing middleware before other middleware
+    // Body parsing middleware
     app.use(express.json({ 
       limit: '10mb',
       verify: (req: Request, res: Response, buf: Buffer) => {
@@ -261,11 +306,11 @@ async function initializeMiddleware() {
 
     // Apply general rate limiting for DoS protection
     app.use(limiter);
-    
-    // Apply parameter sanitization
+
+    // Input sanitization
     app.use(sanitizeInput);
     
-    // Apply session security
+    // Session security
     app.use(sessionSecurity);
 
     // Static file serving with proper caching
@@ -276,59 +321,43 @@ async function initializeMiddleware() {
 
     // Configure static file serving
     if (env.NODE_ENV === 'production') {
-      // Middleware to explicitly set content types
-      app.use((req, res, next) => {
-        const ext = path.extname(req.path).toLowerCase();
-        if (ext === '.js' || ext === '.mjs') {
-          res.type('application/javascript');
-        } else if (ext === '.css') {
-          res.type('text/css');
-        } else if (ext === '.json') {
-          res.type('application/json');
-        }
-        next();
-      });
-
-      // Static file serving options
-      const staticOptions: StaticFileOptions = {
-        index: false,
+      const staticOptions: ServeStaticOptions = {
         etag: true,
         lastModified: true,
-        setHeaders: (res: Response, filepath: string) => {
+        setHeaders: (res: ServerResponse<IncomingMessage>, filepath: string, stat: Stats) => {
           const ext = path.extname(filepath).toLowerCase();
-          const headers: StaticFileHeaders = {
-            'X-Content-Type-Options': 'nosniff'
-          };
           
-          // Cache control
-          if (ext === '.html') {
-            headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-            headers['Pragma'] = 'no-cache';
-            headers['Expires'] = '0';
-          } else if (filepath.includes('/assets/')) {
-            // Set correct MIME types for assets
-            if (ext === '.js' || ext === '.mjs') {
-              headers['Content-Type'] = 'application/javascript; charset=UTF-8';
-            } else if (ext === '.css') {
-              headers['Content-Type'] = 'text/css; charset=UTF-8';
-            }
-            headers['Cache-Control'] = 'public, max-age=31536000, immutable';
-          } else {
-            headers['Cache-Control'] = 'public, max-age=86400';
+          // Set proper content types
+          if (ext === '.js' || ext === '.mjs') {
+            res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+          } else if (ext === '.css') {
+            res.setHeader('Content-Type', 'text/css; charset=UTF-8');
           }
           
-          // Apply all headers
-          Object.entries(headers).forEach(([key, value]) => {
-            if (value) res.setHeader(key, value);
-          });
+          // Set caching headers
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          if (ext === '.html') {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            res.setHeader('Pragma', 'no-cache');
+            res.setHeader('Expires', '0');
+          } else {
+            // Cache assets for 1 year
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
+
+          // Set ETag and Last-Modified headers
+          if (stat) {
+            res.setHeader('Last-Modified', stat.mtime.toUTCString());
+          }
         }
       };
 
-      // Serve static files with specific routes first
-      app.use('/assets/js', express.static(path.join(publicPath, 'assets/js'), staticOptions));
-      
-      app.use('/assets/css', express.static(path.join(publicPath, 'assets/css'), staticOptions));
+      // Ensure the public directory exists
+      if (!fs.existsSync(publicPath)) {
+        fs.mkdirSync(publicPath, { recursive: true });
+      }
 
+      // Serve static files
       app.use('/assets', express.static(path.join(publicPath, 'assets'), staticOptions));
       app.use(express.static(publicPath, staticOptions));
 
@@ -353,13 +382,124 @@ async function initializeMiddleware() {
       await setupVite(app, server);
     }
 
-    info('Middleware initialized successfully');
+    // Register routes
+    registerRoutes(app);
+
+    // Start server with proper error handling and cleanup
+    await new Promise<void>((resolve, reject) => {
+      if (!server) {
+        reject(new Error('Server was not properly initialized'));
+        return;
+      }
+
+      const cleanup = () => {
+        if (server) {
+          server.removeAllListeners();
+          if (server.listening) {
+            server.close();
+          }
+        }
+      };
+
+      // Handle server startup errors
+      server.once('error', (err: NodeJS.ErrnoException) => {
+        cleanup();
+        if (err.code === 'EADDRINUSE') {
+          error({
+            message: 'Port is already in use',
+            error: err.message,
+            port: port
+          });
+        } else {
+          error({
+            message: 'Server startup error',
+            error: err.message,
+            code: err.code
+          });
+        }
+        reject(err);
+      });
+
+      // Handle successful startup
+      server.once('listening', () => {
+        const address = server.address();
+        const actualPort = typeof address === 'object' && address ? address.port : port;
+        info(`Server running on port ${actualPort}`);
+        resolve();
+      });
+
+      // Bind to all interfaces with a clean error handler
+      try {
+        server.listen(port, '0.0.0.0');
+      } catch (err) {
+        cleanup();
+        reject(err);
+      }
+    });
+
+    // Handle graceful shutdown
+    const signals = ['SIGTERM', 'SIGINT'] as const;
+    signals.forEach((signal) => {
+      process.once(signal, () => {
+        info(`${signal} received, shutting down gracefully`);
+        if (server.listening) {
+          server.close(() => {
+            info('Server closed');
+            process.exit(0);
+          });
+        } else {
+          process.exit(0);
+        }
+      });
+    });
+
   } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     error({
-      message: 'Failed to initialize middleware',
+      message: 'Server startup failed',
+      error: errorMessage,
       stack: err instanceof Error ? err.stack : undefined
     });
+    
+    // Ensure we cleanup any partially initialized resources
+    if (server && server.listening) {
+      server.close();
+    }
+    
     throw err;
+  }
+}
+
+// Start the server with retries
+const PORT = parseInt(process.env.PORT || '5001', 10);
+const MAX_RETRIES = 3;
+let retryCount = 0;
+
+async function attemptServerStart() {
+  while (retryCount < MAX_RETRIES) {
+    try {
+      await startServer(PORT + retryCount);
+      // If successful, break out of the retry loop
+      break;
+    } catch (err) {
+      retryCount++;
+      error({
+        message: `Server start attempt ${retryCount} failed`,
+        error: err instanceof Error ? err.message : 'Unknown error',
+        nextPort: PORT + retryCount
+      });
+
+      if (retryCount === MAX_RETRIES) {
+        error({
+          message: 'Server failed to start after maximum retries',
+          totalAttempts: MAX_RETRIES
+        });
+        process.exit(1);
+      }
+
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
   }
 }
 
@@ -371,6 +511,7 @@ import {
   ValidationError,
   AppError 
 } from './lib/errorTracking';
+
 
 // Setup error handlers
 function setupErrorHandlers() {
@@ -462,235 +603,15 @@ function setupErrorHandlers() {
   });
 }
 
-// Main application entry point
-async function main() {
-  // Get port from environment or use default
-  const basePort = parseInt(process.env.PORT || '5000', 10);
-  const maxPort = basePort + 10; // Try up to 10 ports
-  let currentPort = basePort;
-  let server: ReturnType<typeof createServer> | undefined;
+setupErrorHandlers();
 
-  // Function to check if a port is in use
-  const isPortInUse = async (port: number): Promise<boolean> => {
-    return new Promise((resolve) => {
-      const testServer = createServer();
-      testServer.once('error', (err: NodeJS.ErrnoException) => {
-        if (err.code === 'EADDRINUSE') {
-          resolve(true);
-        } else {
-          error({
-            message: 'Port check error',
-            error_message: err.message,
-            metadata: { port }
-          });
-          resolve(true);
-        }
-      });
-      testServer.once('listening', () => {
-        testServer.close(() => resolve(false));
-      });
-      testServer.listen(port, '0.0.0.0');
-    });
-  };
-
-  // Function to find an available port
-  const findAvailablePort = async (startPort: number, endPort: number): Promise<number> => {
-    for (let port = startPort; port <= endPort; port++) {
-      if (!(await isPortInUse(port))) {
-        return port;
-      }
-      info(`Port ${port} is in use, trying next port`);
-    }
-    throw new Error(`No available ports found between ${startPort} and ${endPort}`);
-  };
-
-  try {
-    // Test database connection with retry mechanism
-    let retries = 5;
-    let backoff = 1000; // Start with 1 second
-
-    while (retries > 0) {
-      try {
-        await db.execute(sql`SELECT NOW()`);
-        info('Database connection successful');
-        break;
-      } catch (err) {
-        retries--;
-        if (retries === 0) {
-          throw new Error('Failed to connect to database after multiple attempts');
-        }
-        warn({
-          message: `Database connection failed, retrying in ${backoff/1000} seconds...`,
-          error_message: err instanceof Error ? err.message : String(err)
-        });
-        
-        await new Promise(resolve => setTimeout(resolve, backoff));
-        backoff *= 2; // Exponential backoff
-      }
-    }
-
-    try {
-      info('Starting server initialization...');
-      
-      // Create HTTP server first
-      server = createServer(app);
-      info('HTTP server created');
-
-      // Initialize middleware
-      info('Initializing middleware...');
-      await initializeMiddleware();
-      info('Middleware initialized successfully');
-
-      // Register routes
-      info('Registering routes...');
-      registerRoutes(app);
-      info('Routes registered successfully');
-
-      // Setup error handlers
-      info('Configuring error handlers...');
-      setupErrorHandlers();
-      info('Error handlers configured successfully');
-
-    } catch (initError) {
-      error({
-        message: 'Server initialization failed',
-        error_message: initError instanceof Error ? initError.message : String(initError),
-        stack: initError instanceof Error ? initError.stack : undefined
-      });
-      
-      // Cleanup server if it exists
-      if (server?.listening) {
-        try {
-          await new Promise<void>((resolve) => server!.close(() => resolve()));
-          info('Server closed successfully after error');
-        } catch (closeError) {
-          error({
-            message: 'Failed to close server after initialization error',
-            error_message: closeError instanceof Error ? closeError.message : String(closeError)
-          });
-        }
-      }
-      throw initError;
-    }
-
-
-    // Function to try starting the server on a specific port
-    const tryPort = async (port: number): Promise<void> => {
-      if (!server) {
-        throw new Error('Server initialization failed');
-      }
-
-      // Close server if it's already listening
-      if (server.listening) {
-        await new Promise<void>((resolve) => server!.close(() => resolve()));
-      }
-
-      return new Promise((resolve, reject) => {
-        const onError = (err: NodeJS.ErrnoException) => {
-          server?.removeListener('error', onError);
-          server?.removeListener('listening', onListening);
-          
-          if (err.code === 'EADDRINUSE') {
-            if (port < maxPort) {
-              warn({
-                message: `Port ${port} is in use, trying next port`,
-                metadata: { current_port: port, next_port: port + 1 }
-              });
-              resolve(tryPort(port + 1));
-            } else {
-              reject(new Error(`Unable to find an available port (tried ${basePort}-${maxPort})`));
-            }
-          } else {
-            error({
-              message: 'Server startup error',
-              error_message: err.message,
-              metadata: { port }
-            });
-            reject(err);
-          }
-        };
-
-        const onListening = () => {
-          server?.removeListener('error', onError);
-          server?.removeListener('listening', onListening);
-          currentPort = port;
-          info({
-            message: `Server running in ${env.NODE_ENV} mode on port ${port}`,
-            metadata: { port, environment: env.NODE_ENV }
-          });
-          info({ message: `APP_URL: ${env.APP_URL}` });
-          resolve();
-        };
-
-        const currentServer = server;
-        if (!currentServer) {
-          reject(new Error('Server instance not available'));
-          return;
-        }
-
-        currentServer.once('error', onError);
-        currentServer.once('listening', onListening);
-        
-        try {
-          currentServer.listen(port, '0.0.0.0');
-        } catch (e) {
-          reject(e);
-        }
-      });
-    };
-
-    // Cleanup any existing server instance
-    if (server?.listening) {
-      await new Promise<void>((resolve) => server!.close(() => resolve()));
-    }
-
-    // Start server with port retry mechanism
-    await tryPort(currentPort);
-
-  } catch (err) {
-    error({
-      message: 'Fatal error in server startup',
-      stack: err instanceof Error ? err.stack : String(err)
-    });
-
-    // Ensure server is properly closed on error
-    if (server?.listening) {
-      await new Promise<void>((resolve) => server!.close(() => resolve()));
-    }
-    
-    process.exit(1);
-  }
-
-  // Handle cleanup on process termination
-  const cleanup = async () => {
-    if (server?.listening) {
-      await new Promise<void>((resolve) => server!.close(() => resolve()));
-    }
-    process.exit(0);
-  };
-
-  process.on('SIGTERM', cleanup);
-  process.on('SIGINT', cleanup);
-
-  // Handle process signals
-  process.on('SIGTERM', () => {
-    info('SIGTERM received, shutting down');
-    server?.close(() => process.exit(0));
-  });
-
-  process.on('SIGINT', () => {
-    info('SIGINT received, shutting down');
-    server?.close(() => process.exit(0));
-  });
-}
-
-// Start server
 try {
-  await main();
+  attemptServerStart();
 } catch (err) {
   error({
     message: 'Fatal error starting server',
-    stack: err instanceof Error ? err.stack : String(err)
+    error: err instanceof Error ? err.message : 'Unknown error',
+    stack: err instanceof Error ? err.stack : undefined
   });
   process.exit(1);
 }

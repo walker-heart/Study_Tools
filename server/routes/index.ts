@@ -5,6 +5,11 @@ import analyticsRoutes from "./analytics";
 import proxyRoutes from "./proxy";
 
 export function registerRoutes(router: Router): void {
+  // Health check endpoint
+  router.get('/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   // Auth routes - Email/Password only
   router.post('/auth/signup', signUp);
   router.post('/auth/signin', signIn);
@@ -18,7 +23,8 @@ export function registerRoutes(router: Router): void {
       .filter(r => r.route)
       .map(r => ({
         path: r.route?.path,
-        methods: Object.keys(r.route?.methods || {})
+        methods: Object.keys(r.route || {})
+          .filter(key => typeof (r.route as any)[key] === 'function')
       }));
     res.json({ routes: registeredRoutes });
   });

@@ -10,14 +10,6 @@ deploymentTarget = "cloudrun"
 build = ["npm", "run", "build"]
 run = ["sh", "-c", "NODE_ENV=production PORT=5001 tsx watch --clear-screen=false server/index.ts"]
 
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 5001
-externalPort = 3000
-
 [workflows]
 runButton = "Project"
 
@@ -83,3 +75,7 @@ waitForPort = 5001
 
 [objectStorage]
 defaultBucketID = "replit-objstore-6dd59cd2-cf93-4a5d-9ba1-3b2545b019a0"
+
+[[ports]]
+localPort = 5002
+externalPort = 80
