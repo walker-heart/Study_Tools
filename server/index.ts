@@ -49,23 +49,11 @@ async function startServer(port: number) {
     
     // Configure CORS with specific options
     app.use(cors({
-      origin: (origin, callback) => {
-        const allowedOrigins = [
-          'http://localhost:5000',
-          'http://0.0.0.0:5000'
-        ];
-        // Allow Replit domains
-        if (!origin || origin.match(/\.repl\.co$/) || 
-            origin.match(/\.replit\.dev$/) ||
-            allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error('Not allowed by CORS'));
-        }
-      },
+      origin: true, // Allow all origins in development
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
+      exposedHeaders: ['Set-Cookie']
     }));
 
     // Security and parsing middleware
@@ -77,13 +65,74 @@ async function startServer(port: number) {
     app.use(sessionSecurity);
 
     // Setup static files
-    const publicPath = path.join(__dirname, '..', 'dist', 'public');
+    const publicPath = path.join(__dirname, '..', 'dist');
+    const publicAssetsPath = path.join(publicPath, 'assets');
+    
+    // Ensure directories exist
     if (!fs.existsSync(publicPath)) {
       fs.mkdirSync(publicPath, { recursive: true });
     }
+    if (!fs.existsSync(publicAssetsPath)) {
+      fs.mkdirSync(publicAssetsPath, { recursive: true });
+    }
 
     if (env.NODE_ENV === 'production') {
-      app.use(express.static(publicPath));
+      // Log static file directories for debugging
+      console.log('Static file paths:', {
+        publicPath,
+        publicAssetsPath,
+        exists: {
+          publicPath: fs.existsSync(publicPath),
+          publicAssetsPath: fs.existsSync(publicAssetsPath)
+        }
+      });
+
+      // Serve static assets with proper MIME types and caching
+      app.use('/assets', (req, res, next) => {
+        express.static(publicAssetsPath, {
+          maxAge: '1y',
+          etag: true,
+          index: false,
+          setHeaders: (res, path) => {
+            // Set proper MIME types
+            if (path.endsWith('.js')) {
+              res.setHeader('Content-Type', 'application/javascript');
+            } else if (path.endsWith('.css')) {
+              res.setHeader('Content-Type', 'text/css');
+            }
+            // Set caching headers
+            res.setHeader('Cache-Control', 'public, max-age=31536000');
+          }
+        })(req, res, (err) => {
+          if (err) {
+            console.error('Static asset serving error:', {
+              path: req.path,
+              error: err.message,
+              stack: err.stack
+            });
+            next(err);
+          } else {
+            next();
+          }
+        });
+      });
+      
+      // Serve other static files from dist
+      app.use(express.static(publicPath, {
+        index: false,
+        etag: true,
+        lastModified: true
+      }));
+
+      // Handle static file errors
+      app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+        if (err.code === 'ENOENT') {
+          res.status(404).json({ error: 'File not found' });
+        } else {
+          console.error('Static file error:', err);
+          res.status(500).json({ error: 'Error serving static file' });
+        }
+      });
     } else {
       const viteServer = createServer();
       await setupVite(app, viteServer);
