@@ -137,4 +137,11 @@ async function startServer(port: number) {
 }
 
 const PORT = parseInt(process.env.PORT || '5000', 10);
-startServer(PORT);
+startServer(PORT).catch(err => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please free up the port or use a different one.`);
+  } else {
+    console.error('Failed to start server:', err);
+  }
+  process.exit(1);
+});
