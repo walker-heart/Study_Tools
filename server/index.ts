@@ -67,14 +67,75 @@ async function startServer(port: number) {
     // Setup development or production mode
     if (env.NODE_ENV === 'production') {
       console.log('Running in production mode');
+      
+      // Register API routes first
+      const apiRouter = express.Router();
+      registerRoutes(apiRouter);
+      app.use('/api', apiRouter);
+      
+      // Serve static files from the correct production build path
+      const publicPath = path.resolve(__dirname, '..', 'dist', 'public');
+      console.log('Static files path:', publicPath);
+      
+      // Verify the public directory exists
+      if (!fs.existsSync(publicPath)) {
+        console.error('Public directory not found:', publicPath);
+        throw new Error('Static files directory not found. Please run build first.');
+      }
+      
+      // Add static file middleware with detailed error logging
+      app.use((req, res, next) => {
+        if (req.method === 'GET' && !req.path.startsWith('/api')) {
+          console.log('Static file request:', {
+            path: req.path,
+            method: req.method,
+            url: req.url,
+            fullPath: path.join(publicPath, req.path)
+          });
+        }
+        next();
+      });
+
+      // Serve static files
+      app.use(express.static(publicPath, {
+        index: false,
+        maxAge: '1h',
+        fallthrough: true,
+        etag: true
+      }));
+      
+      // Handle client-side routing
+      app.get('*', (req, res) => {
+        if (req.path.startsWith('/api')) {
+          return res.status(404).json({ message: 'API endpoint not found' });
+        }
+        
+        const indexPath = path.join(publicPath, 'index.html');
+        console.log('Serving index.html for path:', req.path, 'from:', indexPath);
+        
+        // Verify index.html exists
+        if (!fs.existsSync(indexPath)) {
+          console.error('index.html not found at:', indexPath);
+          return res.status(500).send('Application files not found. Please rebuild the application.');
+        }
+        
+        res.sendFile(indexPath, (err) => {
+          if (err) {
+            console.error('Error serving index.html:', {
+              error: err.message,
+              path: indexPath,
+              requestPath: req.path
+            });
+            res.status(500).send('Error loading application');
+          }
+        });
+      });
     } else {
       console.log('Setting up Vite development server');
       const viteServer = createServer();
       await setupVite(app, viteServer);
+      registerRoutes(app);
     }
-
-    // Register routes
-    registerRoutes(app);
 
     // Add error handling middleware
     app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
