@@ -1,6 +1,10 @@
 import express, { type Express, Router } from "express";
 import { registerRoutes as registerAPIRoutes } from "./routes/index";
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export function registerRoutes(app: Express) {
   // Create API router
@@ -25,17 +29,52 @@ export function registerRoutes(app: Express) {
     });
   });
 
-  // Handle client-side routing, but exclude /assets paths
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/assets/')) {
-      next();
-    } else {
-      res.sendFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'), (err) => {
-        if (err) {
-          console.error('Error sending index.html:', err);
-          res.status(500).send('Error loading application');
-        }
+  // Handle 404 for API routes
+  app.use('/api/*', (_req, res) => {
+    res.status(404).json({ 
+      message: 'API endpoint not found',
+      requestId: _req.headers['x-request-id']
+    });
+  });
+
+  // Log static file access attempts in development
+  if (process.env.NODE_ENV !== 'production') {
+    app.use((req, _res, next) => {
+      console.log('Static file request:', {
+        path: req.path,
+        method: req.method,
+        headers: req.headers
       });
+      next();
+    });
+  }
+
+  // Handle client-side routing for all non-API routes
+  app.get('*', (req, res) => {
+    // Skip if requesting a static asset
+    if (req.path.startsWith('/assets/')) {
+      res.status(404).json({ error: 'Asset not found' });
+      return;
     }
+
+    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+    
+    // Check if index.html exists
+    if (!fs.existsSync(indexPath)) {
+      console.error('index.html not found at:', indexPath);
+      res.status(500).send('Application files not found');
+      return;
+    }
+
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        console.error('Error sending index.html:', {
+          error: err.message,
+          path: indexPath,
+          requestPath: req.path
+        });
+        res.status(500).send('Error loading application');
+      }
+    });
   });
 }
