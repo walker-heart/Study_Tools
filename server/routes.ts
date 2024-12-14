@@ -1,5 +1,6 @@
 import express, { type Express, Router } from "express";
 import { registerRoutes as registerAPIRoutes } from "./routes/index";
+import path from 'path';
 
 export function registerRoutes(app: Express) {
   // Create API router
@@ -17,24 +18,24 @@ export function registerRoutes(app: Express) {
   app.use('/api', apiRouter);
 
   // Handle 404 for API routes
-  app.use('/api/*', (req, res) => {
+  app.use('/api/*', (_req, res) => {
     res.status(404).json({ 
       message: 'API endpoint not found',
-      path: req.path
+      timestamp: new Date().toISOString()
     });
   });
 
-  // Debug endpoint to list all registered routes
-  if (process.env.NODE_ENV !== 'production') {
-    app.get('/debug/routes', (_req, res) => {
-      const routes = apiRouter.stack
-        .filter(r => r.route)
-        .map(r => ({
-          path: `/api${r.route?.path || ''}`,
-          methods: Object.keys(r.route || {})
-            .filter(key => typeof (r.route as any)[key] === 'function')
-        }));
-      res.json(routes);
-    });
-  }
+  // Handle client-side routing, but exclude /assets paths
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/assets/')) {
+      next();
+    } else {
+      res.sendFile(path.join(__dirname, '..', 'dist', 'public', 'index.html'), (err) => {
+        if (err) {
+          console.error('Error sending index.html:', err);
+          res.status(500).send('Error loading application');
+        }
+      });
+    }
+  });
 }
