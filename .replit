@@ -8,7 +8,7 @@ channel = "stable-24_05"
 [deployment]
 deploymentTarget = "cloudrun"
 build = ["npm", "run", "build"]
-run = ["sh", "-c", "NODE_ENV=production PORT=3000 tsx watch --clear-screen=false server/index.ts"]
+run = ["sh", "-c", "NODE_ENV=production PORT=5000 tsx watch --clear-screen=false server/index.ts"]
 
 [workflows]
 runButton = "Project"
@@ -71,15 +71,11 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "NODE_ENV=production PORT=3000 tsx watch --clear-screen=false server/index.ts"
-waitForPort = 3000
+waitForPort = 5000
 
 [objectStorage]
 defaultBucketID = "replit-objstore-6dd59cd2-cf93-4a5d-9ba1-3b2545b019a0"
 
 [[ports]]
-localPort = 3000
-externalPort = 3000
-
-[[ports]]
-localPort = 5002
+localPort = 5000
 externalPort = 80

@@ -51,8 +51,8 @@ async function startServer(port: number) {
     app.use(cors({
       origin: (origin, callback) => {
         const allowedOrigins = [
-          'http://localhost:3000',
-          'http://localhost:5000'
+          'http://localhost:5000',
+          'http://0.0.0.0:5000'
         ];
         // Allow Replit domains
         if (!origin || origin.match(/\.repl\.co$/) || 
@@ -136,5 +136,5 @@ async function startServer(port: number) {
   }
 }
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '5000', 10);
 startServer(PORT);
