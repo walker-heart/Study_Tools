@@ -24,11 +24,7 @@ args = "Type Check"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Build Client"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Express Server"
+args = "Build & Start"
 
 [[workflows.workflow]]
 name = "Type Check"
@@ -45,7 +41,7 @@ task = "shell.exec"
 args = "tsc --noEmit"
 
 [[workflows.workflow]]
-name = "Build Client"
+name = "Build & Start"
 author = "agent"
 
 [workflows.workflow.metadata]
@@ -56,21 +52,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run build"
-
-[[workflows.workflow]]
-name = "Express Server"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "NODE_ENV=production PORT=3000 tsx watch --clear-screen=false server/index.ts"
+args = "npm run build && NODE_ENV=production DEBUG=express:* PORT=3000 node dist/index.js"
 waitForPort = 3000
 
 [objectStorage]
