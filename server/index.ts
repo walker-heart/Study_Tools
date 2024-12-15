@@ -161,7 +161,9 @@ async function startServer(port: number) {
       });
 
       server.listen(port, '0.0.0.0', () => {
-        console.log(`Server started on port ${port}`);
+        console.log(`Server started on http://0.0.0.0:${port}`);
+        console.log('Environment:', env.NODE_ENV);
+        console.log('Static files directory:', path.resolve(__dirname, '..', 'dist', 'public'));
         resolve();
       });
     });
