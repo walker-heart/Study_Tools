@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import type { ServeStaticOptions } from 'serve-static';
 import type { ServerResponse, IncomingMessage } from 'http';
