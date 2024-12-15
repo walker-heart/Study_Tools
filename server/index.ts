@@ -1,192 +1,568 @@
 import express from "express";
+import type { Request, Response, NextFunction } from "express";
+import type { ServeStaticOptions } from 'express-serve-static-core';
+import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite } from "./vite";
 import { createServer } from "http";
 import session from "express-session";
+import type { Session, SessionData } from "express-session";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from 'url';
+import fs from "fs";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import { env } from "./lib/env";
-import { log } from "./lib/log";
+import { log, debug, info, warn, error } from "./lib/log";
 import { createSessionConfig } from './config/session';
-import { securityHeaders, sanitizeInput, sessionSecurity, cleanupSessions } from './middleware/security';
-import rateLimit from 'express-rate-limit';
-import fs from "fs";
 
+// ES Module compatibility
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Initialize express app
 const app = express();
 
-// Trust proxy - required for rate limiting behind Replit's proxy
-app.set('trust proxy', 1);
+// Define extended error types for better type safety
+// Static file serving types
+interface StaticFileHeaders extends Record<string, string | undefined> {
+  'Content-Type'?: string;
+  'Cache-Control'?: string;
+  'X-Content-Type-Options'?: string;
+  'Pragma'?: string;
+  'Expires'?: string;
+  'ETag'?: string;
+  'Last-Modified'?: string;
+}
 
-// Configure rate limiting
+interface StaticFileOptions extends ServeStaticOptions {
+  index: boolean;
+  etag: boolean;
+  lastModified: boolean;
+  setHeaders: (res: Response, filepath: string, stat?: any) => void;
+  maxAge?: number | string;
+  immutable?: boolean;
+}
+
+interface StaticFileMetadata {
+  request_headers: Record<string, string | string[] | undefined>;
+  response_headers: StaticFileHeaders;
+  path?: string;
+  size?: number;
+  mimeType?: string;
+  encoding?: string;
+  lastModified?: Date;
+}
+
+interface ExtendedError extends Error {
+  status?: number;
+  statusCode?: number;
+  code?: string;
+  context?: {
+    statusCode?: number;
+    errorCode?: string;
+    metadata?: StaticFileMetadata;
+    requestId?: string;
+    path?: string;
+    method?: string;
+    timestamp?: Date;
+  };
+}
+
+interface StaticFileError extends ExtendedError {
+  path?: string;
+  error_message?: string;
+  metadata?: StaticFileMetadata;
+  syscall?: string;
+  errno?: number;
+  code?: string;
+}
+
+type ErrorHandler = (
+  err: ExtendedError | StaticFileError,
+  req: TypedRequest,
+  res: Response,
+  next: NextFunction
+) => void;
+
+interface LogMessage {
+  message: string;
+  [key: string]: unknown;
+}
+
+interface StaticErrorLog extends Omit<LogMessage, "level"> {
+  message: string;
+  path?: string;
+  error_message?: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface TypedRequest extends Omit<Request, 'session' | 'sessionID'> {
+  session: Session & Partial<SessionData> & {
+    user?: {
+      id: string | number;
+      [key: string]: any;
+    };
+  };
+  sessionID: string;
+  requestId?: string;
+}
+
+// Configure CORS options
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      env.APP_URL,
+      'http://localhost:3000',
+      'http://localhost:5000',
+      // Allow all subdomains of repl.co and replit.dev
+      /\.repl\.co$/,
+      /\.replit\.dev$/
+    ];
+    
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    // Allow all origins in development
+    if (env.NODE_ENV === 'development') {
+      callback(null, true);
+      return;
+    }
+
+    // Check against allowed origins in production
+    const isAllowed = allowedOrigins.some(allowed => 
+      typeof allowed === 'string' 
+        ? allowed === origin 
+        : allowed.test(origin)
+    );
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      warn({
+        message: 'CORS blocked origin',
+        origin,
+        allowedOrigins: allowedOrigins.map(o => o.toString())
+      });
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
+  exposedHeaders: ['Content-Type', 'Content-Length', 'Set-Cookie'],
+  maxAge: 86400,
+  optionsSuccessStatus: 204,
+  preflightContinue: false
+};
+
+// Configure basic rate limiting for DoS protection
 const limiter = rateLimit({
-  windowMs: 5 * 60 * 1000,
-  max: 1000,
-  message: { error: 'Too many requests' },
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 1000, // Increased limit
+  message: { error: 'Too many requests, please try again shortly.' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: (req: Request) => {
+    // Skip rate limiting for essential routes and development
+    return req.path.startsWith('/api/auth/') || 
+           req.path.startsWith('/api/user/') ||
+           env.NODE_ENV === 'development';
+  },
+  handler: (req: Request, res: Response) => {
+    warn({
+      message: 'Rate limit exceeded',
+      path: req.path,
+      method: req.method,
+      ip: req.ip
+    });
+    res.status(429).json({ 
+      error: 'Too many requests',
+      message: 'Please try again in a few minutes'
+    });
+  }
 });
 
-async function startServer(port: number) {
-  try {
-    // Test database connection
-    await db.execute(sql`SELECT NOW()`);
-    console.log('Database connection successful');
+// Configure trust proxy settings separately
+app.set('trust proxy', (ip: string) => {
+  return ip === '127.0.0.1' || 
+         ip.startsWith('10.') || 
+         ip.startsWith('172.16.') || 
+         ip.startsWith('192.168.');
+});
 
-    // Setup middleware
+import { securityHeaders, sanitizeInput, sessionSecurity, cleanupSessions } from './middleware/security';
+
+// Initialize middleware
+async function initializeMiddleware() {
+  try {
+    // Environment-specific settings
+    if (env.NODE_ENV === 'production') {
+      // Configure trust proxy for Replit's environment
+      app.set('trust proxy', (ip: string) => {
+        return ip === '127.0.0.1' || 
+               ip.startsWith('10.') || 
+               ip.startsWith('172.16.') || 
+               ip.startsWith('192.168.');
+      });
+    } else {
+      app.set('json spaces', 2);
+    }
+    app.set('x-powered-by', false);
+    
+    info(`Server initializing in ${env.NODE_ENV} mode`);
+
+    // Initialize session first
     const sessionConfig = await createSessionConfig();
     if (!sessionConfig) {
       throw new Error('Failed to create session configuration');
     }
-    
     app.use(session(sessionConfig));
-    app.use(cleanupSessions);
     
-    // Configure CORS with specific options
-    app.use(cors({
-      origin: true, // Allow all origins in development
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Cache-Control', 'Origin'],
-      exposedHeaders: ['Set-Cookie']
-    }));
+    // Add session cleanup middleware
+    app.use(cleanupSessions);
 
-    // Security and parsing middleware
+    // Apply basic security headers
     app.use(securityHeaders);
-    app.use(express.json({ limit: '10mb' }));
-    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    
+    // Apply CORS
+    app.use(cors(corsOptions));
+    
+    // Apply general rate limiting for DoS protection
     app.use(limiter);
+    
+    // Apply parameter sanitization
     app.use(sanitizeInput);
+    
+    // Apply session security
     app.use(sessionSecurity);
 
-    // Setup development or production mode
-    if (env.NODE_ENV === 'production') {
-      console.log('Running in production mode');
-      
-      // Register API routes first
-      const apiRouter = express.Router();
-      registerRoutes(apiRouter);
-      app.use('/api', apiRouter);
-      
-      // Serve static files from the correct production build path
-      const publicPath = path.resolve(__dirname, '..', 'dist', 'public');
-      console.log('Static files path:', publicPath);
-      
-      // Verify the public directory exists
-      if (!fs.existsSync(publicPath)) {
-        console.error('Public directory not found:', publicPath);
-        throw new Error('Static files directory not found. Please run build first.');
+    // Body parsing middleware with size limits and validation
+    app.use(express.json({ 
+      limit: '10mb',
+      verify: (req: Request, res: Response, buf: Buffer) => {
+        if (req.headers['content-type']?.includes('application/json')) {
+          try {
+            JSON.parse(buf.toString());
+          } catch (e) {
+            res.status(400).json({ message: 'Invalid JSON' });
+            throw new Error('Invalid JSON');
+          }
+        }
+        return true;
       }
-      
-      // Add static file middleware with detailed error logging
+    }));
+    app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+    // Static file serving with proper caching
+    const publicPath = path.resolve(__dirname, '..', 'dist', 'public');
+    if (!fs.existsSync(publicPath)) {
+      fs.mkdirSync(publicPath, { recursive: true });
+    }
+
+    // Configure static file serving
+    if (env.NODE_ENV === 'production') {
+      // Middleware to explicitly set content types
       app.use((req, res, next) => {
-        if (req.method === 'GET' && !req.path.startsWith('/api')) {
-          console.log('Static file request:', {
-            path: req.path,
-            method: req.method,
-            url: req.url,
-            fullPath: path.join(publicPath, req.path)
-          });
+        const ext = path.extname(req.path).toLowerCase();
+        if (ext === '.js' || ext === '.mjs') {
+          res.type('application/javascript');
+        } else if (ext === '.css') {
+          res.type('text/css');
+        } else if (ext === '.json') {
+          res.type('application/json');
         }
         next();
       });
 
-      // Serve static files
-      app.use(express.static(publicPath, {
+      // Static file serving options
+      const staticOptions: StaticFileOptions = {
         index: false,
-        maxAge: '1h',
-        fallthrough: true,
-        etag: true
-      }));
-      
-      // Handle client-side routing
-      app.get('*', (req, res) => {
-        if (req.path.startsWith('/api')) {
-          return res.status(404).json({ message: 'API endpoint not found' });
-        }
-        
-        const indexPath = path.join(publicPath, 'index.html');
-        console.log('Serving index.html for path:', req.path, 'from:', indexPath);
-        
-        // Verify index.html exists
-        if (!fs.existsSync(indexPath)) {
-          console.error('index.html not found at:', indexPath);
-          return res.status(500).send('Application files not found. Please rebuild the application.');
-        }
-        
-        res.sendFile(indexPath, (err) => {
-          if (err) {
-            console.error('Error serving index.html:', {
-              error: err.message,
-              path: indexPath,
-              requestPath: req.path
-            });
-            res.status(500).send('Error loading application');
+        etag: true,
+        lastModified: true,
+        setHeaders: (res: Response, filepath: string) => {
+          const ext = path.extname(filepath).toLowerCase();
+          const headers: StaticFileHeaders = {
+            'X-Content-Type-Options': 'nosniff'
+          };
+          
+          // Cache control
+          if (ext === '.html') {
+            headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+            headers['Pragma'] = 'no-cache';
+            headers['Expires'] = '0';
+          } else if (filepath.includes('/assets/')) {
+            // Set correct MIME types for assets
+            if (ext === '.js' || ext === '.mjs') {
+              headers['Content-Type'] = 'application/javascript; charset=UTF-8';
+            } else if (ext === '.css') {
+              headers['Content-Type'] = 'text/css; charset=UTF-8';
+            }
+            headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+          } else {
+            headers['Cache-Control'] = 'public, max-age=86400';
           }
-        });
+          
+          // Apply all headers
+          Object.entries(headers).forEach(([key, value]) => {
+            if (value) res.setHeader(key, value);
+          });
+        }
+      };
+
+      // Serve static files with specific routes first
+      app.use('/assets/js', express.static(path.join(publicPath, 'assets/js'), staticOptions));
+      
+      app.use('/assets/css', express.static(path.join(publicPath, 'assets/css'), staticOptions));
+
+      app.use('/assets', express.static(path.join(publicPath, 'assets'), staticOptions));
+      app.use(express.static(publicPath, staticOptions));
+
+      // Add static file error logging middleware
+      app.use((err: Error | StaticFileError, req: Request, res: Response, next: NextFunction) => {
+        if (err && req.path.startsWith('/assets/')) {
+          error({
+            message: 'Static file serving error',
+            path: req.path,
+            error_message: err.message,
+            metadata: {
+              request_headers: Object.fromEntries(Object.entries(req.headers)),
+              response_headers: Object.fromEntries(Object.entries(res.getHeaders()))
+            }
+          });
+        }
+        next(err);
       });
     } else {
-      console.log('Setting up Vite development server');
-      const viteServer = createServer();
-      await setupVite(app, viteServer);
-      registerRoutes(app);
+      // In development, use Vite's built-in static serving
+      const server = createServer(app);
+      await setupVite(app, server);
     }
 
-    // Add error handling middleware
-    app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-      console.error('Unhandled error:', err);
-      res.status(500).json({
-        error: 'Internal server error',
-        message: env.NODE_ENV === 'development' ? err.message : 'An unexpected error occurred'
-      });
-    });
-
-    // Start HTTP server with proper error handling
-    const server = createServer(app);
-    
-    await new Promise<void>((resolve, reject) => {
-      server.on('error', (error: NodeJS.ErrnoException) => {
-        if (error.code === 'EADDRINUSE') {
-          console.error(`Port ${port} is already in use`);
-          reject(error);
-        } else {
-          console.error('Server error:', error);
-          reject(error);
-        }
-      });
-
-      server.listen(port, '0.0.0.0', () => {
-        console.log(`Server started on port ${port}`);
-        resolve();
-      });
-    });
-
-    // Handle shutdown gracefully
-    process.on('SIGTERM', () => {
-      console.log('SIGTERM received, shutting down gracefully');
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
-    });
-
+    info('Middleware initialized successfully');
   } catch (err) {
-    console.error('Server startup failed:', err);
-    process.exit(1);
+    error({
+      message: 'Failed to initialize middleware',
+      stack: err instanceof Error ? err.stack : undefined
+    });
+    throw err;
   }
 }
 
-const PORT = parseInt(process.env.PORT || '5000', 10);
-startServer(PORT).catch(err => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use. Please free up the port or use a different one.`);
-  } else {
-    console.error('Failed to start server:', err);
+import { 
+  trackError, 
+  initRequestTracking, 
+  AuthenticationError,
+  DatabaseError,
+  ValidationError,
+  AppError 
+} from './lib/errorTracking';
+
+// Setup error handlers
+function setupErrorHandlers() {
+  // Add request tracking
+  app.use(initRequestTracking());
+
+  // API route not found handler
+  app.use('/api/*', (req: TypedRequest, res: Response) => {
+    const context = trackError(
+      new AppError('API endpoint not found', {
+        errorCode: 'NOT_FOUND',
+        statusCode: 404
+      }), 
+      req
+    );
+    
+    res.status(404).json({ 
+      message: 'API endpoint not found',
+      requestId: context.requestId
+    });
+  });
+
+  // Authentication error handler
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
+    if (err instanceof AuthenticationError || err.name === 'SessionError') {
+      const context = trackError(err, req);
+      return res.status(401).json({ 
+        message: 'Authentication failed',
+        error: 'Please sign in again',
+        requestId: context.requestId
+      });
+    }
+    next(err);
+  });
+
+  // Validation error handler
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
+    if (err instanceof ValidationError) {
+      const context = trackError(err, req);
+      return res.status(400).json({
+        message: 'Validation failed',
+        error: err.message,
+        requestId: context.requestId
+      });
+    }
+    next(err);
+  });
+
+  // Database error handler
+  app.use((err: Error, req: TypedRequest, res: Response, next: NextFunction) => {
+    if (err instanceof DatabaseError || err.message.includes('database')) {
+      const context = trackError(err, req);
+      return res.status(503).json({ 
+        message: 'Service temporarily unavailable',
+        error: 'Please try again later',
+        requestId: context.requestId
+      });
+    }
+    next(err);
+  });
+
+  // Final error handler
+  app.use((err: Error | AppError, req: TypedRequest, res: Response, _next: NextFunction) => {
+    const context = trackError(err, req, res);
+    const status = 'context' in err && err.context?.statusCode ? err.context.statusCode : 500;
+    
+    const response = {
+      message: env.NODE_ENV === 'production' 
+        ? 'An unexpected error occurred' 
+        : err.message,
+      status,
+      requestId: context.requestId,
+      ...(env.NODE_ENV === 'development' ? { 
+        stack: err.stack,
+        errorCode: 'context' in err ? err.context.errorCode : 'UNKNOWN_ERROR'
+      } : {})
+    };
+
+    res.status(status).json(response);
+  });
+
+  // Handle client-side routing for non-API routes
+  app.get('*', (req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/api/')) {
+      next();
+    } else {
+      res.sendFile('index.html', { 
+        root: path.join(__dirname, '..', 'dist', 'public')
+      });
+    }
+  });
+}
+
+// Main application entry point
+async function main() {
+  const PORT = parseInt(process.env.PORT || '5000', 10);
+  let server: ReturnType<typeof createServer> | undefined;
+
+  try {
+    // Test database connection with retry mechanism
+    let retries = 5;
+    let backoff = 1000; // Start with 1 second
+
+    while (retries > 0) {
+      try {
+        await db.execute(sql`SELECT NOW()`);
+        info('Database connection successful');
+        break;
+      } catch (err) {
+        retries--;
+        if (retries === 0) {
+          throw new Error('Failed to connect to database after multiple attempts');
+        }
+        warn({
+          message: `Database connection failed, retrying in ${backoff/1000} seconds...`,
+          error_message: err instanceof Error ? err.message : String(err)
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, backoff));
+        backoff *= 2; // Exponential backoff
+      }
+    }
+
+    // Initialize middleware
+    await initializeMiddleware();
+    info('Middleware initialized successfully');
+
+    // Register routes
+    registerRoutes(app);
+    info('Routes registered');
+
+    // Setup error handlers
+    setupErrorHandlers();
+    info('Error handlers configured');
+
+    // Create HTTP server
+    server = createServer(app);
+    info('HTTP server created');
+
+    // Start server
+    await new Promise<void>((resolve, reject) => {
+      if (!server) {
+        reject(new Error('Server initialization failed'));
+        return;
+      }
+
+      server.on('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE') {
+          // Try the next available port
+          warn(`Port ${PORT} is in use, trying ${PORT + 1}`);
+          if (server) {
+            server.listen(PORT + 1, '0.0.0.0');
+          } else {
+            reject(new Error('Server is not initialized'));
+          }
+        } else {
+          error(`Server error: ${err.message}`);
+          reject(err);
+        }
+      });
+
+      server.on('listening', () => {
+        info(`Server running in ${env.NODE_ENV} mode on port ${PORT}`);
+        info(`APP_URL: ${env.APP_URL}`);
+        resolve();
+      });
+
+      server.listen(PORT, '0.0.0.0');
+    });
+
+  } catch (err) {
+    error({
+      message: 'Fatal error in server startup',
+      stack: err instanceof Error ? err.stack : String(err)
+    });
+
+    if (server?.listening) {
+      await new Promise<void>((resolve) => server!.close(() => resolve()));
+    }
+    
+    process.exit(1);
   }
+
+  // Handle process signals
+  process.on('SIGTERM', () => {
+    info('SIGTERM received, shutting down');
+    server?.close(() => process.exit(0));
+  });
+
+  process.on('SIGINT', () => {
+    info('SIGINT received, shutting down');
+    server?.close(() => process.exit(0));
+  });
+}
+
+// Start server
+try {
+  await main();
+} catch (err) {
+  error({
+    message: 'Fatal error starting server',
+    stack: err instanceof Error ? err.stack : String(err)
+  });
   process.exit(1);
-});
+}

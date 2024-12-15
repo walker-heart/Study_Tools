@@ -4,61 +4,38 @@ import { updateTheme, getTheme, getOpenAIKey, updateOpenAIKey, getUserAPIStats, 
 import analyticsRoutes from "./analytics";
 import proxyRoutes from "./proxy";
 
-export function registerRoutes(router: Router): void {
-  // Health check endpoint
-  router.get('/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-  });
+export function registerRoutes(app: Express): void {
+  const router = Router();
 
   // Auth routes - Email/Password only
-  router.post('/auth/signup', signUp);
-  router.post('/auth/signin', signIn);
-  router.post('/auth/signout', signOut);
-  router.get('/auth/check', checkAuth);
-  router.get('/auth/check-admin', checkAdmin);
-
-  // Add debug endpoint to verify route registration
-  router.get('/debug/routes', (_req, res) => {
-    const registeredRoutes = router.stack
-      .filter(r => r.route)
-      .map(r => ({
-        path: r.route?.path,
-        methods: Object.keys(r.route || {})
-          .filter(key => typeof (r.route as any)[key] === 'function')
-      }));
-    res.json({ routes: registeredRoutes });
-  });
-
-  // Debug route to check if auth routes are registered
-  router.get('/auth/debug', (_req, res) => {
-    const authRoutes = router.stack
-      .filter(r => r.route && r.route.path.startsWith('/auth'))
-      .map(r => ({
-        path: r.route?.path,
-        methods: r.route ? Object.keys(r.route as any).filter(key => typeof (r.route as any)[key] === 'function') : []
-      }));
-    res.json({ routes: authRoutes });
-  });
+  router.post('/api/auth/signup', signUp);
+  router.post('/api/auth/signin', signIn);
+  router.post('/api/auth/signout', signOut);
+  router.get('/api/auth/check', checkAuth);
+  router.get('/api/auth/check-admin', checkAdmin);
 
   // User routes
-  router.get('/user/theme', getTheme);
-  router.put('/user/theme', updateTheme);
-  router.get('/user/openai-key', getOpenAIKey);
-  router.put('/user/openai-key', updateOpenAIKey);
-  router.get('/user/api-stats', getUserAPIStats);
-  router.post('/user/test-openai', testOpenAIEndpoint);
-  router.post('/user/analyze-image', analyzeImage);
-  router.post('/user/generate-speech', generateSpeech);
-  router.post('/ai/translate', translateText);
+  router.get('/api/user/theme', getTheme);
+  router.put('/api/user/theme', updateTheme);
+  router.get('/api/user/openai-key', getOpenAIKey);
+  router.put('/api/user/openai-key', updateOpenAIKey);
+  router.get('/api/user/api-stats', getUserAPIStats);
+  router.post('/api/user/test-openai', testOpenAIEndpoint);
+  router.post('/api/user/analyze-image', analyzeImage);
+  router.post('/api/user/generate-speech', generateSpeech);
+  router.post('/api/ai/translate', translateText);
 
   // Admin routes
-  router.get('/admin/users', requireAdmin, getUsers);
-  router.put('/admin/users/:id', requireAdmin, updateUser);
-  router.put('/admin/users/:id/password', requireAdmin, updateUserPassword);
+  router.get('/api/admin/users', requireAdmin, getUsers);
+  router.put('/api/admin/users/:id', requireAdmin, updateUser);
+  router.put('/api/admin/users/:id/password', requireAdmin, updateUserPassword);
 
   // Analytics routes
-  router.use('/analytics', analyticsRoutes);
+  router.use('/api/analytics', analyticsRoutes);
 
   // Proxy routes for external APIs
   router.use(proxyRoutes);
+
+  // Use the router middleware
+  app.use(router);
 }
