@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -34,7 +34,7 @@ export default function TranslationTool() {
   const [targetLanguage, setTargetLanguage] = useState("es");
   const [selectedTense, setSelectedTense] = useState("neutral");
   const [isTranslating, setIsTranslating] = useState(false);
-  const [, setLocation] = useLocation();
+  const navigate = useNavigate();
   const { showNotification } = useNotification();
   const [customPrompt, setCustomPrompt] = useState("");
 
@@ -199,8 +199,9 @@ export default function TranslationTool() {
     }
 
     setIsTranslating(true);
+    let response: Response | undefined;
     try {
-      const response = await fetch("/api/ai/translate", {
+      response = await fetch("/api/ai/translate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -214,61 +215,16 @@ export default function TranslationTool() {
         credentials: 'include'
       });
 
-      let data;
-      try {
-        const contentType = response.headers.get('content-type');
-        if (!contentType?.toLowerCase().includes('application/json')) {
-          console.error('Invalid content type:', contentType);
-          throw new Error('Unexpected server response format');
-        }
-        data = await response.json();
-      } catch (parseError) {
-        console.error('Response parsing error:', parseError);
-        throw new Error('Failed to process server response. Please try again.');
-      }
-
       if (!response.ok) {
-        const errorMessage = data.details || data.message || "Translation failed";
-        console.log('Translation error response:', { status: response.status, data });
-        
-        if (response.status === 400 && errorMessage.includes("API key")) {
-          showNotification({
-            message: "OpenAI API key not configured. Please configure it in settings.",
-            type: "error",
-          });
-          setLocation("/settings/api");
-          return;
-        }
-        
-        if (response.status === 401) {
-          if (errorMessage.includes("OpenAI API key")) {
-            showNotification({
-              message: "Invalid OpenAI API key. Please check your settings.",
-              type: "error",
-            });
-            setLocation("/settings/api");
-          } else {
-            showNotification({
-              message: "Please sign in to use the translation feature",
-              type: "error",
-            });
-            setLocation("/signin");
-          }
-          return;
-        }
-        
-        if (response.status === 429) {
-          showNotification({
-            message: "Too many requests. Please try again later.",
-            type: "error",
-          });
-          return;
-        }
-        
-        throw new Error(errorMessage);
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.message || 
+          `Server error: ${response.status} ${response.statusText}`
+        );
       }
 
-      console.log('Translation response:', data);
+      const data = await response.json();
+
       if (!data?.translation) {
         throw new Error("Invalid translation response from server");
       }
@@ -280,10 +236,25 @@ export default function TranslationTool() {
       });
     } catch (error) {
       console.error("Translation error:", error);
+      let errorMessage: string;
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = String((error as { message: unknown }).message);
+      } else {
+        errorMessage = "Failed to translate text. Please try again.";
+      }
+
       showNotification({
-        message: error instanceof Error ? error.message : "Failed to translate text. Please try again.",
+        message: errorMessage,
         type: "error",
       });
+
+      // If it's an authentication error, redirect to API settings
+      if (response && !response.ok && response.status === 401) {
+        navigate("/settings/api");
+      }
     } finally {
       setIsTranslating(false);
     }
